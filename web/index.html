@@ -132,6 +132,16 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 .mood-ok .pl,.mood-check .pl{animation:sway 7s ease-in-out infinite}
 .tdrop{animation:bob 2.2s ease-in-out infinite}
 [data-motion="off"] .pl,[data-motion="off"] .tdrop{animation:none!important}
+/* первый запуск */
+[data-screen="onb"] #tabbar,[data-screen="onb"] #rail{display:none!important}
+@media(min-width:1000px){[data-screen="onb"] .app{grid-template-columns:minmax(0,1fr)}}
+.onb{max-width:520px;margin:0 auto;display:grid;gap:14px;padding-block:8px 24px}
+.obl{margin:0;padding-left:22px;display:grid;gap:10px;line-height:1.5}
+.obf{margin-top:8px;display:grid}
+.radar{position:relative;width:132px;height:132px;margin:10px auto;display:grid;place-items:center;color:var(--pri)}
+.radar i{position:absolute;inset:0;border-radius:50%;border:2px solid var(--pri);opacity:0;animation:ping 2s ease-out infinite}.radar i+i{animation-delay:1s}
+.radar span{width:56px;height:56px;border-radius:50%;background:color-mix(in srgb,var(--pri) 14%,var(--surface));display:grid;place-items:center}
+@keyframes ping{0%{transform:scale(.4);opacity:.7}100%{transform:scale(1);opacity:0}}
 .cols{display:grid;gap:28px;margin-top:20px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr;gap:56px}}
 .sec h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
@@ -322,7 +332,6 @@ details.more summary{font-weight:500;font-size:14px;color:var(--mu);min-height:3
 button.row.it{justify-content:flex-start;gap:14px}button.row.it>div{flex:1}
 .kbrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-top:1px solid var(--border);background:none;padding:8px 6px;min-height:60px;border-radius:0}
 .kbrow:first-child{border-top:0}.kbrow[aria-pressed=true]{background:color-mix(in srgb,var(--pri) 10%,var(--surface));box-shadow:inset 3px 0 0 var(--pri)}
-.kbp{width:44px;height:52px;border-radius:999px 999px 9px 9px;background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 55%,var(--surface)),var(--sky));overflow:hidden;place-items:end center}.kbp svg{width:100%;height:100%;display:block}
 .kbi{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c,var(--pri)) 15%,var(--surface));color:var(--c,var(--pri));flex:none}
 .kbt{flex:1;display:grid;min-width:0}.kbt i{font-size:13px;color:var(--mu)}
 .kbhero{display:flex;gap:16px;align-items:flex-end;margin:6px 0 10px}.kbhero>div:last-child{min-width:0}
@@ -393,7 +402,10 @@ const IC={
  clock:'M12 7v5l3 2',
  eye:'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z',
  moon:'M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z',
- chip:'M8 8h8v8H8zM10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3'
+ chip:'M8 8h8v8H8zM10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3',
+ tfruit:'M12 8.5C8.5 6.5 4 8.5 4 13.5S7.5 21 12 21s8-2.5 8-7.5S15.500 6.500 12 8.500zM12 8.5c0-2.200 1-3.800 3.500-4.800',
+ tflower:'M12 10a2 2 0 100 4 2 2 0 000-4zM12 10C10 6.500 11 3 12 3s2 3.500 0 7M14 12c3.500-2 7-1 7 0s-3.500 3-7 0M12 14c2 3.500 1 7 0 7s-2-3.500 0-7M10 12c-3.500 2-7 1-7 0s3.500-3 7 0',
+ tsucc:'M9.500 21V7a2.500 2.500 0 015 0v14M9.500 15H7a1.500 1.500 0 01-1.500-1.500V10M14.500 13H17a1.500 1.500 0 001.500-1.500V8M6 21h12'
 };
 const EX={sun:'<circle cx="12" cy="12" r="4"/>',clock:'<circle cx="12" cy="12" r="9"/>',eye:'<circle cx="12" cy="12" r="3"/>'};
 const ic=(n,s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[n]}"/>${EX[n]||''}</svg>`;
@@ -413,6 +425,7 @@ const EVENTS=[
  {d:'Сегодня',t:'06:15',p:null,k:'sys',title:'Копия настроек сохранена',why:'Настройки и история сохранены на устройстве.',tag:'Автоматически'},
  {d:'Вчера',t:'10:00',p:'lemon',k:'water',ml:200,title:'Полито 200 мл',why:'Земля подсохла, и лимон получил воду. Стало 47%.',tag:'Автоматически'},
  {d:'Вчера',t:'09:32',p:'tomato',k:'water',ml:150,title:'Полито 150 мл',why:'Полив по расписанию «Утро». Земля стала влажнее: было 46%, стало 58%.',tag:'Автоматически'},
+ {d:'Вчера',t:'06:05',p:'tomato',k:'sys',title:'Томат вошёл в стадию цветения',why:'Определено автоматически: идёт 46-й день, а воды уходит заметно больше. Если это не так, выберите стадию вручную в разделе «Уход».',tag:'Автоматически'},
  {d:'Вчера',t:'06:50',p:'monstera',k:'warn',title:'Монстере не хватает света',why:'За неделю света было в среднем 3 ч 10 мин вместо 5 ч. Попробуйте переставить ближе к окну.',tag:'Совет'},
  {d:'Вчера',t:'02:04',p:null,k:'sys',title:'Пропадал Wi‑Fi',why:'Связи не было 4 минуты. Растения всё это время поливались по вашим настройкам.',tag:'Автоматически'},
  {d:'13 октября',t:'14:40',p:null,k:'sys',title:'Вода в баке долита',why:'Воды 96%, всё работает как обычно.',tag:'Вы'},
@@ -465,6 +478,31 @@ function recParse(txt){let o;try{o=JSON.parse(txt)}catch(e){return {err:'Это 
  if(!MODEN[o.mode])return {err:'Неизвестный режим ухода.'};
  const ty=o.type==='any'||TYPES[o.type]?o.type:'any';
  return {r:{id:'u'+Date.now(),name:nm,type:ty,stage:String(o.stage||'').slice(0,12),range:rg,ml,mode:o.mode,note:String(o.note||'').slice(0,200),by:String(o.author||'').slice(0,40)||'Импорт'}}}
+
+/* автоопределение стадии: оценка по возрасту, расходу воды, свету и сезону */
+const OBS={tomato:1.28,pepper:1.02,monstera:.95,lemon:1,orchid:1,aloe:.9};
+const CONF={high:'высокая',mid:'средняя',low:'низкая, подтвердите'};
+function guessStage(p){const o=OBS[p.id]??1,d=p.day,m=NOW.getMonth(),w=[];
+ const more=o>=1.15?`Воды уходит на ${Math.round((o-1)*100)}% больше, чем месяц назад`:o<=.85?`Воды уходит на ${Math.round((1-o)*100)}% меньше, чем месяц назад`:'Расход воды почти не изменился';
+ const lowL=p.lightH<p.lightNeed*.8;
+ if(p.type==='fruit'){
+  if(d!=null){w.push(`Растению ${d}-й день`,more);
+   if(d<14)return{st:'seed',conf:'high',why:w};
+   if(d<35)return{st:'grow',conf:'high',why:w};
+   if(d<60)return o>=1.15?{st:'flower',conf:'mid',why:w}:{st:'grow',conf:'mid',why:w};
+   return o>=1.2?{st:'fruit',conf:'mid',why:w}:{st:'flower',conf:'mid',why:w}}
+  w.push('Дата посадки неизвестна',more);return o>=1.2?{st:'fruit',conf:'low',why:w}:{st:p.st||'grow',conf:'low',why:w}}
+ if(p.type==='leaf'||p.type==='succ'){const win=m>=10||m<=1;w.push(win?'Сейчас осень или зима':'Сейчас тёплое время года',lowL?'Света заметно меньше нормы':'Света хватает',more);
+  return win&&lowL&&o<=.9?{st:'rest',conf:'mid',why:w}:{st:'adult',conf:'mid',why:w}}
+ w.push(more,lowL?'Света меньше нормы':'Света хватает');
+ return o<=.85&&lowL?{st:'rest',conf:'low',why:w}:{st:p.st||'grow',conf:'low',why:w}}
+const isAuto=p=>p.auto!==false;
+function syncStage(p){if(isAuto(p)){const g=guessStage(p);if(p.st!==g.st){p.st=g.st;p.recipe=null;applyStage(p)}}}
+function stageBlock(p){const stl=STAGES[p.type]||[],g=guessStage(p),au=isAuto(p);
+ return `<div class="seg" role="group" aria-label="Как определять стадию" style="margin:8px 0">${[['1','Автоматически'],['0','Вручную']].map(([k,l])=>`<button data-act="stauto" data-v="${k}" aria-pressed="${au===(k==='1')}">${l}</button>`).join('')}</div>`
+ +(au?`<div class="why"><b>Похоже, это: ${stageLabel(p)}.</b> Уверенность: ${CONF[g.conf]}. ${g.why.join('. ')}.</div>`:'')
+ +`<div class="chips" style="margin:8px 0;${au?'opacity:.6':''}">${stl.map(([k,l])=>`<button class="chip" data-act="stage" data-v="${k}" aria-pressed="${k===p.st}">${l}</button>`).join('')}</div>`
+ +(au?`<p class="note">Нажмёте на стадию сами, и автоопределение для этого растения выключится.</p>`:'')}
 const stageLabel=p=>((STAGES[p.type]||[]).find(x=>x[0]===p.st)||(STAGES[p.type]||[['','']])[0])[1];
 const defStage=t=>t==='fruit'||t==='flower'?'grow':'adult';
 function applyStage(p){const b=p.base,a=ADJ[p.st];p.range=[Math.max(5,Math.round(b.min+a.dm)),Math.min(95,Math.round(b.max+a.dm))];p.rate=Math.round(b.rate*a.rate*10)/10;p.nextMl=Math.max(20,Math.round(p.ml0*a.ml/10)*10)}
@@ -486,7 +524,7 @@ const spName=p=>{const k=kbOf(p.kb);return k?k.name:p.species};
 const plural=(n,a,b,c)=>n%10===1&&n%100!==11?a:(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?b:c;
 const tc=v=>S.units==='C'?v:Math.round(v*9/5+32);
 [['tomato','tomato-cherry','flower',140],['pepper','pepper-chili','grow',120],['monstera','monstera','adult',250],['lemon','lemon','fruit',200],['orchid','orchid','flower',60],['aloe','aloe','adult',50]].forEach(([id,kb,st,ml])=>{const p=PLANTS.find(x=>x.id===id),e=kbOf(kb);Object.assign(p,{kb,st,ml0:ml,base:{min:e.min,max:e.max,rate:e.rate}});});
-const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,time:'09:30',days:[1,1,1,1,1,1,1],vac:14},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto',myRecipes:[],rid:null,rerr:''};
+const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,time:'09:30',days:[1,1,1,1,1,1,1],vac:14},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{weekly:true,needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto',myRecipes:[],rid:null,rerr:'',mods:{soil:true,light:true,air:true,pump:true,tank:true},weekDone:false,ob:null};
 const P=id=>PLANTS.find(p=>p.id===id);
 const fmtT=v=>S.units==='C'?`${v.toFixed(1).replace('.',',')}<span class="u">°C</span>`:`${(v*9/5+32).toFixed(1).replace('.',',')}<span class="u">°F</span>`;
 const dec=v=>String(v).replace('.',',');
@@ -616,8 +654,53 @@ function vHome(){
  const ins=`<div class="why"><b>Томат.</b> Земля держит влагу дольше обычного, поэтому система не поливала сегодня утром: ${P('tomato').moisture}% при пороге 35%.</div><div class="why"><b>Монстера.</b> Света меньше обычного. Попробуйте переставить ближе к окну.</div>`;
  return `<header class="ph"><p class="eyebrow">Среда, 14 октября</p><h1 class="disp">Мои растения</h1><p class="lead">${summary()}</p></header>${banner}
  <div class="shelf">${cards}<button class="addcard" style="--i:${list.length}" data-act="addplant">${ic('plus',26)}<span>Добавить растение</span></button></div>
- <div class="cols"><section class="sec"><h2>Дальше</h2>${nextList}</section><section class="sec"><h2>Что заметили</h2>${ins}${S.mode!=='simple'?`<div class="row"><div><b>Вода сегодня</b><div class="sub">Бак 72%, хватит примерно на 11 дней</div></div><span class="num m">320<span class="u">мл</span></span></div>`:''}</section></div>`;}
+ <div class="cols"><section class="sec"><h2>Дальше</h2>${nextList}</section><section class="sec"><h2>Что заметили</h2>${ins}</section></div>${remind()}`;}
 
+
+const MODS=[['soil','Датчики влажности земли','Для каждого растения'],['light','Датчик света','BH1750'],['air','Температура и влажность воздуха','SHT41'],['pump','Насос','Реле, порт P1'],['tank','Датчик уровня воды','Поплавок']];
+function autoLevel(){const m=S.mods;
+ if(!m.pump)return{c:'var(--warn)',t:'Подсказки без насоса',d:'Система скажет, когда пора полить, но поливаете вы.'};
+ if(!m.soil)return{c:'var(--warn)',t:'Полив по расписанию',d:'Без датчика земли система не знает, нужна ли вода, и поливает по расписанию.'};
+ if(!m.tank)return{c:'var(--ok)',t:'Автополив без контроля бака',d:'Уровень воды не измеряется, поэтому система напомнит долить по расчёту.'};
+ return{c:'var(--ok)',t:'Полный автоуход',d:'Система сама следит за землёй, светом и баком и поливает. От вас только долить воду и раз в неделю осмотреть растения.'}}
+function tankText(){const daily=PLANTS.reduce((s,p)=>s+p.nextMl,0)/2.5,days=Math.max(1,Math.floor(S.cfg.tankL*1000*.96/daily)),dt=new Date(NOW.getTime()+days*864e5),wd=['воскресенья','понедельника','вторника','среды','четверга','пятницы','субботы'][dt.getDay()];
+ return `Воды в баке хватит примерно на ${days} ${plural(days,'день','дня','дней')}. Долейте до ${wd}.`}
+function remind(){const L=autoLevel();
+ return `<section class="sec" style="margin-top:22px"><h2>От вас</h2><div class="why" style="border-left-color:${L.c}"><b>${L.t}.</b> ${L.d}</div>
+ <div class="row"><div><b>${S.mods.tank?'Вода в баке':'Вода в баке (по расчёту)'}</b><div class="sub">${tankText()}</div></div><button class="btn" data-act="tankfill">Долил</button></div>
+ <div class="row"><div><b>Раз в неделю: осмотрите растения</b><div class="sub">${S.weekDone?'Осмотр сделан. Напомню через неделю.':'Листья, земля, вредители. Прошлый осмотр был 7 дней назад.'}</div></div>${S.weekDone?`<span class="pill ok">${ic('check',16)}Готово</span>`:'<button class="btn" data-act="weekdone">Осмотрел</button>'}</div></section>`}
+
+/* первый запуск: найти плату, Wi-Fi, датчики, комнаты, первое растение */
+const newOb=()=>({step:0,scan:'idle',dev:false,net:'HomeWiFi',pw:'',conn:'idle'});
+const NETS=[['HomeWiFi','Хорошая'],['Keenetic-4F2A','Средняя'],['Guests','Слабая']];
+const ROOMS0=['Гостиная','Кухня','Спальня','Кабинет','Балкон'];
+function vOnb(){const o=S.ob,st=o.step,N=6;let h='',foot='';
+ const back=st>0?`<button class="back" data-act="obback">${ic('back',20)}Назад</button>`:'';
+ if(st===0){h=`<p class="eyebrow">Smart Plant OS</p><h1 class="disp">Давайте подключим устройство</h1><p class="lead">Это займёт пару минут. Всё работает у вас дома, без облака и подписок.</p>
+  <div class="card"><div class="row" style="padding-top:0"><span class="itile">${ic('chip',20)}</span><div><b>Найдём плату</b><div class="sub">По Wi‑Fi, прямо с телефона</div></div></div><div class="row"><span class="itile">${ic('thermo',20)}</span><div><b>Проверим датчики</b><div class="sub">И поймём, что система сможет делать сама</div></div></div><div class="row" style="padding-bottom:0"><span class="itile">${ic('leaf',20)}</span><div><b>Добавим первое растение</b><div class="sub">Остальное система подскажет сама</div></div></div></div>`;
+  foot=`<button class="btn pri big" data-act="obnext">Начать</button><button class="btn quiet" data-act="obdone" style="margin-top:8px">У меня всё уже настроено</button>`}
+ if(st===1){h=`<p class="eyebrow">Шаг 1 из 5</p><h1 class="disp">Найдите плату</h1><ol class="obl"><li>Подключите плату к питанию. Светодиод на ней начнёт мигать.</li><li>Плата откроет сеть <b>SmartPlant-A4F2</b>. Подключите к ней телефон, пароль написан в инструкции.</li><li>Вернитесь сюда и нажмите «Искать плату».</li></ol>`;
+  if(o.scan==='run')h+=`<div class="radar" role="status" aria-live="polite"><i></i><i></i><span>${ic('chip',26)}</span></div><p class="t2" style="text-align:center">Ищем плату рядом…</p>`;
+  if(o.scan==='done')h+=`<div class="card"><div class="row" style="padding:0"><span class="itile">${ic('chip',20)}</span><div style="flex:1"><b>Подоконник-1</b><div class="sub">ESP32-C3 · прошивка 0.1.0 · сигнал хороший</div></div><button class="btn pri" data-act="obdev">Подключить</button></div></div>`;
+  foot=o.scan==='idle'?`<button class="btn pri big" data-act="obscan">Искать плату</button>`:o.scan==='done'?`<button class="btn quiet" data-act="obscan">Искать заново</button>`:'';}
+ if(st===2){h=`<p class="eyebrow">Шаг 2 из 5</p><h1 class="disp">Домашний Wi‑Fi</h1><p class="lead">Плата подключится к вашей сети и дальше будет работать сама. Пароль хранится только на ней.</p>
+  <div class="lbl">Сеть</div><div class="chips" role="group" aria-label="Сеть" style="margin:8px 0 14px">${NETS.map(([n,s])=>`<button class="chip" data-act="obnet" data-v="${n}" aria-pressed="${o.net===n}">${n} · ${s}</button>`).join('')}</div>
+  <div class="fld" style="max-width:360px"><label for="obpw">Пароль</label><input class="inp" id="obpw" type="password" autocomplete="off" value="${esc(o.pw)}" data-act="obpw" placeholder="Не меньше 8 символов"></div>`;
+  if(o.conn==='run')h+=`<div class="prog" role="status"><i style="width:70%"></i></div><p class="t2">Подключаем плату к сети…</p>`;
+  if(o.conn==='ok')h+=`<div class="why"><b>Плата подключена.</b> Приложение найдёт её дома по сети. Вне дома всё продолжит работать по настройкам; удалённый доступ необязателен и настраивается отдельно.</div>`;
+  foot=o.conn==='ok'?`<button class="btn pri big" data-act="obnext">Дальше</button>`:`<button class="btn pri big" data-act="obconn" ${o.pw.length<8||o.conn==='run'?'disabled':''}>Подключить</button>`;}
+ if(st===3){const L=autoLevel();h=`<p class="eyebrow">Шаг 3 из 5</p><h1 class="disp">Что подключено</h1><p class="lead">Плата нашла эти модули. Чего-то нет — ничего страшного, система подстроится. В демо их можно отключить, чтобы посмотреть, что изменится.</p>
+  <div class="sgroup">${MODS.map(([k,t,d])=>`<div class="row"><div><b>${t}</b><div class="sub">${d}</div></div><input class="sw" type="checkbox" role="switch" data-act="obmod" data-v="${k}" ${S.mods[k]?'checked':''} aria-label="${t}"></div>`).join('')}</div>
+  <div class="why" style="margin-top:14px;border-left-color:${L.c}"><b>${L.t}.</b> ${L.d}</div>`;
+  foot=`<button class="btn pri big" data-act="obnext">Дальше</button>`}
+ if(st===4){h=`<p class="eyebrow">Шаг 4 из 5</p><h1 class="disp">Где стоят растения</h1><p class="lead">Комнаты нужны, чтобы вам было проще находить растения. Их можно поменять позже в настройках.</p>
+  <div class="chips" role="group" aria-label="Комнаты" style="margin:8px 0 14px">${[...new Set([...ROOMS0,...S.rooms])].map(r=>`<button class="chip" data-act="obroom" data-v="${esc(r)}" aria-pressed="${S.rooms.includes(r)}">${esc(r)}</button>`).join('')}</div>
+  <div class="fld" style="max-width:360px"><label for="obr">Другая комната</label><div style="display:flex;gap:8px"><input class="inp" id="obr" autocomplete="off" placeholder="Например, Лоджия" style="flex:1"><button class="btn" data-act="obaddroom">Добавить</button></div></div>`;
+  foot=`<button class="btn pri big" data-act="obnext" ${S.rooms.length?'':'disabled'}>Дальше</button>`}
+ if(st===5){h=`<p class="eyebrow">Шаг 5 из 5</p><h1 class="disp">Первое растение</h1><p class="lead">Назовите растение и выберите вид. Система сама подберёт норму полива и будет определять стадию: росток, рост, цветение.</p>
+  <div class="why"><b>Что будет дальше.</b> ${autoLevel().d} Мы напомним долить воду и раз в неделю осмотреть растения.</div>`;
+  foot=`<button class="btn pri big" data-act="obplant">Добавить растение</button><button class="btn quiet" data-act="obdone" style="margin-top:8px">Пропустить</button>`}
+ return `<div class="onb">${back}${stepsBar(N,st)}${h}<div class="obf">${foot}</div></div>`}
 function grpSoil(p){
  if(S.flags.sensor)return `<section class="grp"><h2>Земля</h2><div class="err" role="alert"><b>Датчик влажности не отвечает</b><span class="t2">Проверьте, что провод надёжно вставлен и датчик воткнут в землю. Автополив для этого растения остановлен, пока датчик не ответит.</span><div><button class="btn" data-act="fixsensor">Проверить датчик</button></div>${S.mode==='developer'?`<div class="tech">${p.mod} timeout 3×  last_ok=14:02:11  err=E_SENSOR_TIMEOUT</div>`:''}</div></section>`;
  return `<section class="grp"><h2>Земля</h2><div class="mrow"><div class="h"><span class="num" data-to="${p.moisture}">${p.moisture}<span class="u">%</span></span><span class="t2">норма ${p.range[0]}–${p.range[1]}%</span></div>${rb(p)}</div>
@@ -660,7 +743,7 @@ function vPlantAbout(p){const T=TYPES[p.type]||TYPES.leaf,kb=kbOf(p.kb),stl=STAG
  return `<div class="card"><p class="eyebrow">Профиль ухода</p><h2 class="disp" style="margin:2px 0 0">${esc(spName(p))}</h2><p class="note">${kb?`<i>${esc(kb.latin)}</i> · `:''}${T.label}</p><button class="btn quiet" data-act="chsp" style="margin-top:6px">Изменить вид</button>
   <div class="lbl" style="margin-top:14px">Стадия растения</div>
   <div class="stg" role="group" aria-label="Стадия">${stl.map(([k,l],i)=>`<button data-act="stage" data-v="${k}" aria-pressed="${k===p.st}" class="${i<ci?'past':''}"><i></i><span>${l}</span></button>`).join('')}</div>
-  <div class="why" style="margin-bottom:0"><b>${stageLabel(p)}.</b> ${ADJ[p.st].txt} Порция полива около ${p.nextMl} мл.</div></div>
+  <p class="note">${isAuto(p)?`Определено автоматически, уверенность ${CONF[guessStage(p).conf]}.`:'Выбрано вами.'}</p><div class="why" style="margin-bottom:0"><b>${stageLabel(p)}.</b> ${ADJ[p.st].txt} Порция полива около ${p.nextMl} мл.</div></div>
  <div class="needs">
   <div class="need" style="grid-column:1/-1"><span class="nl">${ic('drop',16)}Вода</span><b>${p.range[0]}–${p.range[1]}%</b><small>влажность земли, норма для стадии «${stageLabel(p)}»</small>${rb(p)}</div>
   <div class="need"><span class="nl">${ic('sun',16)}Свет</span><b>от ${p.lightNeed} ч</b><small>яркого света в день</small></div>
@@ -700,7 +783,7 @@ function vCare(){const c=S.care,M=[['smart','Умный','Поливает, ко
  else if(c.mode==='manual')body=`<p class="t2">Система показывает состояние и подсказывает, когда пора полить, но сама не включает насос.</p>`;
  else body=`<div class="fld" style="max-width:340px"><label for="vac">Сколько дней вас не будет</label><select class="inp" id="vac" data-act="care" data-k="vac">${[7,14,21,30].map(v=>`<option value="${v}" ${v===c.vac?'selected':''}>${v} дней</option>`).join('')}</select></div><p class="t2">Порции уменьшены, не более 100 мл в сутки, при пустом баке придёт уведомление.</p>`;
  const cp=P(S.pid),csl=STAGES[cp.type]||[];
- const prof=`<div class="card" style="margin-bottom:18px"><p class="eyebrow">Стадия растения</p><div class="chips" style="margin:8px 0">${csl.map(([k,l])=>`<button class="chip" data-act="stage" data-v="${k}" aria-pressed="${k===cp.st}">${l}</button>`).join('')}</div><p class="t2">${ADJ[cp.st].txt}</p><div class="row" style="padding-bottom:0"><div><b>Порция для этой стадии: около ${cp.nextMl} мл</b><div class="sub">Норма влажности ${cp.range[0]}–${cp.range[1]}%</div></div>${c.amount!==cp.nextMl?`<button class="btn" data-act="applyml" data-v="${cp.nextMl}">Применить</button>`:`<span class="pill ok">${ic('check',16)}Применено</span>`}</div></div>`;
+ const prof=`<div class="card" style="margin-bottom:18px"><p class="eyebrow">Стадия растения</p>${stageBlock(cp)}<p class="t2">${ADJ[cp.st].txt}</p><div class="row" style="padding-bottom:0"><div><b>Порция для этой стадии: около ${cp.nextMl} мл</b><div class="sub">Норма влажности ${cp.range[0]}–${cp.range[1]}%</div></div>${c.amount!==cp.nextMl?`<button class="btn" data-act="applyml" data-v="${cp.nextMl}">Применить</button>`:`<span class="pill ok">${ic('check',16)}Применено</span>`}</div></div>`;
  return `<header class="ph"><p class="eyebrow">Уход · ${esc(P(S.pid).name)}</p><h1 class="disp">Как ухаживать</h1><p class="lead">Выберите, как поливать. Система всегда объяснит, почему полила или пропустила полив.</p></header>
  <div class="chips" style="margin-bottom:14px">${PLANTS.map(q=>`<button class="chip" data-act="careplant" data-id="${q.id}" aria-pressed="${q.id===S.pid}">${esc(q.name.split(' ')[0])}</button>`).join('')}</div>
  ${prof}<div class="modes" role="group" aria-label="Режим ухода">${M.map(([k,t,d])=>`<button class="mode" data-act="cmode" data-v="${k}" aria-pressed="${c.mode===k}"><b>${t}</b><span>${d}</span></button>`).join('')}</div>
@@ -737,7 +820,7 @@ const sitem=(a,i,t,sub)=>`<button class="row it" data-act="${a}"><span class="it
 const sgrp=(t,items)=>`<h2 class="sgh">${t}</h2><div class="sgroup">${items.join('')}</div>`;
 function vMore(){const t=S.setTab,c=S.cfg,th={system:'как в системе',light:'светлая',dark:'тёмная'}[S.theme];
  const seg=`<div class="seg full" role="group" aria-label="Раздел настроек" style="max-width:420px;margin:12px 0 4px">${[['main','Основные'],['adv','Продвинутые']].map(([k,l])=>`<button data-act="settab" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join('')}</div>`;
- const main=sgrp('Мой дом',[sitem('rooms','window','Комнаты',S.rooms.length?esc(S.rooms.join(', ')):'Пока не добавлены'),sitem('addplant','plus','Добавить растение','Имя, вид, стадия, комната'),sitem('kb','leaf','База растений',`${KB.length} ${plural(KB.length,'вид','вида','видов')}: вода, свет, температура`)])
+ const main=sgrp('Мой дом',[sitem('onb','chip','Подключить устройство','Найти плату по Wi‑Fi, датчики, комнаты'),sitem('rooms','window','Комнаты',S.rooms.length?esc(S.rooms.join(', ')):'Пока не добавлены'),sitem('addplant','plus','Добавить растение','Имя, вид, стадия, комната'),sitem('kb','leaf','База растений',`${KB.length} ${plural(KB.length,'вид','вида','видов')}: вода, свет, температура`)])
   +sgrp('Уход и уведомления',[sitem('defaults','care','Полив по умолчанию',`${S.care.amount} мл · ночью ${S.care.night?'не поливаем':'можно'} · до ${S.care.limit} мл в сутки`),sitem('notif','alert','Уведомления',c.quiet?`Тишина с ${c.qFrom} до ${c.qTo}`:'Без тихих часов')])
   +sgrp('Приложение',[sitem('appear','sun','Внешний вид',`Тема: ${th} · °${S.units} · анимации: ${S.motion==='off'?'выключены':'авто'}`)]);
  const adv=sgrp('Устройство',[sitem('device','chip','Устройство и сеть',`${esc(c.devName)} · Wi-Fi ${esc(c.wifi)}`),sitem('sensors','thermo','Датчики и калибровка','Список, калибровка, добавление'),sitem('tankpump','tank','Бак и насос',`Бак ${c.tankL} л · до ${c.maxWater} мл за один полив`)])
@@ -746,15 +829,15 @@ function vMore(){const t=S.setTab,c=S.cfg,th={system:'как в системе',
   +sgrp('Опасная зона',[sitem('reset','alert','Сбросить настройки','Вернуть значения по умолчанию, растения останутся')]);
  return `<header class="ph"><h1 class="disp">Настройки</h1></header>${seg}<div style="max-width:680px">${t==='main'?main:adv}</div>
  <p class="note" style="margin-top:32px">Это прототип интерфейса. Данные демонстрационные, подключения к устройству нет.</p>`;}
-const KBI=(t,sil)=>`<span class="kbi kbp" style="--c:${TYPES[t].c}"><svg viewBox="18 6 84 130" aria-hidden="true">${SIL[sil]||SIL.generic}</svg></span>`;
-const kbRow=(k,act,extra='')=>`<button class="kbrow" data-act="${act}" data-id="${k.id}" data-t="${k.type}" data-s="${esc((k.name+' '+k.latin).toLowerCase())}" ${extra}>${KBI(k.type,k.sil)}<span class="kbt"><b>${esc(k.name)}</b><i>${esc(k.latin)}</i></span><span class="t2">${k.min}–${k.max}%</span></button>`;
-function vKb(){return `<button class="back" data-act="backset">${ic('back',20)}Настройки</button><header class="ph"><p class="eyebrow">Справочник</p><h1 class="disp">База растений</h1><p class="lead">${KB.length} ${plural(KB.length,'вид','вида','видов')} с рекомендациями по поливу, свету и температуре. Это стартовые ориентиры: сверяйте их со своим растением.</p></header>
+const KBI=t=>`<span class="kbi" style="--c:${TYPES[t].c}">${ic(({fruit:'tfruit',flower:'tflower',leaf:'leaf',succ:'tsucc'})[t]||'leaf',22)}</span>`;
+const kbRow=(k,act,extra='')=>`<button class="kbrow" data-act="${act}" data-id="${k.id}" data-t="${k.type}" data-s="${esc((k.name+' '+k.latin).toLowerCase())}" ${extra}>${KBI(k.type)}<span class="kbt"><b>${esc(k.name)}</b><i>${esc(k.latin)}</i></span><span class="t2">${k.min}–${k.max}%</span></button>`;
+function vKb(){const kq=S.kbq.trim().toLowerCase(),kbl=KB.filter(k=>(S.kbt==='all'||k.type===S.kbt)&&(!kq||(k.name+' '+k.latin).toLowerCase().includes(kq)));return `<button class="back" data-act="backset">${ic('back',20)}Настройки</button><header class="ph"><p class="eyebrow">Справочник</p><h1 class="disp">База растений</h1><p class="lead">${KB.length} ${plural(KB.length,'вид','вида','видов')} с рекомендациями по поливу, свету и температуре. Это стартовые ориентиры: сверяйте их со своим растением.</p></header>
  <div class="fld kbsearch"><label class="sr" for="kbq">Поиск</label><input class="inp" id="kbq" type="search" placeholder="Найти растение" value="${esc(S.kbq)}" data-act="kbq" autocomplete="off"></div>
  <div class="chips" role="group" aria-label="Тип" style="margin-bottom:8px">${[['all','Все'],...Object.entries(TYPES).map(([k,T])=>[k,T.label])].map(([k,l])=>`<button class="chip" data-act="kbt" data-v="${k}" aria-pressed="${S.kbt===k}">${l}</button>`).join('')}</div>
- <div class="sgroup" id="kblist">${KB.map(k=>kbRow(k,'kbopen')).join('')}</div><p class="note" id="kbempty" hidden style="margin-top:12px">Ничего не нашли. Попробуйте другое название.</p>`;}
+ <div class="sgroup" id="kblist">${kbl.map(k=>kbRow(k,'kbopen')).join('')}</div><p class="note" id="kbempty" ${kbl.length?'hidden':''} style="margin-top:12px">Ничего не нашли. Попробуйте другое название.</p>`;}
 function kbFilter(){const q=S.kbq.trim().toLowerCase();let n=0;document.querySelectorAll('#kblist .kbrow').forEach(b=>{const ok=(S.kbt==='all'||b.dataset.t===S.kbt)&&(!q||b.dataset.s.includes(q));b.hidden=!ok;if(ok)n++});const e=$('#kbempty');if(e)e.hidden=n>0}
 function kbSheet(id){const k=kbOf(id),T=TYPES[k.type],tmp=`${tc(k.t[0])}–${tc(k.t[1])} °${S.units}`;
- openSheet(shHead(esc(k.name))+`<div class="arch" style="--aw:128px;margin:0 auto 12px">${sceneSvg({plant:true,kind:k.sil,st:'adult',mood:'ok',level:(k.min+k.max)/2,range:[k.min,k.max],ticks:false})}</div><p class="note" style="text-align:center"><i>${esc(k.latin)}</i> · ${T.label}</p><div class="needs"><div class="need" style="grid-column:1/-1"><span class="nl">${ic('drop',16)}Вода</span><b>${k.min}–${k.max}%</b><small>влажность земли для взрослого растения</small><div class="rb"><div class="tz" style="left:${k.min}%;width:${k.max-k.min}%"></div></div></div><div class="need"><span class="nl">${ic('sun',16)}Свет</span><b>от ${k.need} ч</b><small>в день</small></div><div class="need"><span class="nl">${ic('thermo',16)}Температура</span><b>${tmp}</b><small>комфортно</small></div><div class="need" style="grid-column:1/-1"><span class="nl">${ic('window',16)}Воздух</span><b>${k.hum}%</b><small>влажность воздуха</small></div></div><div class="why">${esc(k.tip)}</div><p class="note">Для росткa, цветения или покоя система скорректирует норму. Это ориентир, а не диагноз.</p><button class="btn pri big" style="margin-top:14px" data-act="kbadd" data-id="${k.id}">${ic('plus',20)}Добавить такое растение</button>`);}
+ openSheet(shHead(esc(k.name))+`<p class="note"><i>${esc(k.latin)}</i> · ${T.label}</p><div class="needs"><div class="need" style="grid-column:1/-1"><span class="nl">${ic('drop',16)}Вода</span><b>${k.min}–${k.max}%</b><small>влажность земли для взрослого растения</small><div class="rb"><div class="tz" style="left:${k.min}%;width:${k.max-k.min}%"></div></div></div><div class="need"><span class="nl">${ic('sun',16)}Свет</span><b>от ${k.need} ч</b><small>в день</small></div><div class="need"><span class="nl">${ic('thermo',16)}Температура</span><b>${tmp}</b><small>комфортно</small></div><div class="need" style="grid-column:1/-1"><span class="nl">${ic('window',16)}Воздух</span><b>${k.hum}%</b><small>влажность воздуха</small></div></div><div class="why">${esc(k.tip)}</div><p class="note">Для росткa, цветения или покоя система скорректирует норму. Это ориентир, а не диагноз.</p><button class="btn pri big" style="margin-top:14px" data-act="kbadd" data-id="${k.id}">${ic('plus',20)}Добавить такое растение</button>`);}
 function vDiag(){return `<button class="back" data-act="more">${ic('back',20)}Настройки</button><header class="ph"><p class="eyebrow">Для разработчиков</p><h1 class="disp">Диагностика</h1><p class="lead">Значения демонстрационные.</p></header>
  <section class="sec" style="margin-top:14px"><h2>Модули</h2><div class="mods">${[['S1','Датчик почвы','ёмкостный · GPIO 34 · ok'],['S2','Датчик почвы','ёмкостный · GPIO 35 · ok'],['S3','Датчик почвы','ёмкостный · GPIO 36 · ok'],['C1','Воздух','SHT41 · I2C 0x44 · ok'],['L1','Свет','BH1750 · I2C 0x23 · ok'],['P1','Насос','реле · GPIO 5 · ok'],['W1','Уровень воды','поплавок · GPIO 6 · ok']].map(([i,n,d])=>`<div class="mod"><b>${i} · ${n}</b><span class="tech">${d}</span></div>`).join('')}</div></section>
  <div class="cols"><section class="sec"><h2>Система</h2><div class="scroll"><table class="t"><tr><td>Плата</td><td>ESP32-C3, 160 МГц</td></tr><tr><td>Прошивка</td><td>0.1.0 · сборка 2026-10-12</td></tr><tr><td>Свободная память</td><td>142 КБ</td></tr><tr><td>Wi-Fi</td><td>−58 дБм · 192.168.1.42</td></tr><tr><td>Работает</td><td>6 д 4 ч · сброс: питание</td></tr></table></div></section>
@@ -768,8 +851,8 @@ function nav(){const items=[['home','leaf','Растения'],['care','care','�
  $('#tabbar').innerHTML=html;$('#rail').innerHTML=`<div class="logo brand"><i></i></div>`+html;}
 function render(keepScroll){
  const v=$('#view'),y=scrollY;
- const map={home:vHome,plant:vPlant,care:vCare,algo:vAlgo,log:vLog,more:vMore,diag:vDiag,kb:vKb};
- v.innerHTML=map[S.screen]();
+ const map={home:vHome,plant:vPlant,care:vCare,algo:vAlgo,log:vLog,more:vMore,diag:vDiag,kb:vKb,onb:vOnb};
+ document.body.dataset.screen=S.screen;v.innerHTML=map[S.screen]();
  nav();
  // липкая кнопка полива на мобильном
  const host=$('#ctaHost');host.innerHTML='';
@@ -843,7 +926,7 @@ const sel=(id,k,opts,cur)=>`<select class="inp" id="${id}" data-act="cfgv" data-
 function panel(kind){let h='',c=S.cfg;
  if(kind==='rooms')h=shHead('Комнаты')+(S.rooms.length?S.rooms.map((r,i)=>`<div class="row"><span>${esc(r)}</span><button class="btn quiet" data-act="delroom" data-v="${i}" aria-label="Удалить ${esc(r)}">Удалить</button></div>`).join(''):`<p class="t2">Комнат пока нет. Добавьте первую, и она появится при добавлении растения.</p>`)+`<div class="fld"><label for="rn">Новая комната</label><input class="inp" id="rn" placeholder="Например, Спальня" autocomplete="off"></div><button class="btn pri big" data-act="addroom">Добавить комнату</button>`;
  if(kind==='appear')h=shHead('Внешний вид')+`<div class="lbl">Тема</div><div class="seg full" style="margin:8px 0 16px">${[['system','Системная'],['light','Светлая'],['dark','Тёмная']].map(([k,l])=>`<button data-act="thsel" data-v="${k}" aria-pressed="${S.theme===k}">${l}</button>`).join('')}</div><div class="lbl">Температура</div><div class="seg full" style="margin:8px 0 16px">${[['C','°C'],['F','°F']].map(([k,l])=>`<button data-act="units" data-v="${k}" aria-pressed="${S.units===k}">${l}</button>`).join('')}</div><div class="lbl">Анимации</div><div class="seg full" style="margin:8px 0">${[['auto','Как в системе'],['off','Выключить']].map(([k,l])=>`<button data-act="motion" data-v="${k}" aria-pressed="${S.motion===k}">${l}</button>`).join('')}</div><p class="note">Если в системе включено «уменьшить движение», анимации отключатся сами.</p>`;
- if(kind==='notif')h=shHead('Уведомления')+[['needs','Растению скоро нужна вода'],['skipped','Полив пропущен, и почему'],['tank','Вода в баке заканчивается'],['sensor','Датчик не отвечает'],['offline','Устройство пропало из сети'],['low','Каждое решение системы']].map(([k,l])=>`<div class="row"><span>${l}</span><input class="sw" type="checkbox" role="switch" data-act="nt" data-k="${k}" ${S.notif[k]?'checked':''} aria-label="${l}"></div>`).join('')+`<h3 class="sgh" style="margin-top:18px">Тихие часы</h3>${swr('Не беспокоить ночью','quiet','Срочные уведомления (пустой бак, сбой датчика) всё равно придут')}<div class="row" style="gap:10px"><div class="fld" style="flex:1;margin:0"><label for="qf">С</label><input class="inp" id="qf" type="time" value="${c.qFrom}" data-act="cfgv" data-k="qFrom"></div><div class="fld" style="flex:1;margin:0"><label for="qt">До</label><input class="inp" id="qt" type="time" value="${c.qTo}" data-act="cfgv" data-k="qTo"></div></div><p class="note">Каждое уведомление объясняет, что произошло и почему.</p>`;
+ if(kind==='notif')h=shHead('Уведомления')+[['needs','Растению скоро нужна вода'],['skipped','Полив пропущен, и почему'],['tank','Вода в баке заканчивается'],['weekly','Раз в неделю: осмотреть растения'],['sensor','Датчик не отвечает'],['offline','Устройство пропало из сети'],['low','Каждое решение системы']].map(([k,l])=>`<div class="row"><span>${l}</span><input class="sw" type="checkbox" role="switch" data-act="nt" data-k="${k}" ${S.notif[k]?'checked':''} aria-label="${l}"></div>`).join('')+`<h3 class="sgh" style="margin-top:18px">Тихие часы</h3>${swr('Не беспокоить ночью','quiet','Срочные уведомления (пустой бак, сбой датчика) всё равно придут')}<div class="row" style="gap:10px"><div class="fld" style="flex:1;margin:0"><label for="qf">С</label><input class="inp" id="qf" type="time" value="${c.qFrom}" data-act="cfgv" data-k="qFrom"></div><div class="fld" style="flex:1;margin:0"><label for="qt">До</label><input class="inp" id="qt" type="time" value="${c.qTo}" data-act="cfgv" data-k="qTo"></div></div><p class="note">Каждое уведомление объясняет, что произошло и почему.</p>`;
  if(kind==='defaults')h=shHead('Полив по умолчанию')+`<p class="t2">Эти значения подставляются для всех растений. Для каждого растения их можно поменять в разделе «Уход».</p><div class="fld"><label for="amount">Порция за один полив</label>${sel('amount','amount',[[80,'Немного, 80 мл'],[150,'Средне, 150 мл'],[250,'Много, 250 мл']],S.care.amount).replace('data-act="cfgv" data-k="amount"','data-act="care" data-k="amount"')}</div><div class="row"><div><b>Не поливать ночью</b><div class="sub">С 22:00 до 07:00, чтобы не шумел насос</div></div><input class="sw" type="checkbox" role="switch" data-act="night" ${S.care.night?'checked':''} aria-label="Не поливать ночью"></div><div class="fld"><label for="limit">Максимум воды в сутки на растение, мл</label><input class="inp" id="limit" type="number" min="50" max="2000" step="50" value="${S.care.limit}" data-act="care" data-k="limit"></div><div class="fld"><label for="vac">Режим «Отпуск» по умолчанию</label>${sel('vac','vac',[[7,'7 дней'],[14,'14 дней'],[21,'21 день'],[30,'30 дней']],S.care.vac).replace('data-act="cfgv" data-k="vac"','data-act="care" data-k="vac"')}</div>`;
  if(kind==='device')h=shHead('Устройство и сеть')+`<div class="fld"><label for="dn">Название устройства</label><input class="inp" id="dn" value="${esc(c.devName)}" data-act="cfgv" data-k="devName" autocomplete="off"></div><div class="row"><div><b>Wi-Fi</b><div class="sub">${esc(c.wifi)} · сигнал хороший</div></div><button class="btn" data-act="demo">Сменить</button></div>${swr('Обновлять прошивку автоматически','autoUpd','Устанавливаем ночью, только после вашего подтверждения в журнале')}${swr('Локальный доступ по сети','localApi','Приложение и Home Assistant подключаются напрямую, без облака')}<div class="acts"><button class="btn" data-act="demo">Проверить обновления</button><button class="btn" data-act="demo">Перезапустить устройство</button></div><p class="note">Прошивка 0.1.0. Устройство работает и без интернета.</p>`;
  if(kind==='tankpump')h=shHead('Бак и насос')+`<div class="fld"><label for="tl">Объём бака</label>${sel('tl','tankL',[[1,'1 л'],[2,'2 л'],[3,'3 л'],[5,'5 л'],[10,'10 л']],c.tankL)}</div><div class="fld"><label for="mw">Максимум за один полив</label>${sel('mw','maxWater',[[100,'100 мл'],[150,'150 мл'],[250,'250 мл'],[350,'350 мл'],[500,'500 мл']],c.maxWater)}</div>${swr('Остановка при пустом баке','pumpOk','Защита от работы насоса всухую нельзя отключить','checked disabled')}<div class="acts"><button class="btn" data-act="demo">Проверить насос</button></div><p class="note">Эти лимиты проверяет само устройство, даже если приложение отключено.</p>`;
@@ -876,6 +959,20 @@ document.addEventListener('click',e=>{
  case 'rdosave':{const p=P(S.pid),n=(document.getElementById('rnm').value||'').trim().slice(0,60)||'Мой рецепт';S.myRecipes.push({id:'u'+Date.now(),name:n,type:p.type,stage:p.st||'',range:[p.range[0],p.range[1]],ml:S.care.amount,mode:S.care.mode,note:'Сохранено из ваших настроек.',by:'Вы'});closeSheet();render(true);toast('Рецепт сохранён');break}
  case 'chsp':panel('chsp');break;
  case 'dosp':{const k=kbOf(id),p=P(S.pid);if(!k)break;p.kb=k.id;p.kind=k.sil;p.type=k.type;p.species=k.latin;p.base={min:k.min,max:k.max,rate:k.rate};p.lightNeed=k.need;p.ml0=TYPES[k.type].ml;p.recipe=null;if(!(STAGES[k.type]||[]).some(x=>x[0]===p.st))p.st=defStage(k.type);applyStage(p);closeSheet();render(true);toast('Вид: '+k.name+'. Норма обновлена');break}
+ case 'stauto':{const p=P(S.pid);p.auto=v==='1';if(p.auto)syncStage(p);render(true);toast(p.auto?'Стадия определяется автоматически':'Стадию выбираете вы');break}
+ case 'onb':S.ob=newOb();go('onb');break;
+ case 'obnext':S.ob.step++;render();scrollTo(0,0);break;
+ case 'obback':S.ob.step=Math.max(0,S.ob.step-1);render();scrollTo(0,0);break;
+ case 'obscan':S.ob.scan='run';render(true);setTimeout(()=>{if(S.screen==='onb'&&S.ob.step===1&&S.ob.scan==='run'){S.ob.scan='done';render(true)}},2200);break;
+ case 'obdev':S.ob.dev=true;S.ob.step=2;render();scrollTo(0,0);break;
+ case 'obnet':S.ob.net=v;render(true);break;
+ case 'obconn':S.ob.conn='run';render(true);setTimeout(()=>{if(S.screen==='onb'&&S.ob.conn==='run'){S.ob.conn='ok';S.cfg.wifi=S.ob.net;render(true)}},1800);break;
+ case 'obroom':S.rooms=S.rooms.includes(v)?S.rooms.filter(x=>x!==v):[...S.rooms,v];render(true);break;
+ case 'obaddroom':{const x=document.getElementById('obr'),n=(x.value||'').trim().slice(0,30);if(n&&!S.rooms.includes(n))S.rooms.push(n);render(true);break}
+ case 'obplant':Object.assign(AP,{step:0,name:'',type:null,kb:null,st:'grow',room:S.rooms[0]||null,adding:false,newRoom:'',kq:''});renderAddPlant();break;
+ case 'obdone':go('home');toast('Готово');break;
+ case 'tankfill':toast('Отметили: бак полон');break;
+ case 'weekdone':S.weekDone=true;render(true);toast('Спасибо, напомню через неделю');break;
  case 'open':go('plant',{pid:id,tab:'now'});break;
  case 'home':go('home');break;
  case 'more':go('more',{setTab:'adv'});break;
@@ -906,7 +1003,7 @@ document.addEventListener('click',e=>{
  case 'kbt':S.kbt=v;render(true);break;
  case 'kbopen':kbSheet(id);break;
  case 'kbadd':{const k=kbOf(id);Object.assign(AP,{step:0,name:k.name,type:k.type,kb:k.id,st:defStage(k.type),room:S.rooms[0]||null,adding:false,newRoom:'',kq:''});renderAddPlant();break}
- case 'stage':{const p=P(S.pid);p.st=v;p.recipe=null;applyStage(p);render(true);toast('Стадия: '+stageLabel(p)+'. Норма обновлена');break}
+ case 'stage':{const p=P(S.pid);p.st=v;p.recipe=null;p.auto=false;applyStage(p);render(true);toast('Стадия: '+stageLabel(p)+'. Норма обновлена');break}
  case 'applyml':S.care.amount=+v;render(true);toast('Порция '+v+' мл применена');break;
  case 'resetrange':{const p=P(S.pid);p.recipe=null;applyStage(p);render(true);toast('Рекомендации восстановлены');break}
  case 'motion':S.motion=v;document.documentElement.dataset.motion=v==='off'?'off':'';panel('appear');render(true);break;
@@ -928,7 +1025,7 @@ document.addEventListener('click',e=>{
  case 'anext':AP.step++;renderAddPlant();break;
  case 'afinish':{const T=TYPES[AP.type],k=AP.kb&&kbOf(AP.kb),base=k?{min:k.min,max:k.max,rate:k.rate}:{min:T.prof[0],max:T.prof[1],rate:T.prof[2]};
    const np={id:'p'+Date.now(),kind:k?k.sil:T.sil,type:AP.type,kb:k?k.id:null,st:AP.st,base,ml0:T.ml,name:AP.name.trim(),species:k?k.latin:T.label,place:AP.room,day:1,pot:2,moisture:50,range:[0,0],rate:base.rate,air:23.0,hum:57,lightH:k?k.need:T.need,lightNeed:k?k.need:T.need,last:'ещё не поливали',lastMl:100,next:'нужен датчик',nextMl:100,adc:2000,gpio:0,mod:'—',nextWhy:'Добавьте датчик влажности, и система начнёт подсказывать время полива.',note:''};
-   applyStage(np);PLANTS.push(np);closeSheet();go('home');toast('Растение добавлено');break}
+   np.auto=false;applyStage(np);PLANTS.push(np);closeSheet();go('home');toast('Растение добавлено');break}
  case 'addroom':{const n=($('#rn').value||'').trim();if(!n){toast('Введите название комнаты');break}if(!S.rooms.includes(n))S.rooms.push(n);panel('rooms');render(true);setTimeout(()=>$('#rn')&&$('#rn').focus(),30);break}
  case 'delroom':S.rooms.splice(+v,1);panel('rooms');render(true);break;
  case 'rooms':case 'notif':case 'appear':case 'sensors':case 'ha':case 'backup':case 'sim':case 'defaults':case 'device':case 'tankpump':case 'reset':panel(a);break;
@@ -938,6 +1035,7 @@ document.addEventListener('click',e=>{
  case 'demo':toast('В прототипе не подключено');break;
  }});
 document.addEventListener('input',e=>{const t=e.target,a=t.dataset.act;if(!a)return;
+ if(a==='obpw'){S.ob.pw=t.value;const b=document.querySelector('[data-act=obconn]');if(b)b.disabled=t.value.length<8;return}
  if(a==='cm'){W.ml=Math.max(20,Math.min(500,+t.value||20))}
  if(a==='aname'){AP.name=t.value;const b=sheet.querySelector('[data-act=anext]');if(b)b.disabled=!AP.name.trim()}
  if(a==='kbq'){S.kbq=t.value;kbFilter()}
@@ -951,6 +1049,7 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a)re
  if(a==='nt')S.notif[t.dataset.k]=t.checked;
  if(a==='cfg'){S.cfg[t.dataset.k]=t.checked;if(t.dataset.k==='ha')panel('ha');render(true)}
  if(a==='cfgv'){const k=t.dataset.k;S.cfg[k]=['tankL','maxWater'].includes(k)?+t.value:t.value;render(true)}
+ if(a==='obmod'){S.mods[t.dataset.v]=t.checked;render(true)}
  if(a==='flag'){S.flags[t.dataset.k]=t.checked;render(true)}
  if(a==='r0'||a==='r1'){render(true)}});
 function setThemeIcon(){}
@@ -967,6 +1066,6 @@ document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;
 const end=()=>{if(!d)return;const s=d.s,m=d.m;d=null;s.classList.remove('drag');if(m){const k=ev=>{ev.stopPropagation();ev.preventDefault()};s.addEventListener('click',k,{capture:true,once:true});setTimeout(()=>s.removeEventListener('click',k,true),60);glide(s)}};
 document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
 })();
-PLANTS.forEach(applyStage);setThemeIcon();render();
+PLANTS.forEach(applyStage);PLANTS.forEach(syncStage);setThemeIcon();render();
 setTimeout(()=>{S.booting=false;render(true);enter()},700);
 </script>
