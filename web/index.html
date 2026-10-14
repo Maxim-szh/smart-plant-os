@@ -110,6 +110,9 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 .lv{transition:transform .7s cubic-bezier(.2,.7,.2,1)}
 .shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none;cursor:grab}
 .shelf::-webkit-scrollbar{display:none}
+.shelf{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+@media(hover:hover) and (pointer:fine){.shelf{scroll-snap-type:none}}
+.shelf.drag{user-select:none}
 .pcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);background:none;border:0;padding:0;text-align:left;display:grid;gap:12px;justify-items:start;--aw:100%}
 .pcard .arch{transition:transform .2s}
 .pcard:hover .arch{transform:translateY(-3px)}
@@ -892,12 +895,19 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a)re
 function setThemeIcon(){}
 document.addEventListener('toggle',e=>{if(e.target.dataset&&e.target.dataset.k==='adv')S.advOpen=e.target.open},true);
 
-(function(){let d=null;const sh=e=>e.target.closest&&e.target.closest('.shelf');
-document.addEventListener('pointerdown',e=>{const s=sh(e);if(s&&e.pointerType==='mouse'){d={s,x:e.clientX,l:s.scrollLeft,m:false}}});
-document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;if(Math.abs(dx)>5)d.m=true;if(d.m){d.s.style.scrollSnapType='none';d.s.scrollLeft=d.l-dx}});
-document.addEventListener('pointerup',()=>{if(d){const s=d.s;setTimeout(()=>{s.style.scrollSnapType=''},0);}d&&d.m&&(window.__drag=1,setTimeout(()=>window.__drag=0,50));d=null});
-document.addEventListener('click',e=>{if(window.__drag){e.stopPropagation();e.preventDefault()}},true);
-document.addEventListener('wheel',e=>{const s=sh(e);if(s&&s.scrollWidth>s.clientWidth&&Math.abs(e.deltaX)<Math.abs(e.deltaY)&&!(e.deltaY<0&&s.scrollLeft<=0)&&!(e.deltaY>0&&s.scrollLeft>=s.scrollWidth-s.clientWidth-1)){s.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
+(function(){
+/* плавная лента растений: мышь (колесо, перетаскивание с инерцией); на сенсорных экранах работает нативный свайп со снапом */
+const fine=matchMedia('(hover:hover) and (pointer:fine)');
+const sh=e=>e.target.closest&&e.target.closest('.shelf');
+let raf=0,tgt=0,cur=0,el=null,d=null,vel=0;
+const clamp=(s,v)=>Math.max(0,Math.min(s.scrollWidth-s.clientWidth,v));
+function loop(){if(!el){raf=0;return}cur+=(tgt-cur)*.16;if(Math.abs(tgt-cur)<.4)cur=tgt;el.scrollLeft=cur;if(cur===tgt&&!d){el=null;raf=0;return}raf=requestAnimationFrame(loop)}
+function go(s,v){if(el!==s){el=s;cur=s.scrollLeft}tgt=clamp(s,v);if(!raf)raf=requestAnimationFrame(loop)}
+document.addEventListener('wheel',e=>{if(!fine.matches)return;const s=sh(e);if(!s||s.scrollWidth<=s.clientWidth)return;const dx=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;const base=el===s?tgt:s.scrollLeft;if((dx<0&&base<=0)||(dx>0&&base>=s.scrollWidth-s.clientWidth-1))return;e.preventDefault();go(s,base+dx*1.1)},{passive:false});
+document.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button)return;const s=sh(e);if(!s)return;el=null;d={s,x:e.clientX,l:s.scrollLeft,m:false,lx:e.clientX,lt:performance.now()};vel=0});
+document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;if(!d.m&&Math.abs(dx)>5){d.m=true;d.s.classList.add('drag')}if(d.m){d.s.scrollLeft=clamp(d.s,d.l-dx);const t=performance.now(),dt=Math.max(1,t-d.lt);vel=.8*vel+.2*((d.lx-e.clientX)/dt);d.lx=e.clientX;d.lt=t}});
+const end=()=>{if(!d)return;const s=d.s,m=d.m;d=null;s.classList.remove('drag');if(m){const k=ev=>{ev.stopPropagation();ev.preventDefault()};s.addEventListener('click',k,{capture:true,once:true});setTimeout(()=>s.removeEventListener('click',k,true),60);el=s;cur=s.scrollLeft;go(s,s.scrollLeft+vel*220)}};
+document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
 })();
 PLANTS.forEach(applyStage);setThemeIcon();render();
 setTimeout(()=>{S.booting=false;render(true);enter()},700);
