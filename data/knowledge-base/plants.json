@@ -21,23 +21,6 @@
       "tip_ru": "Любит яркий свет и ровную влажность. Пересушка и перелив вызывают растрескивание плодов."
     },
     {
-      "id": "tomato-balcony",
-      "name_ru": "Томат балконный",
-      "latin": "Solanum lycopersicum",
-      "type": "fruit",
-      "illustration": "tomato",
-      "moisture_min": 40,
-      "moisture_max": 60,
-      "drying_rate_pp_per_day": 9,
-      "light_hours_min": 8,
-      "temp_c": [
-        18,
-        26
-      ],
-      "air_humidity_pct": "50–70",
-      "tip_ru": "Компактный сорт. Подвязывайте и поливайте под корень, не на листья."
-    },
-    {
       "id": "pepper-chili",
       "name_ru": "Перец острый (чили)",
       "latin": "Capsicum annuum",
@@ -55,79 +38,11 @@
       "tip_ru": "Тёплое окно и стабильный полив. Подсыхает быстрее томата в небольшом горшке."
     },
     {
-      "id": "pepper-sweet",
-      "name_ru": "Перец сладкий",
-      "latin": "Capsicum annuum",
-      "type": "fruit",
-      "illustration": "pepper",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 11,
-      "light_hours_min": 8,
-      "temp_c": [
-        20,
-        28
-      ],
-      "air_humidity_pct": "50–65",
-      "tip_ru": "Нужен свет и ровная влажность в период плодоношения."
-    },
-    {
-      "id": "eggplant",
-      "name_ru": "Баклажан",
-      "latin": "Solanum melongena",
-      "type": "fruit",
-      "illustration": "pepper",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 10,
-      "light_hours_min": 8,
-      "temp_c": [
-        21,
-        28
-      ],
-      "air_humidity_pct": "50–65",
-      "tip_ru": "Теплолюбив. Не любит холодную воду и сквозняки."
-    },
-    {
-      "id": "strawberry",
-      "name_ru": "Клубника ремонтантная",
-      "latin": "Fragaria × ananassa",
-      "type": "fruit",
-      "illustration": "herb",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 9,
-      "light_hours_min": 7,
-      "temp_c": [
-        15,
-        24
-      ],
-      "air_humidity_pct": "50–65",
-      "tip_ru": "Поливайте у корня, чтобы ягоды оставались сухими."
-    },
-    {
-      "id": "cucumber",
-      "name_ru": "Огурец комнатный",
-      "latin": "Cucumis sativus",
-      "type": "fruit",
-      "illustration": "herb",
-      "moisture_min": 50,
-      "moisture_max": 70,
-      "drying_rate_pp_per_day": 12,
-      "light_hours_min": 8,
-      "temp_c": [
-        20,
-        28
-      ],
-      "air_humidity_pct": "60–75",
-      "tip_ru": "Любит частый полив небольшими порциями и тепло."
-    },
-    {
       "id": "lemon",
       "name_ru": "Лимон",
       "latin": "Citrus limon",
       "type": "fruit",
-      "illustration": "ficus",
+      "illustration": "lemon",
       "moisture_min": 35,
       "moisture_max": 55,
       "drying_rate_pp_per_day": 5,
@@ -140,28 +55,11 @@
       "tip_ru": "Зимой нужна прохлада и более редкий полив."
     },
     {
-      "id": "calamondin",
-      "name_ru": "Каламондин",
-      "latin": "Citrus × microcarpa",
-      "type": "fruit",
-      "illustration": "ficus",
-      "moisture_min": 35,
-      "moisture_max": 55,
-      "drying_rate_pp_per_day": 5,
-      "light_hours_min": 7,
-      "temp_c": [
-        14,
-        24
-      ],
-      "air_humidity_pct": "50–65",
-      "tip_ru": "Компактный цитрус. Не переувлажняйте землю."
-    },
-    {
       "id": "orchid",
       "name_ru": "Орхидея фаленопсис",
       "latin": "Phalaenopsis",
       "type": "flower",
-      "illustration": "flower",
+      "illustration": "orchid",
       "moisture_min": 25,
       "moisture_max": 45,
       "drying_rate_pp_per_day": 3,
@@ -174,28 +72,11 @@
       "tip_ru": "Поливайте, когда субстрат подсох. Вода не должна застаиваться в розетке."
     },
     {
-      "id": "saintpaulia",
-      "name_ru": "Фиалка узамбарская",
-      "latin": "Streptocarpus ionanthus",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 40,
-      "moisture_max": 60,
-      "drying_rate_pp_per_day": 6,
-      "light_hours_min": 4,
-      "temp_c": [
-        18,
-        24
-      ],
-      "air_humidity_pct": "50–60",
-      "tip_ru": "Поливайте у края горшка или через поддон, не на листья."
-    },
-    {
       "id": "pelargonium",
       "name_ru": "Герань (пеларгония)",
       "latin": "Pelargonium",
       "type": "flower",
-      "illustration": "flower",
+      "illustration": "geranium",
       "moisture_min": 30,
       "moisture_max": 50,
       "drying_rate_pp_per_day": 6,
@@ -206,159 +87,6 @@
       ],
       "air_humidity_pct": "40–60",
       "tip_ru": "Любит свет и умеренный полив, между поливами земля должна подсыхать."
-    },
-    {
-      "id": "spathiphyllum",
-      "name_ru": "Спатифиллум",
-      "latin": "Spathiphyllum",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 7,
-      "light_hours_min": 4,
-      "temp_c": [
-        18,
-        26
-      ],
-      "air_humidity_pct": "50–70",
-      "tip_ru": "Любит влажную землю и рассеянный свет."
-    },
-    {
-      "id": "anthurium",
-      "name_ru": "Антуриум",
-      "latin": "Anthurium andraeanum",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 40,
-      "moisture_max": 60,
-      "drying_rate_pp_per_day": 6,
-      "light_hours_min": 5,
-      "temp_c": [
-        18,
-        26
-      ],
-      "air_humidity_pct": "60–80",
-      "tip_ru": "Нужны тепло и высокая влажность воздуха."
-    },
-    {
-      "id": "begonia",
-      "name_ru": "Бегония вечноцветущая",
-      "latin": "Begonia semperflorens",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 40,
-      "moisture_max": 60,
-      "drying_rate_pp_per_day": 6,
-      "light_hours_min": 5,
-      "temp_c": [
-        16,
-        24
-      ],
-      "air_humidity_pct": "50–60",
-      "tip_ru": "Не заливайте: корни чувствительны к застою воды."
-    },
-    {
-      "id": "hibiscus",
-      "name_ru": "Гибискус китайский",
-      "latin": "Hibiscus rosa-sinensis",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 9,
-      "light_hours_min": 7,
-      "temp_c": [
-        18,
-        28
-      ],
-      "air_humidity_pct": "50–65",
-      "tip_ru": "Много света и обильный полив летом."
-    },
-    {
-      "id": "hoya",
-      "name_ru": "Хойя",
-      "latin": "Hoya carnosa",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 25,
-      "moisture_max": 45,
-      "drying_rate_pp_per_day": 3,
-      "light_hours_min": 5,
-      "temp_c": [
-        16,
-        26
-      ],
-      "air_humidity_pct": "40–60",
-      "tip_ru": "Мясистые листья запасают воду: полив редкий."
-    },
-    {
-      "id": "cyclamen",
-      "name_ru": "Цикламен",
-      "latin": "Cyclamen persicum",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 7,
-      "light_hours_min": 5,
-      "temp_c": [
-        10,
-        18
-      ],
-      "air_humidity_pct": "50–60",
-      "tip_ru": "Любит прохладу. Поливайте через поддон."
-    },
-    {
-      "id": "gardenia",
-      "name_ru": "Гардения",
-      "latin": "Gardenia jasminoides",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 7,
-      "light_hours_min": 5,
-      "temp_c": [
-        18,
-        24
-      ],
-      "air_humidity_pct": "60–70",
-      "tip_ru": "Капризна к жёсткой воде и сквозняку."
-    },
-    {
-      "id": "azalea",
-      "name_ru": "Азалия",
-      "latin": "Rhododendron simsii",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 50,
-      "moisture_max": 70,
-      "drying_rate_pp_per_day": 8,
-      "light_hours_min": 5,
-      "temp_c": [
-        10,
-        18
-      ],
-      "air_humidity_pct": "60–70",
-      "tip_ru": "Любит прохладу и стабильную влажность земли."
-    },
-    {
-      "id": "kalanchoe",
-      "name_ru": "Каланхоэ цветущее",
-      "latin": "Kalanchoe blossfeldiana",
-      "type": "flower",
-      "illustration": "flower",
-      "moisture_min": 20,
-      "moisture_max": 40,
-      "drying_rate_pp_per_day": 3,
-      "light_hours_min": 6,
-      "temp_c": [
-        15,
-        25
-      ],
-      "air_humidity_pct": "40–50",
-      "tip_ru": "Суккулент: не переливайте."
     },
     {
       "id": "monstera",
@@ -378,23 +106,6 @@
       "tip_ru": "Подсыхает медленно. Поливайте, когда верхний слой просох."
     },
     {
-      "id": "ficus-benjamina",
-      "name_ru": "Фикус Бенджамина",
-      "latin": "Ficus benjamina",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 35,
-      "moisture_max": 55,
-      "drying_rate_pp_per_day": 4,
-      "light_hours_min": 5,
-      "temp_c": [
-        16,
-        26
-      ],
-      "air_humidity_pct": "45–60",
-      "tip_ru": "Не любит перестановок и сквозняков."
-    },
-    {
       "id": "ficus-elastica",
       "name_ru": "Фикус эластика",
       "latin": "Ficus elastica",
@@ -410,23 +121,6 @@
       ],
       "air_humidity_pct": "40–60",
       "tip_ru": "Терпит небольшую пересушку лучше переувлажнения."
-    },
-    {
-      "id": "ficus-lyrata",
-      "name_ru": "Фикус лирата",
-      "latin": "Ficus lyrata",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 35,
-      "moisture_max": 55,
-      "drying_rate_pp_per_day": 4,
-      "light_hours_min": 6,
-      "temp_c": [
-        16,
-        26
-      ],
-      "air_humidity_pct": "45–60",
-      "tip_ru": "Нужен яркий рассеянный свет и ровный полив."
     },
     {
       "id": "sansevieria",
@@ -446,261 +140,6 @@
       "tip_ru": "Очень неприхотлива: переувлажнение опаснее пересушки."
     },
     {
-      "id": "zamioculcas",
-      "name_ru": "Замиокулькас",
-      "latin": "Zamioculcas zamiifolia",
-      "type": "leaf",
-      "illustration": "snake",
-      "moisture_min": 15,
-      "moisture_max": 35,
-      "drying_rate_pp_per_day": 2,
-      "light_hours_min": 3,
-      "temp_c": [
-        16,
-        28
-      ],
-      "air_humidity_pct": "30–50",
-      "tip_ru": "Запасает воду в клубнях, поливайте редко."
-    },
-    {
-      "id": "chlorophytum",
-      "name_ru": "Хлорофитум",
-      "latin": "Chlorophytum comosum",
-      "type": "leaf",
-      "illustration": "fern",
-      "moisture_min": 35,
-      "moisture_max": 55,
-      "drying_rate_pp_per_day": 6,
-      "light_hours_min": 4,
-      "temp_c": [
-        12,
-        25
-      ],
-      "air_humidity_pct": "40–60",
-      "tip_ru": "Неприхотлив, быстро растёт."
-    },
-    {
-      "id": "pothos",
-      "name_ru": "Эпипремнум (потос)",
-      "latin": "Epipremnum aureum",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 30,
-      "moisture_max": 50,
-      "drying_rate_pp_per_day": 5,
-      "light_hours_min": 3,
-      "temp_c": [
-        15,
-        28
-      ],
-      "air_humidity_pct": "40–60",
-      "tip_ru": "Терпит тень и редкий полив."
-    },
-    {
-      "id": "philodendron",
-      "name_ru": "Филодендрон",
-      "latin": "Philodendron",
-      "type": "leaf",
-      "illustration": "monstera",
-      "moisture_min": 35,
-      "moisture_max": 55,
-      "drying_rate_pp_per_day": 5,
-      "light_hours_min": 4,
-      "temp_c": [
-        16,
-        27
-      ],
-      "air_humidity_pct": "50–70",
-      "tip_ru": "Любит рассеянный свет и умеренную влажность."
-    },
-    {
-      "id": "alocasia",
-      "name_ru": "Алоказия",
-      "latin": "Alocasia",
-      "type": "leaf",
-      "illustration": "monstera",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 7,
-      "light_hours_min": 6,
-      "temp_c": [
-        18,
-        28
-      ],
-      "air_humidity_pct": "60–70",
-      "tip_ru": "Любит тепло, влажный воздух и ровный полив."
-    },
-    {
-      "id": "calathea",
-      "name_ru": "Калатея",
-      "latin": "Calathea",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 6,
-      "light_hours_min": 4,
-      "temp_c": [
-        18,
-        26
-      ],
-      "air_humidity_pct": "60–70",
-      "tip_ru": "Не терпит пересыхания и жёсткой воды."
-    },
-    {
-      "id": "maranta",
-      "name_ru": "Маранта",
-      "latin": "Maranta leuconeura",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 45,
-      "moisture_max": 65,
-      "drying_rate_pp_per_day": 6,
-      "light_hours_min": 4,
-      "temp_c": [
-        18,
-        26
-      ],
-      "air_humidity_pct": "60–70",
-      "tip_ru": "Любит влажный воздух и мягкую воду."
-    },
-    {
-      "id": "dracaena",
-      "name_ru": "Драцена",
-      "latin": "Dracaena",
-      "type": "leaf",
-      "illustration": "snake",
-      "moisture_min": 30,
-      "moisture_max": 50,
-      "drying_rate_pp_per_day": 3,
-      "light_hours_min": 4,
-      "temp_c": [
-        16,
-        27
-      ],
-      "air_humidity_pct": "40–60",
-      "tip_ru": "Умеренный полив, земля должна слегка подсыхать."
-    },
-    {
-      "id": "yucca",
-      "name_ru": "Юкка",
-      "latin": "Yucca elephantipes",
-      "type": "leaf",
-      "illustration": "snake",
-      "moisture_min": 20,
-      "moisture_max": 40,
-      "drying_rate_pp_per_day": 3,
-      "light_hours_min": 6,
-      "temp_c": [
-        10,
-        28
-      ],
-      "air_humidity_pct": "30–50",
-      "tip_ru": "Любит свет, поливайте после просыхания."
-    },
-    {
-      "id": "nephrolepis",
-      "name_ru": "Нефролепис (папоротник)",
-      "latin": "Nephrolepis exaltata",
-      "type": "leaf",
-      "illustration": "fern",
-      "moisture_min": 50,
-      "moisture_max": 70,
-      "drying_rate_pp_per_day": 8,
-      "light_hours_min": 3,
-      "temp_c": [
-        16,
-        24
-      ],
-      "air_humidity_pct": "60–80",
-      "tip_ru": "Не должен пересыхать, любит влажный воздух."
-    },
-    {
-      "id": "peperomia",
-      "name_ru": "Пеперомия",
-      "latin": "Peperomia",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 25,
-      "moisture_max": 45,
-      "drying_rate_pp_per_day": 3,
-      "light_hours_min": 4,
-      "temp_c": [
-        16,
-        26
-      ],
-      "air_humidity_pct": "40–60",
-      "tip_ru": "Листья запасают воду: лучше недолить, чем перелить."
-    },
-    {
-      "id": "dieffenbachia",
-      "name_ru": "Диффенбахия",
-      "latin": "Dieffenbachia",
-      "type": "leaf",
-      "illustration": "monstera",
-      "moisture_min": 35,
-      "moisture_max": 55,
-      "drying_rate_pp_per_day": 5,
-      "light_hours_min": 4,
-      "temp_c": [
-        18,
-        27
-      ],
-      "air_humidity_pct": "50–65",
-      "tip_ru": "Рассеянный свет. Сок ядовит, работайте в перчатках."
-    },
-    {
-      "id": "aglaonema",
-      "name_ru": "Аглаонема",
-      "latin": "Aglaonema",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 30,
-      "moisture_max": 50,
-      "drying_rate_pp_per_day": 4,
-      "light_hours_min": 3,
-      "temp_c": [
-        16,
-        27
-      ],
-      "air_humidity_pct": "50–65",
-      "tip_ru": "Хорошо переносит полутень."
-    },
-    {
-      "id": "tradescantia",
-      "name_ru": "Традесканция",
-      "latin": "Tradescantia",
-      "type": "leaf",
-      "illustration": "herb",
-      "moisture_min": 40,
-      "moisture_max": 60,
-      "drying_rate_pp_per_day": 6,
-      "light_hours_min": 5,
-      "temp_c": [
-        12,
-        26
-      ],
-      "air_humidity_pct": "40–60",
-      "tip_ru": "Быстро растёт, любит свет."
-    },
-    {
-      "id": "ivy",
-      "name_ru": "Плющ обыкновенный",
-      "latin": "Hedera helix",
-      "type": "leaf",
-      "illustration": "herb",
-      "moisture_min": 35,
-      "moisture_max": 55,
-      "drying_rate_pp_per_day": 5,
-      "light_hours_min": 4,
-      "temp_c": [
-        10,
-        22
-      ],
-      "air_humidity_pct": "50–60",
-      "tip_ru": "Предпочитает прохладу."
-    },
-    {
       "id": "basil",
       "name_ru": "Базилик",
       "latin": "Ocimum basilicum",
@@ -718,62 +157,11 @@
       "tip_ru": "Любит тепло и свет, поливайте регулярно."
     },
     {
-      "id": "mint",
-      "name_ru": "Мята",
-      "latin": "Mentha",
-      "type": "leaf",
-      "illustration": "herb",
-      "moisture_min": 50,
-      "moisture_max": 70,
-      "drying_rate_pp_per_day": 10,
-      "light_hours_min": 6,
-      "temp_c": [
-        15,
-        25
-      ],
-      "air_humidity_pct": "50–60",
-      "tip_ru": "Любит влагу, быстро расходует воду."
-    },
-    {
-      "id": "rosemary",
-      "name_ru": "Розмарин",
-      "latin": "Salvia rosmarinus",
-      "type": "leaf",
-      "illustration": "herb",
-      "moisture_min": 25,
-      "moisture_max": 45,
-      "drying_rate_pp_per_day": 4,
-      "light_hours_min": 8,
-      "temp_c": [
-        10,
-        24
-      ],
-      "air_humidity_pct": "40–50",
-      "tip_ru": "Не любит переувлажнения, нужен яркий свет."
-    },
-    {
-      "id": "coffee",
-      "name_ru": "Кофе арабика",
-      "latin": "Coffea arabica",
-      "type": "leaf",
-      "illustration": "ficus",
-      "moisture_min": 40,
-      "moisture_max": 60,
-      "drying_rate_pp_per_day": 5,
-      "light_hours_min": 5,
-      "temp_c": [
-        18,
-        26
-      ],
-      "air_humidity_pct": "60–70",
-      "tip_ru": "Любит рассеянный свет и мягкую воду."
-    },
-    {
       "id": "aloe",
       "name_ru": "Алоэ вера",
       "latin": "Aloe vera",
       "type": "succ",
-      "illustration": "succ",
+      "illustration": "aloe",
       "moisture_min": 15,
       "moisture_max": 35,
       "drying_rate_pp_per_day": 2,
@@ -784,142 +172,6 @@
       ],
       "air_humidity_pct": "30–50",
       "tip_ru": "Запасает воду в листьях. Поливайте после полного просыхания."
-    },
-    {
-      "id": "echeveria",
-      "name_ru": "Эхеверия",
-      "latin": "Echeveria",
-      "type": "succ",
-      "illustration": "succ",
-      "moisture_min": 12,
-      "moisture_max": 30,
-      "drying_rate_pp_per_day": 2,
-      "light_hours_min": 7,
-      "temp_c": [
-        10,
-        28
-      ],
-      "air_humidity_pct": "30–50",
-      "tip_ru": "Нужно много света. Не заливайте розетку."
-    },
-    {
-      "id": "haworthia",
-      "name_ru": "Хавортия",
-      "latin": "Haworthia",
-      "type": "succ",
-      "illustration": "succ",
-      "moisture_min": 15,
-      "moisture_max": 35,
-      "drying_rate_pp_per_day": 2,
-      "light_hours_min": 4,
-      "temp_c": [
-        12,
-        28
-      ],
-      "air_humidity_pct": "30–50",
-      "tip_ru": "Выдерживает полутень, поливайте редко."
-    },
-    {
-      "id": "crassula",
-      "name_ru": "Крассула (денежное дерево)",
-      "latin": "Crassula ovata",
-      "type": "succ",
-      "illustration": "succ",
-      "moisture_min": 15,
-      "moisture_max": 35,
-      "drying_rate_pp_per_day": 2,
-      "light_hours_min": 5,
-      "temp_c": [
-        10,
-        28
-      ],
-      "air_humidity_pct": "30–50",
-      "tip_ru": "Листья запасают воду, зимой поливайте ещё реже."
-    },
-    {
-      "id": "echinopsis",
-      "name_ru": "Кактус (эхинопсис)",
-      "latin": "Echinopsis",
-      "type": "succ",
-      "illustration": "cactus",
-      "moisture_min": 10,
-      "moisture_max": 30,
-      "drying_rate_pp_per_day": 1.5,
-      "light_hours_min": 7,
-      "temp_c": [
-        10,
-        30
-      ],
-      "air_humidity_pct": "30–40",
-      "tip_ru": "Нужен яркий свет, зимой почти без полива."
-    },
-    {
-      "id": "lithops",
-      "name_ru": "Литопс",
-      "latin": "Lithops",
-      "type": "succ",
-      "illustration": "succ",
-      "moisture_min": 8,
-      "moisture_max": 25,
-      "drying_rate_pp_per_day": 1,
-      "light_hours_min": 8,
-      "temp_c": [
-        10,
-        28
-      ],
-      "air_humidity_pct": "30–40",
-      "tip_ru": "Очень редкий полив: ориентируйтесь на сезон роста."
-    },
-    {
-      "id": "sedum",
-      "name_ru": "Седум",
-      "latin": "Sedum",
-      "type": "succ",
-      "illustration": "succ",
-      "moisture_min": 12,
-      "moisture_max": 30,
-      "drying_rate_pp_per_day": 2,
-      "light_hours_min": 7,
-      "temp_c": [
-        5,
-        28
-      ],
-      "air_humidity_pct": "30–50",
-      "tip_ru": "Любит свет и хорошо дренированную землю."
-    },
-    {
-      "id": "opuntia",
-      "name_ru": "Опунция",
-      "latin": "Opuntia",
-      "type": "succ",
-      "illustration": "cactus",
-      "moisture_min": 10,
-      "moisture_max": 30,
-      "drying_rate_pp_per_day": 1.5,
-      "light_hours_min": 8,
-      "temp_c": [
-        10,
-        30
-      ],
-      "air_humidity_pct": "30–40",
-      "tip_ru": "Любит прямое солнце, поливайте редко."
-    },
-    {
-      "id": "euphorbia",
-      "name_ru": "Молочай",
-      "latin": "Euphorbia",
-      "type": "succ",
-      "illustration": "cactus",
-      "moisture_min": 15,
-      "moisture_max": 35,
-      "drying_rate_pp_per_day": 2,
-      "light_hours_min": 6,
-      "temp_c": [
-        15,
-        28
-      ],
-      "air_humidity_pct": "30–50",
-      "tip_ru": "Сок раздражает кожу, работайте в перчатках."
     }
   ]
 }

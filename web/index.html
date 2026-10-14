@@ -108,15 +108,14 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 /* растение: арка и горшок */
 .arch{position:relative;width:var(--aw,150px);aspect-ratio:3/4.1;border-radius:999px 999px 14px 14px;background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 55%,var(--surface)),var(--sky));border:1px solid var(--border);display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:14px;overflow:hidden;flex:none}
 .lv{transition:transform .7s cubic-bezier(.2,.7,.2,1)}
-.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none}
-.shelf::-webkit-scrollbar{display:none}
-.pcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);background:none;border:0;padding:0;text-align:left;display:grid;gap:12px;justify-items:start;--aw:100%}
+.shelf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 14px;padding:6px 0 16px}
+.pcard{background:none;border:0;padding:0;text-align:left;display:grid;gap:10px;justify-items:start;align-content:start;--aw:100%;min-width:0;width:100%}
 .pcard .arch{transition:transform .2s}
 .pcard:hover .arch{transform:translateY(-3px)}
-.pcard h3{font-size:20px;line-height:1.2}
-.pcard .meta{font-size:14px;color:var(--mu);display:grid;gap:4px}
-.addcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);border:1.5px dashed var(--border);border-radius:999px 999px 14px 14px;aspect-ratio:3/4.1;background:none;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--tx2);font-weight:500;align-self:start}
-@media(min-width:760px){.shelf{flex-wrap:wrap;overflow:visible;margin:0;padding-inline:0}.pcard,.addcard{flex:0 0 220px}}
+.pcard h3{font-size:17px;line-height:1.2}
+.pcard .meta{font-size:13.5px;color:var(--mu);display:grid;gap:3px}
+.addcard{border:1.5px dashed var(--border);border-radius:999px 999px 14px 14px;aspect-ratio:3/4.1;background:none;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--tx2);font-weight:500;align-self:start;width:100%}
+@media(min-width:620px){.shelf{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:30px 22px}.pcard h3{font-size:20px}.pcard .meta{font-size:14px}}
 .cols{display:grid;gap:28px;margin-top:20px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr;gap:56px}}
 .sec h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
@@ -347,6 +346,9 @@ button.row.it{justify-content:flex-start;gap:14px}button.row.it>div{flex:1}
 <radialGradient id="frt" cx=".35" cy=".3" r=".8"><stop offset="0" style="stop-color:var(--fruit-hi)"/><stop offset=".5" style="stop-color:var(--fruit)"/><stop offset="1" style="stop-color:var(--fruit-lo)"/></radialGradient>
 <linearGradient id="pep" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--fruit-hi)"/><stop offset=".45" style="stop-color:var(--fruit)"/><stop offset="1" style="stop-color:var(--fruit-lo)"/></linearGradient>
 <radialGradient id="bl" cx=".5" cy=".85" r=".9"><stop offset="0" style="stop-color:var(--bloom)"/><stop offset="1" style="stop-color:var(--bloom-hi)"/></radialGradient>
+<radialGradient id="lem" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#FBEE95"/><stop offset=".55" stop-color="#EDC93A"/><stop offset="1" stop-color="#C79A14"/></radialGradient>
+<radialGradient id="orc" cx=".5" cy=".4" r=".75"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#F6E1EE"/><stop offset="1" stop-color="#DC9BC2"/></radialGradient>
+<radialGradient id="gp" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#F58A8A"/><stop offset="1" stop-color="#C93B4F"/></radialGradient>
 <radialGradient id="shd"><stop offset="0" stop-color="#000" stop-opacity=".34"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
 <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--dirt)"/><stop offset=".35" style="stop-color:var(--soil)"/><stop offset="1" style="stop-color:color-mix(in srgb,var(--soil) 80%,var(--dirt))"/></linearGradient>
 <g id="mleaf"><mask id="mmask" maskUnits="userSpaceOnUse" x="-40" y="-60" width="80" height="70"><rect x="-40" y="-60" width="80" height="70" fill="#fff"/><g fill="#000"><ellipse cx="-25" cy="-11" rx="9" ry="2.6" transform="rotate(-14 -25 -11)"/><ellipse cx="-27" cy="-23" rx="9" ry="2.6" transform="rotate(6 -27 -23)"/><ellipse cx="-21" cy="-35" rx="9" ry="2.6" transform="rotate(32 -21 -35)"/><ellipse cx="25" cy="-11" rx="9" ry="2.6" transform="rotate(14 25 -11)"/><ellipse cx="27" cy="-23" rx="9" ry="2.6" transform="rotate(-6 27 -23)"/><ellipse cx="21" cy="-35" rx="9" ry="2.6" transform="rotate(-32 21 -35)"/><ellipse cx="-10" cy="-20" rx="2.4" ry="3.2"/><ellipse cx="10" cy="-27" rx="2.4" ry="3.2"/></g></mask>
@@ -382,7 +384,10 @@ const ic=(n,s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="no
 const PLANTS=[
  {id:'tomato',kind:'tomato',type:'fruit',name:'Томат «Черри»',species:'Томат низкорослый',place:'Гостиная',day:46,pot:3,moisture:58,range:[45,65],rate:9,air:23.4,hum:61,lightH:6.7,lightNeed:8,last:'вчера, 09:32',lastMl:150,next:'завтра, 09:30',nextMl:150,adc:1784,gpio:34,mod:'S1',nextWhy:'По расписанию «Утро». К этому времени влажность, скорее всего, снизится примерно до 46%, это почти нижняя граница вашей нормы 45%.',note:'Земля в этом горшке держит влагу дольше обычного. Цветущему томату это на пользу, пока нет застоя.'},
  {id:'pepper',kind:'pepper',type:'fruit',name:'Перец «Халапеньо»',species:'Перец острый',place:'Кухня',day:31,pot:2,moisture:33,range:[40,60],rate:12,air:24.8,hum:55,lightH:7.2,lightNeed:8,last:'2 дня назад, 09:30',lastMl:120,next:'сегодня, после 18:00',nextMl:120,adc:2210,gpio:35,mod:'S2',nextWhy:'Земля уже ниже нормы. Полив запланирован на вечер, чтобы вода не попала на листья под жарким солнцем.',note:'Перец подсыхает быстрее томата: горшок меньше, а окно тёплое.'},
- {id:'monstera',kind:'monstera',type:'leaf',name:'Монстера',species:'Monstera deliciosa',place:'Гостиная',day:null,pot:5,moisture:52,range:[35,60],rate:4,air:22.9,hum:58,lightH:3.2,lightNeed:5,last:'3 дня назад, 10:05',lastMl:250,next:'через 3 дня',nextMl:250,adc:1960,gpio:36,mod:'S3',nextWhy:'Монстера сохнет медленно: сейчас 52%, нижняя граница нормы 35% будет достигнута примерно через 4 дня.',note:'Света меньше обычного. Если передвинуть ближе к окну, листья будут расти плотнее.'}
+ {id:'monstera',kind:'monstera',type:'leaf',name:'Монстера',species:'Monstera deliciosa',place:'Гостиная',day:null,pot:5,moisture:52,range:[35,60],rate:4,air:22.9,hum:58,lightH:3.2,lightNeed:5,last:'3 дня назад, 10:05',lastMl:250,next:'через 3 дня',nextMl:250,adc:1960,gpio:36,mod:'S3',nextWhy:'Монстера сохнет медленно: сейчас 52%, нижняя граница нормы 35% будет достигнута примерно через 4 дня.',note:'Света меньше обычного. Если передвинуть ближе к окну, листья будут расти плотнее.'},
+ {id:'lemon',kind:'lemon',type:'fruit',name:'Лимон «Павловский»',species:'Citrus limon',place:'Кухня',day:null,pot:6,moisture:47,range:[35,55],rate:5,air:22.1,hum:52,lightH:6.1,lightNeed:7,last:'вчера, 10:00',lastMl:200,next:'через 2 дня',nextMl:200,adc:1890,gpio:32,mod:'S4',nextWhy:'Лимон любит, когда земля слегка подсыхает между поливами. До нижней границы нормы примерно два дня.',note:'Зимой цитрусам нужна прохлада и более редкий полив.'},
+ {id:'orchid',kind:'orchid',type:'flower',name:'Орхидея',species:'Phalaenopsis',place:'Гостиная',day:null,pot:2,moisture:38,range:[25,45],rate:3,air:23.0,hum:60,lightH:4.8,lightNeed:4,last:'4 дня назад, 09:10',lastMl:60,next:'через 2 дня',nextMl:60,adc:2050,gpio:33,mod:'S5',nextWhy:'Субстрат орхидеи должен подсохнуть полностью. Влажность пока выше нижней границы.',note:'Вода не должна застаиваться в розетке листьев.'},
+ {id:'aloe',kind:'aloe',type:'succ',name:'Алоэ',species:'Aloe vera',place:'Гостиная',day:null,pot:3,moisture:24,range:[15,35],rate:2,air:23.6,hum:48,lightH:7.0,lightNeed:6,last:'6 дней назад, 10:00',lastMl:50,next:'через неделю',nextMl:50,adc:2380,gpio:39,mod:'S6',nextWhy:'Суккуленту воды нужно мало: полив будет, когда земля подсохнет до нижней границы.',note:'Мясистые листья хранят воду. Переполив опаснее недолива.'}
 ];
 const EVENTS=[
  {d:'Сегодня',t:'08:12',p:'tomato',k:'skip',title:'Полив пропущен',why:'Влажность земли 52%, это выше порога 35%. Система проверит снова вечером.',tag:'Автоматически',tr:'rule#1 smart-dry  moisture=52.0 (cal)  thr=35.0  result=SKIP\nsource=schedule "Утро"  ts=2026-10-14T08:12:03+03:00'},
@@ -403,10 +408,10 @@ const EVK={water:['drop','var(--water)','Полив'],skip:['check','var(--ok)',
 const EVG={water:['water','skip'],attn:['warn','err'],sys:['sys']};
 
 const TYPES={
- fruit:{label:'Плодоносное',d:'Томат, перец, клубника',sil:'tomato',prof:[45,65,9],need:8,ml:140,c:'var(--fruit)'},
- flower:{label:'Цветущее',d:'Орхидея, герань, фиалка',sil:'flower',prof:[40,60,7],need:6,ml:80,c:'var(--bloom)'},
- leaf:{label:'Лиственное',d:'Монстера, фикус, зелень',sil:'monstera',prof:[35,60,4],need:5,ml:110,c:'var(--pri)'},
- succ:{label:'Суккулент',d:'Алоэ, эхеверия, кактус',sil:'succ',prof:[15,35,2],need:6,ml:40,c:'var(--water)'}};
+ fruit:{label:'Плодоносное',d:'Томат, перец, лимон',sil:'tomato',prof:[45,65,9],need:8,ml:140,c:'var(--fruit)'},
+ flower:{label:'Цветущее',d:'Орхидея, герань',sil:'flower',prof:[40,60,7],need:6,ml:80,c:'var(--bloom)'},
+ leaf:{label:'Лиственное',d:'Монстера, фикус, базилик',sil:'monstera',prof:[35,60,4],need:5,ml:110,c:'var(--pri)'},
+ succ:{label:'Суккулент',d:'Алоэ, сансевиерия',sil:'succ',prof:[15,35,2],need:6,ml:40,c:'var(--water)'}};
 const STAGES={fruit:[['seed','Росток'],['grow','Рост'],['flower','Цветение'],['fruit','Плодоношение']],flower:[['grow','Рост'],['flower','Цветение'],['rest','Покой']],leaf:[['seed','Молодое'],['adult','Взрослое'],['rest','Зимний покой']],succ:[['grow','Рост'],['adult','Взрослое'],['rest','Зимний покой']]};
 const ADJ={
  seed:{dm:10,ml:.5,rate:.8,txt:'Корни ещё слабые: земля должна быть равномерно влажной, воды даём понемногу.'},
@@ -420,66 +425,22 @@ const defStage=t=>t==='fruit'||t==='flower'?'grow':'adult';
 function applyStage(p){const b=p.base,a=ADJ[p.st];p.range=[Math.max(5,Math.round(b.min+a.dm)),Math.min(95,Math.round(b.max+a.dm))];p.rate=Math.round(b.rate*a.rate*10)/10;p.nextMl=Math.max(20,Math.round(p.ml0*a.ml/10)*10)}
 const RAW=[
 ['tomato-cherry','Томат черри','Solanum lycopersicum','fruit','tomato',40,60,9,8,18,26,'50–70','Любит яркий свет и ровную влажность. Пересушка и перелив вызывают растрескивание плодов.'],
-['tomato-balcony','Томат балконный','Solanum lycopersicum','fruit','tomato',40,60,9,8,18,26,'50–70','Компактный сорт. Подвязывайте и поливайте под корень, не на листья.'],
 ['pepper-chili','Перец острый (чили)','Capsicum annuum','fruit','pepper',40,60,12,8,20,28,'50–65','Тёплое окно и стабильный полив. Подсыхает быстрее томата в небольшом горшке.'],
-['pepper-sweet','Перец сладкий','Capsicum annuum','fruit','pepper',45,65,11,8,20,28,'50–65','Нужен свет и ровная влажность в период плодоношения.'],
-['eggplant','Баклажан','Solanum melongena','fruit','pepper',45,65,10,8,21,28,'50–65','Теплолюбив. Не любит холодную воду и сквозняки.'],
-['strawberry','Клубника ремонтантная','Fragaria × ananassa','fruit','herb',45,65,9,7,15,24,'50–65','Поливайте у корня, чтобы ягоды оставались сухими.'],
-['cucumber','Огурец комнатный','Cucumis sativus','fruit','herb',50,70,12,8,20,28,'60–75','Любит частый полив небольшими порциями и тепло.'],
-['lemon','Лимон','Citrus limon','fruit','ficus',35,55,5,7,14,24,'50–65','Зимой нужна прохлада и более редкий полив.'],
-['calamondin','Каламондин','Citrus × microcarpa','fruit','ficus',35,55,5,7,14,24,'50–65','Компактный цитрус. Не переувлажняйте землю.'],
-['orchid','Орхидея фаленопсис','Phalaenopsis','flower','flower',25,45,3,4,18,26,'50–70','Поливайте, когда субстрат подсох. Вода не должна застаиваться в розетке.'],
-['saintpaulia','Фиалка узамбарская','Streptocarpus ionanthus','flower','flower',40,60,6,4,18,24,'50–60','Поливайте у края горшка или через поддон, не на листья.'],
-['pelargonium','Герань (пеларгония)','Pelargonium','flower','flower',30,50,6,6,15,25,'40–60','Любит свет и умеренный полив, между поливами земля должна подсыхать.'],
-['spathiphyllum','Спатифиллум','Spathiphyllum','flower','flower',45,65,7,4,18,26,'50–70','Любит влажную землю и рассеянный свет.'],
-['anthurium','Антуриум','Anthurium andraeanum','flower','flower',40,60,6,5,18,26,'60–80','Нужны тепло и высокая влажность воздуха.'],
-['begonia','Бегония вечноцветущая','Begonia semperflorens','flower','flower',40,60,6,5,16,24,'50–60','Не заливайте: корни чувствительны к застою воды.'],
-['hibiscus','Гибискус китайский','Hibiscus rosa-sinensis','flower','flower',45,65,9,7,18,28,'50–65','Много света и обильный полив летом.'],
-['hoya','Хойя','Hoya carnosa','flower','flower',25,45,3,5,16,26,'40–60','Мясистые листья запасают воду: полив редкий.'],
-['cyclamen','Цикламен','Cyclamen persicum','flower','flower',45,65,7,5,10,18,'50–60','Любит прохладу. Поливайте через поддон.'],
-['gardenia','Гардения','Gardenia jasminoides','flower','flower',45,65,7,5,18,24,'60–70','Капризна к жёсткой воде и сквозняку.'],
-['azalea','Азалия','Rhododendron simsii','flower','flower',50,70,8,5,10,18,'60–70','Любит прохладу и стабильную влажность земли.'],
-['kalanchoe','Каланхоэ цветущее','Kalanchoe blossfeldiana','flower','flower',20,40,3,6,15,25,'40–50','Суккулент: не переливайте.'],
+['lemon','Лимон','Citrus limon','fruit','lemon',35,55,5,7,14,24,'50–65','Зимой нужна прохлада и более редкий полив.'],
+['orchid','Орхидея фаленопсис','Phalaenopsis','flower','orchid',25,45,3,4,18,26,'50–70','Поливайте, когда субстрат подсох. Вода не должна застаиваться в розетке.'],
+['pelargonium','Герань (пеларгония)','Pelargonium','flower','geranium',30,50,6,6,15,25,'40–60','Любит свет и умеренный полив, между поливами земля должна подсыхать.'],
 ['monstera','Монстера','Monstera deliciosa','leaf','monstera',35,60,4,5,18,27,'50–70','Подсыхает медленно. Поливайте, когда верхний слой просох.'],
-['ficus-benjamina','Фикус Бенджамина','Ficus benjamina','leaf','ficus',35,55,4,5,16,26,'45–60','Не любит перестановок и сквозняков.'],
 ['ficus-elastica','Фикус эластика','Ficus elastica','leaf','ficus',30,50,4,5,16,26,'40–60','Терпит небольшую пересушку лучше переувлажнения.'],
-['ficus-lyrata','Фикус лирата','Ficus lyrata','leaf','ficus',35,55,4,6,16,26,'45–60','Нужен яркий рассеянный свет и ровный полив.'],
 ['sansevieria','Сансевиерия','Dracaena trifasciata','leaf','snake',15,35,2,3,15,30,'30–50','Очень неприхотлива: переувлажнение опаснее пересушки.'],
-['zamioculcas','Замиокулькас','Zamioculcas zamiifolia','leaf','snake',15,35,2,3,16,28,'30–50','Запасает воду в клубнях, поливайте редко.'],
-['chlorophytum','Хлорофитум','Chlorophytum comosum','leaf','fern',35,55,6,4,12,25,'40–60','Неприхотлив, быстро растёт.'],
-['pothos','Эпипремнум (потос)','Epipremnum aureum','leaf','ficus',30,50,5,3,15,28,'40–60','Терпит тень и редкий полив.'],
-['philodendron','Филодендрон','Philodendron','leaf','monstera',35,55,5,4,16,27,'50–70','Любит рассеянный свет и умеренную влажность.'],
-['alocasia','Алоказия','Alocasia','leaf','monstera',45,65,7,6,18,28,'60–70','Любит тепло, влажный воздух и ровный полив.'],
-['calathea','Калатея','Calathea','leaf','ficus',45,65,6,4,18,26,'60–70','Не терпит пересыхания и жёсткой воды.'],
-['maranta','Маранта','Maranta leuconeura','leaf','ficus',45,65,6,4,18,26,'60–70','Любит влажный воздух и мягкую воду.'],
-['dracaena','Драцена','Dracaena','leaf','snake',30,50,3,4,16,27,'40–60','Умеренный полив, земля должна слегка подсыхать.'],
-['yucca','Юкка','Yucca elephantipes','leaf','snake',20,40,3,6,10,28,'30–50','Любит свет, поливайте после просыхания.'],
-['nephrolepis','Нефролепис (папоротник)','Nephrolepis exaltata','leaf','fern',50,70,8,3,16,24,'60–80','Не должен пересыхать, любит влажный воздух.'],
-['peperomia','Пеперомия','Peperomia','leaf','ficus',25,45,3,4,16,26,'40–60','Листья запасают воду: лучше недолить, чем перелить.'],
-['dieffenbachia','Диффенбахия','Dieffenbachia','leaf','monstera',35,55,5,4,18,27,'50–65','Рассеянный свет. Сок ядовит, работайте в перчатках.'],
-['aglaonema','Аглаонема','Aglaonema','leaf','ficus',30,50,4,3,16,27,'50–65','Хорошо переносит полутень.'],
-['tradescantia','Традесканция','Tradescantia','leaf','herb',40,60,6,5,12,26,'40–60','Быстро растёт, любит свет.'],
-['ivy','Плющ обыкновенный','Hedera helix','leaf','herb',35,55,5,4,10,22,'50–60','Предпочитает прохладу.'],
 ['basil','Базилик','Ocimum basilicum','leaf','herb',45,65,10,7,18,28,'45–60','Любит тепло и свет, поливайте регулярно.'],
-['mint','Мята','Mentha','leaf','herb',50,70,10,6,15,25,'50–60','Любит влагу, быстро расходует воду.'],
-['rosemary','Розмарин','Salvia rosmarinus','leaf','herb',25,45,4,8,10,24,'40–50','Не любит переувлажнения, нужен яркий свет.'],
-['coffee','Кофе арабика','Coffea arabica','leaf','ficus',40,60,5,5,18,26,'60–70','Любит рассеянный свет и мягкую воду.'],
-['aloe','Алоэ вера','Aloe vera','succ','succ',15,35,2,6,12,30,'30–50','Запасает воду в листьях. Поливайте после полного просыхания.'],
-['echeveria','Эхеверия','Echeveria','succ','succ',12,30,2,7,10,28,'30–50','Нужно много света. Не заливайте розетку.'],
-['haworthia','Хавортия','Haworthia','succ','succ',15,35,2,4,12,28,'30–50','Выдерживает полутень, поливайте редко.'],
-['crassula','Крассула (денежное дерево)','Crassula ovata','succ','succ',15,35,2,5,10,28,'30–50','Листья запасают воду, зимой поливайте ещё реже.'],
-['echinopsis','Кактус (эхинопсис)','Echinopsis','succ','cactus',10,30,1.5,7,10,30,'30–40','Нужен яркий свет, зимой почти без полива.'],
-['lithops','Литопс','Lithops','succ','succ',8,25,1,8,10,28,'30–40','Очень редкий полив: ориентируйтесь на сезон роста.'],
-['sedum','Седум','Sedum','succ','succ',12,30,2,7,5,28,'30–50','Любит свет и хорошо дренированную землю.'],
-['opuntia','Опунция','Opuntia','succ','cactus',10,30,1.5,8,10,30,'30–40','Любит прямое солнце, поливайте редко.'],
-['euphorbia','Молочай','Euphorbia','succ','cactus',15,35,2,6,15,28,'30–50','Сок раздражает кожу, работайте в перчатках.']
+['aloe','Алоэ вера','Aloe vera','succ','aloe',15,35,2,6,12,30,'30–50','Запасает воду в листьях. Поливайте после полного просыхания.'],
 ];
 const KB=RAW.map(a=>({id:a[0],name:a[1],latin:a[2],type:a[3],sil:a[4],min:a[5],max:a[6],rate:a[7],need:a[8],t:[a[9],a[10]],hum:a[11],tip:a[12]}));
 const kbOf=id=>KB.find(x=>x.id===id);
 const spName=p=>{const k=kbOf(p.kb);return k?k.name:p.species};
 const plural=(n,a,b,c)=>n%10===1&&n%100!==11?a:(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?b:c;
 const tc=v=>S.units==='C'?v:Math.round(v*9/5+32);
-[['tomato','tomato-cherry','flower',140],['pepper','pepper-chili','grow',120],['monstera','monstera','adult',250]].forEach(([id,kb,st,ml])=>{const p=PLANTS.find(x=>x.id===id),e=kbOf(kb);Object.assign(p,{kb,st,ml0:ml,base:{min:e.min,max:e.max,rate:e.rate}});});
+[['tomato','tomato-cherry','flower',140],['pepper','pepper-chili','grow',120],['monstera','monstera','adult',250],['lemon','lemon','fruit',200],['orchid','orchid','flower',60],['aloe','aloe','adult',50]].forEach(([id,kb,st,ml])=>{const p=PLANTS.find(x=>x.id===id),e=kbOf(kb);Object.assign(p,{kb,st,ml0:ml,base:{min:e.min,max:e.max,rate:e.rate}});});
 const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,time:'09:30',days:[1,1,1,1,1,1,1],vac:14},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto'};
 const P=id=>PLANTS.find(p=>p.id===id);
 const fmtT=v=>S.units==='C'?`${v.toFixed(1).replace('.',',')}<span class="u">°C</span>`:`${(v*9/5+32).toFixed(1).replace('.',',')}<span class="u">°F</span>`;
@@ -513,7 +474,16 @@ const frond=a=>{let h=`<g transform="translate(60 129) rotate(${a})">${stem('M0 
  for(let k=0;k<9;k++){const t=.14+k*.1,x=2*(1-t)*t*-6+t*t*4,y=2*(1-t)*t*-35+t*t*-70,L=11-k*.8;h+=`<ellipse cx="${x-L*.5}" cy="${y}" rx="${L}" ry="2.6" fill="url(#lf)" transform="rotate(-28 ${x} ${y})"/><ellipse cx="${x+L*.5}" cy="${y}" rx="${L}" ry="2.6" fill="url(#lf)" transform="rotate(28 ${x} ${y})"/>`}
  return h+'</g>'};
 const sword=(x,r,sy)=>`<g transform="translate(${x} 129) rotate(${r}) scale(1 ${sy})"><path d="M0 0C-8-10-9-52-2-80C0-84 0-84 2-80C9-52 8-10 0 0Z" fill="url(#lf2)"/><path d="M0 0C8-10 9-52 2-80C0-84 0-84 -.5-80C2-52 2-10 0 0Z" fill="var(--leaf-lo)" opacity=".3"/><path d="M-6.5-14C-8-32-6-60-2-76" stroke="var(--leaf-hi)" stroke-width="1.4" fill="none" opacity=".55"/></g>`;
+const lm=(x,y,r)=>`${thin(`M${x} ${y-4}Q${(x+60)/2} ${y-14} 60 ${y-18}`)}<g transform="translate(${x} ${y}) rotate(${r})"><path d="M-9 0C-9-6.5-4-8 0-8C4-8 9-6.5 9 0C9 6.5 4 8 0 8C-4 8-9 6.5-9 0Z" fill="url(#lem)"/><path d="M9 0q3.4-.4 3.6 0q-.2.4-3.6 0Z" fill="#B98A10"/><ellipse cx="-3.4" cy="-3.4" rx="3" ry="1.6" fill="#fff" opacity=".5" transform="rotate(-20 -3.4 -3.4)"/></g>`;
+const ob=(x,y,s,r=0)=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})"><ellipse cx="-7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(-18 -7 -3)"/><ellipse cx="7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(18 7 -3)"/><ellipse cx="-4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(30 -4.6 5)"/><ellipse cx="4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(-30 4.6 5)"/><ellipse cx="0" cy="3" rx="2.6" ry="3.2" fill="#B9467F"/><circle cx="0" cy="-.6" r="1.5" fill="#F2C14E"/></g>`;
+const gl=(x,y,r)=>`<g transform="translate(${x} ${y})"><circle r="${r}" fill="url(#lf)"/><circle r="${r*.62}" fill="none" stroke="var(--leaf-lo)" stroke-opacity=".35" stroke-width="2"/><path d="M0 0L${r*.2} ${-r}" stroke="var(--leaf-lo)" stroke-width="1.2" opacity=".5"/></g>`;
+const gum=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s})">${[[0,-9],[8.5,-3],[5.4,7],[-5.4,7],[-8.5,-3],[0,0]].map(([a,b])=>`<circle cx="${a}" cy="${b}" r="4.6" fill="url(#gp)"/>`).join('')}<circle cx="-1.6" cy="-2.2" r="1.4" fill="#fff" opacity=".45"/></g>`;
+const aloeL=(r,L,w)=>`<g transform="translate(60 128) rotate(${r})"><path d="M0 0C${-w} ${-L*.3} ${-w*.8} ${-L*.8} 0 ${-L}C${w*.8} ${-L*.8} ${w} ${-L*.3} 0 0Z" fill="url(#lf2)"/><path d="M0 0C${w} ${-L*.3} ${w*.8} ${-L*.8} 0 ${-L}C${w*.2} ${-L*.6} ${w*.1} ${-L*.3} 0 0Z" fill="var(--leaf-lo)" opacity=".28"/>${[.25,.42,.6,.78].map(t=>`<circle cx="${-w*(1-t)*.8-.4}" cy="${-L*t}" r="1.1" fill="#F3EBC6"/><circle cx="${w*(1-t)*.8+.4}" cy="${-L*t}" r="1.1" fill="#F3EBC6"/>`).join('')}</g>`;
 const SIL={
+ lemon:stem('M60 129C59 112 62 98 60 84S58 54 60 32','var(--dirt)',4.2)+thin('M60 100C50 92 43 84 40 74')+thin('M60 80C70 72 77 64 80 54')+[[60,110,-66],[60,106,68],[60,92,-58],[60,88,62],[41,76,-40],[41,76,22],[79,56,-20],[79,56,40],[60,66,-50],[60,60,48],[60,44,-26],[60,34,12],[60,46,32]].map(([x,y,r])=>Lf(x,y,23,9,r)).join('')+lm(42,104,-14)+lm(78,92,12)+lm(46,66,-8)+`<g fill="#fff"><circle cx="70" cy="40" r="2.6"/><circle cx="52" cy="50" r="2.2"/></g>`,
+ orchid:Lf(60,129,36,16,-74)+Lf(60,129,36,16,76)+Lf(60,129,30,14,-34)+Lf(60,129,30,13,36)+stem('M60 124C60 92 64 64 80 42','var(--leaf-lo)',2.2)+ob(65,86,.78,-8)+ob(71,66,.84,6)+ob(80,48,.9,12)+`<circle cx="85" cy="34" r="3.2" fill="url(#orc)"/><circle cx="88" cy="28" r="2.4" fill="url(#orc)"/>`,
+ geranium:thin('M60 129C60 112 60 100 60 90')+thin('M60 112C50 104 44 98 42 92')+thin('M60 108C70 100 76 94 78 88')+thin('M60 94C54 82 50 72 50 62')+thin('M60 92C68 80 72 66 74 54')+gl(60,110,14)+gl(40,102,12)+gl(80,98,12.5)+gl(46,86,10)+gl(74,82,10)+thin('M50 62C50 56 50 54 50 52')+gum(50,48,1)+gum(74,40,1.1),
+ aloe:aloeL(-78,34,11)+aloeL(78,34,11)+aloeL(-56,50,12)+aloeL(56,50,12)+aloeL(-32,66,13)+aloeL(32,66,13)+aloeL(-10,74,13)+aloeL(12,70,13)+aloeL(0,62,12),
  tomato:stem('M60 129C57 112 63 98 60 80S57 46 61 24')+Lf(60,108,28,9,-62)+Lf(61,96,30,9.5,64)+Lf(60,80,28,9,-56)+Lf(61,66,27,9,60)+Lf(60,50,22,8,-40)+Lf(61,40,20,7.5,42)+Lf(61,26,20,7,6)+fruit(42,102,7.8,'frt')+fruit(79,90,7.2,'frt')+fruit(44,72,6.4,'lf'),
  pepper:stem('M60 129C58 110 62 92 60 74S58 44 60 28')+Lf(60,106,26,7.5,-58)+Lf(60,94,26,7.5,60)+Lf(60,76,24,7,-52)+Lf(60,64,24,7,54)+Lf(60,48,20,6.5,-34)+Lf(60,38,18,6,36)+Lf(60,28,16,6,4)+pep(44,84,8,'pep')+pep(77,70,-8,'lf'),
  monstera:`<g stroke="var(--leaf-lo)" stroke-width="3" fill="none" stroke-linecap="round"><path d="M60 129C58 110 48 99 40 90"/><path d="M60 129C60 106 70 86 80 72"/><path d="M60 129C61 100 58 76 57 56"/></g><use href="#mleaf" transform="translate(40 90) rotate(-28) scale(.95)"/><use href="#mleaf" transform="translate(80 72) rotate(28) scale(1)"/><use href="#mleaf" transform="translate(57 56) rotate(-4) scale(.8)"/>`,
