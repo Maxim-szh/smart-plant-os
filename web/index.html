@@ -108,8 +108,10 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 /* растение: арка и горшок */
 .arch{position:relative;width:var(--aw,150px);aspect-ratio:3/4.1;border-radius:999px 999px 14px 14px;background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 55%,var(--surface)),var(--sky));border:1px solid var(--border);display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:14px;overflow:hidden;flex:none}
 .lv{transition:transform .7s cubic-bezier(.2,.7,.2,1)}
-.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none}
+.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none;cursor:grab}
 .shelf::-webkit-scrollbar{display:none}
+.shelf.drag{cursor:grabbing;user-select:none;scroll-snap-type:none;scroll-behavior:auto}
+@media(hover:hover) and (pointer:fine){.shelf{scroll-snap-type:none}}
 .shelf{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
 .pcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);background:none;border:0;padding:0;text-align:left;display:grid;gap:12px;justify-items:start;--aw:100%}
 .pcard .arch{transition:transform .2s}
@@ -118,11 +120,18 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 .pcard .meta{font-size:14px;color:var(--mu);display:grid;gap:4px}
 .addcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);border:1.5px dashed var(--border);border-radius:999px 999px 14px 14px;aspect-ratio:3/4.1;background:none;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--tx2);font-weight:500;align-self:start}
 @media(min-width:760px){.shelf{margin:0 -32px;padding-inline:32px;scroll-padding-inline:32px}.pcard,.addcard{flex:0 0 220px}}
-.shwrap{position:relative}
-.shnav{position:absolute;top:36%;z-index:3;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:var(--elev);color:var(--tx);display:none;place-items:center;box-shadow:var(--shadow);cursor:pointer}
-.shnav.l{left:-6px}.shnav.r{right:-6px}
-@media(hover:hover) and (pointer:fine){.shnav{display:grid}}
-.shnav:hover{background:var(--surface)}
+/* характер растения: стадия и самочувствие */
+.pl{transform-origin:60px 129px;transform:rotate(var(--rot,0deg)) scale(var(--sc,1),calc(var(--sc,1)*var(--sy,1)));transition:transform 1s cubic-bezier(.2,.7,.2,1),filter .8s}
+.st-seed{--sc:.55}.st-grow{--sc:.84}.st-rest{--sc:.94}
+.st-seed .fr,.st-grow .fr,.st-seed .fl,.st-grow .fl,.st-rest .fl{display:none}
+.mood-action .pl{--rot:4.5deg;--sy:.9;filter:saturate(.62) brightness(.97)}
+.mood-check .pl{--rot:-2deg;filter:saturate(.88)}
+.mood-help .pl{--sy:.96;filter:grayscale(.75)}
+@keyframes sway{0%,100%{rotate:-.9deg}50%{rotate:.9deg}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.mood-ok .pl,.mood-check .pl{animation:sway 7s ease-in-out infinite}
+.tdrop{animation:bob 2.2s ease-in-out infinite}
+[data-motion="off"] .pl,[data-motion="off"] .tdrop{animation:none!important}
 .cols{display:grid;gap:28px;margin-top:20px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr;gap:56px}}
 .sec h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
@@ -427,6 +436,30 @@ const ADJ={
  flower:{dm:5,ml:1.1,rate:1.1,txt:'Цветению нужна ровная влажность: не давайте земле сильно пересыхать.'},
  fruit:{dm:8,ml:1.4,rate:1.3,txt:'Плоды забирают много воды: поливаем чаще и стабильнее, резкие перепады вредят.'},
  rest:{dm:-12,ml:.6,rate:.5,txt:'В покое воды нужно заметно меньше: даём земле подсохнуть глубже.'}};
+
+/* рецепты ухода: нормы, которыми можно делиться */
+const MODEN={smart:'умный',plan:'по расписанию',manual:'вручную',vac:'отпуск'};
+const RECIPES=[
+ {id:'r-tom-fruit',name:'Томат: плодоношение',type:'fruit',stage:'fruit',range:[50,70],ml:200,mode:'smart',note:'Ровная влажность без перепадов: плоды не трескаются.',by:'Smart Plant OS'},
+ {id:'r-seed',name:'Росток: бережный старт',type:'fruit',stage:'seed',range:[55,70],ml:60,mode:'smart',note:'Корни слабые: земля чуть влажнее, порции маленькие.',by:'Smart Plant OS'},
+ {id:'r-pepper',name:'Перец: тёплое окно',type:'fruit',stage:'grow',range:[40,60],ml:120,mode:'smart',note:'Подсыхает быстрее томата, поэтому поливаем чаще и меньше.',by:'Smart Plant OS'},
+ {id:'r-citrus',name:'Цитрус: зимняя прохлада',type:'fruit',stage:'',range:[30,45],ml:120,mode:'smart',note:'Зимой цитрусам нужен более редкий полив.',by:'Smart Plant OS'},
+ {id:'r-orchid',name:'Орхидея: подсушка',type:'flower',stage:'',range:[25,40],ml:60,mode:'smart',note:'Субстрат должен хорошо подсохнуть между поливами.',by:'Smart Plant OS'},
+ {id:'r-leaf',name:'Лиственные: мало света',type:'leaf',stage:'',range:[30,50],ml:150,mode:'smart',note:'При нехватке света растение пьёт меньше, не переливайте.',by:'Smart Plant OS'},
+ {id:'r-succ',name:'Суккулент: редко и мало',type:'succ',stage:'',range:[10,28],ml:40,mode:'smart',note:'Мясистые листья хранят воду. Переполив опаснее недолива.',by:'Smart Plant OS'},
+ {id:'r-vac',name:'Отпуск на две недели',type:'any',stage:'',range:[35,55],ml:80,mode:'vac',note:'Малые порции и жёсткий дневной лимит. Проверьте, что воды в баке хватит.',by:'Smart Plant OS'}];
+const allRecipes=()=>RECIPES.concat(S.myRecipes||[]);
+const recFits=(r,p)=>r.type==='any'||r.type===p.type;
+const recSum=r=>`норма ${r.range[0]}–${r.range[1]}% · ${r.ml} мл · ${MODEN[r.mode]||r.mode}`;
+const recFile=r=>JSON.stringify({format:'smart-plant-recipe',version:1,name:r.name,type:r.type,stage:r.stage||'',range:r.range,ml:r.ml,mode:r.mode,note:r.note||'',author:r.by||''},null,2);
+function recParse(txt){let o;try{o=JSON.parse(txt)}catch(e){return {err:'Это не похоже на рецепт: не удалось прочитать файл.'}}
+ if(!o||o.format!=='smart-plant-recipe')return {err:'Это не рецепт Smart Plant OS.'};
+ const nm=String(o.name||'').trim().slice(0,60);if(!nm)return {err:'У рецепта нет названия.'};
+ const rg=Array.isArray(o.range)?o.range.map(Number):[];if(rg.length!==2||!(rg[0]>=5&&rg[1]<=95&&rg[1]-rg[0]>=10))return {err:'Норма влажности должна быть от 5 до 95%, и разница не меньше 10 пунктов.'};
+ const ml=Math.round(Number(o.ml));if(!(ml>=10&&ml<=500))return {err:'Порция должна быть от 10 до 500 мл.'};
+ if(!MODEN[o.mode])return {err:'Неизвестный режим ухода.'};
+ const ty=o.type==='any'||TYPES[o.type]?o.type:'any';
+ return {r:{id:'u'+Date.now(),name:nm,type:ty,stage:String(o.stage||'').slice(0,12),range:rg,ml,mode:o.mode,note:String(o.note||'').slice(0,200),by:String(o.author||'').slice(0,40)||'Импорт'}}}
 const stageLabel=p=>((STAGES[p.type]||[]).find(x=>x[0]===p.st)||(STAGES[p.type]||[['','']])[0])[1];
 const defStage=t=>t==='fruit'||t==='flower'?'grow':'adult';
 function applyStage(p){const b=p.base,a=ADJ[p.st];p.range=[Math.max(5,Math.round(b.min+a.dm)),Math.min(95,Math.round(b.max+a.dm))];p.rate=Math.round(b.rate*a.rate*10)/10;p.nextMl=Math.max(20,Math.round(p.ml0*a.ml/10)*10)}
@@ -448,7 +481,7 @@ const spName=p=>{const k=kbOf(p.kb);return k?k.name:p.species};
 const plural=(n,a,b,c)=>n%10===1&&n%100!==11?a:(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?b:c;
 const tc=v=>S.units==='C'?v:Math.round(v*9/5+32);
 [['tomato','tomato-cherry','flower',140],['pepper','pepper-chili','grow',120],['monstera','monstera','adult',250],['lemon','lemon','fruit',200],['orchid','orchid','flower',60],['aloe','aloe','adult',50]].forEach(([id,kb,st,ml])=>{const p=PLANTS.find(x=>x.id===id),e=kbOf(kb);Object.assign(p,{kb,st,ml0:ml,base:{min:e.min,max:e.max,rate:e.rate}});});
-const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,time:'09:30',days:[1,1,1,1,1,1,1],vac:14},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto'};
+const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,time:'09:30',days:[1,1,1,1,1,1,1],vac:14},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto',myRecipes:[],rid:null,rerr:''};
 const P=id=>PLANTS.find(p=>p.id===id);
 const fmtT=v=>S.units==='C'?`${v.toFixed(1).replace('.',',')}<span class="u">°C</span>`:`${(v*9/5+32).toFixed(1).replace('.',',')}<span class="u">°F</span>`;
 const dec=v=>String(v).replace('.',',');
@@ -471,21 +504,23 @@ const daysLeft=p=>Math.max(0,(p.moisture-p.range[0])/p.rate);
 const dstr=d=>d<0.5?'уже скоро':d<1.2?'около суток':`примерно ${dec(Math.round(d*2)/2)} суток`;
 
 /* силуэты и горшок */
+const _w=(c,fn)=>(...a)=>`<g class="${c}">${fn(...a)}</g>`;
 const Lf=(x,y,len,w,rot,g='lf')=>`<g transform="translate(${x} ${y}) rotate(${rot})"><path d="M0 0C${w} ${-len*.2} ${w*1.1} ${-len*.7} 0 ${-len}C${-w*1.1} ${-len*.7} ${-w} ${-len*.2} 0 0Z" fill="url(#${g})"/><path d="M0 0C${w} ${-len*.2} ${w*1.1} ${-len*.7} 0 ${-len}C${w*.25} ${-len*.6} ${w*.15} ${-len*.25} 0 0Z" fill="var(--leaf-lo)" opacity=".3"/></g>`;
 const stem=(d,c='var(--leaf-lo)',w=3.4)=>`<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`;
 const thin=d=>stem(d,'var(--leaf-lo)',1.7);
-const fruit=(x,y,r,g)=>`${thin(`M${x} ${y-r+1}Q${(x+60)/2} ${y-r-10} 60 ${y-r-14}`)}<g transform="translate(${x} ${y})"><circle r="${r}" fill="url(#${g})"/><ellipse cx="${-r*.38}" cy="${-r*.42}" rx="${r*.3}" ry="${r*.18}" fill="#fff" opacity=".45" transform="rotate(-35 ${-r*.38} ${-r*.42})"/><g fill="var(--leaf-lo)"><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5"/><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5" transform="rotate(60 0 ${-r+1})"/><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5" transform="rotate(-60 0 ${-r+1})"/></g></g>`;
-const pep=(x,y,rot,g)=>`${thin(`M${x} ${y} Q${(x+60)/2} ${y-12} 60 ${y-16}`)}<g transform="translate(${x} ${y}) rotate(${rot})"><path d="M0 0C6.5 .5 8.5 7 7.2 15C6 22 2.5 27 0 29C-2.5 27-6 22-7.2 15C-8.5 7-6.5 .5 0 0Z" fill="url(#${g})"/><ellipse cx="-3" cy="9" rx="1.6" ry="4.6" fill="#fff" opacity=".38"/><ellipse cy="1" rx="5.2" ry="2.6" fill="var(--leaf-lo)"/></g>`;
-const flo=(x,y,sc)=>`<g transform="translate(${x} ${y}) scale(${sc})">${[0,1,2,3,4].map(i=>`<g transform="rotate(${i*72})"><path d="M0 0C-9-5-9-19 0-21C9-19 9-5 0 0Z" fill="url(#bl)"/></g>`).join('')}<circle r="4.6" fill="#E9B04A"/><circle cx="-1.3" cy="-1.4" r="1.6" fill="#fff" opacity=".45"/></g>`;
+const fruit0=(x,y,r,g)=>`${thin(`M${x} ${y-r+1}Q${(x+60)/2} ${y-r-10} 60 ${y-r-14}`)}<g transform="translate(${x} ${y})"><circle r="${r}" fill="url(#${g})"/><ellipse cx="${-r*.38}" cy="${-r*.42}" rx="${r*.3}" ry="${r*.18}" fill="#fff" opacity=".45" transform="rotate(-35 ${-r*.38} ${-r*.42})"/><g fill="var(--leaf-lo)"><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5"/><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5" transform="rotate(60 0 ${-r+1})"/><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5" transform="rotate(-60 0 ${-r+1})"/></g></g>`;
+const pep0=(x,y,rot,g)=>`${thin(`M${x} ${y} Q${(x+60)/2} ${y-12} 60 ${y-16}`)}<g transform="translate(${x} ${y}) rotate(${rot})"><path d="M0 0C6.5 .5 8.5 7 7.2 15C6 22 2.5 27 0 29C-2.5 27-6 22-7.2 15C-8.5 7-6.5 .5 0 0Z" fill="url(#${g})"/><ellipse cx="-3" cy="9" rx="1.6" ry="4.6" fill="#fff" opacity=".38"/><ellipse cy="1" rx="5.2" ry="2.6" fill="var(--leaf-lo)"/></g>`;
+const flo0=(x,y,sc)=>`<g transform="translate(${x} ${y}) scale(${sc})">${[0,1,2,3,4].map(i=>`<g transform="rotate(${i*72})"><path d="M0 0C-9-5-9-19 0-21C9-19 9-5 0 0Z" fill="url(#bl)"/></g>`).join('')}<circle r="4.6" fill="#E9B04A"/><circle cx="-1.3" cy="-1.4" r="1.6" fill="#fff" opacity=".45"/></g>`;
 const frond=a=>{let h=`<g transform="translate(60 129) rotate(${a})">${stem('M0 0Q-6 -35 4 -70','var(--leaf-lo)',1.6)}`;
  for(let k=0;k<9;k++){const t=.14+k*.1,x=2*(1-t)*t*-6+t*t*4,y=2*(1-t)*t*-35+t*t*-70,L=11-k*.8;h+=`<ellipse cx="${x-L*.5}" cy="${y}" rx="${L}" ry="2.6" fill="url(#lf)" transform="rotate(-28 ${x} ${y})"/><ellipse cx="${x+L*.5}" cy="${y}" rx="${L}" ry="2.6" fill="url(#lf)" transform="rotate(28 ${x} ${y})"/>`}
  return h+'</g>'};
 const sword=(x,r,sy)=>`<g transform="translate(${x} 129) rotate(${r}) scale(1 ${sy})"><path d="M0 0C-8-10-9-52-2-80C0-84 0-84 2-80C9-52 8-10 0 0Z" fill="url(#lf2)"/><path d="M0 0C8-10 9-52 2-80C0-84 0-84 -.5-80C2-52 2-10 0 0Z" fill="var(--leaf-lo)" opacity=".3"/><path d="M-6.5-14C-8-32-6-60-2-76" stroke="var(--leaf-hi)" stroke-width="1.4" fill="none" opacity=".55"/></g>`;
-const lm=(x,y,r)=>`${thin(`M${x} ${y-4}Q${(x+60)/2} ${y-14} 60 ${y-18}`)}<g transform="translate(${x} ${y}) rotate(${r})"><path d="M-9 0C-9-6.5-4-8 0-8C4-8 9-6.5 9 0C9 6.5 4 8 0 8C-4 8-9 6.5-9 0Z" fill="url(#lem)"/><path d="M9 0q3.4-.4 3.6 0q-.2.4-3.6 0Z" fill="#B98A10"/><ellipse cx="-3.4" cy="-3.4" rx="3" ry="1.6" fill="#fff" opacity=".5" transform="rotate(-20 -3.4 -3.4)"/></g>`;
-const ob=(x,y,s,r=0)=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})"><ellipse cx="-7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(-18 -7 -3)"/><ellipse cx="7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(18 7 -3)"/><ellipse cx="-4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(30 -4.6 5)"/><ellipse cx="4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(-30 4.6 5)"/><ellipse cx="0" cy="3" rx="2.6" ry="3.2" fill="#B9467F"/><circle cx="0" cy="-.6" r="1.5" fill="#F2C14E"/></g>`;
+const lm0=(x,y,r)=>`${thin(`M${x} ${y-4}Q${(x+60)/2} ${y-14} 60 ${y-18}`)}<g transform="translate(${x} ${y}) rotate(${r})"><path d="M-9 0C-9-6.5-4-8 0-8C4-8 9-6.5 9 0C9 6.5 4 8 0 8C-4 8-9 6.5-9 0Z" fill="url(#lem)"/><path d="M9 0q3.4-.4 3.6 0q-.2.4-3.6 0Z" fill="#B98A10"/><ellipse cx="-3.4" cy="-3.4" rx="3" ry="1.6" fill="#fff" opacity=".5" transform="rotate(-20 -3.4 -3.4)"/></g>`;
+const ob0=(x,y,s,r=0)=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})"><ellipse cx="-7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(-18 -7 -3)"/><ellipse cx="7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(18 7 -3)"/><ellipse cx="-4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(30 -4.6 5)"/><ellipse cx="4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(-30 4.6 5)"/><ellipse cx="0" cy="3" rx="2.6" ry="3.2" fill="#B9467F"/><circle cx="0" cy="-.6" r="1.5" fill="#F2C14E"/></g>`;
 const gl=(x,y,r)=>`<g transform="translate(${x} ${y})"><circle r="${r}" fill="url(#lf)"/><circle r="${r*.62}" fill="none" stroke="var(--leaf-lo)" stroke-opacity=".35" stroke-width="2"/><path d="M0 0L${r*.2} ${-r}" stroke="var(--leaf-lo)" stroke-width="1.2" opacity=".5"/></g>`;
-const gum=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s})">${[[0,-9],[8.5,-3],[5.4,7],[-5.4,7],[-8.5,-3],[0,0]].map(([a,b])=>`<circle cx="${a}" cy="${b}" r="4.6" fill="url(#gp)"/>`).join('')}<circle cx="-1.6" cy="-2.2" r="1.4" fill="#fff" opacity=".45"/></g>`;
+const gum0=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s})">${[[0,-9],[8.5,-3],[5.4,7],[-5.4,7],[-8.5,-3],[0,0]].map(([a,b])=>`<circle cx="${a}" cy="${b}" r="4.6" fill="url(#gp)"/>`).join('')}<circle cx="-1.6" cy="-2.2" r="1.4" fill="#fff" opacity=".45"/></g>`;
 const aloeL=(r,L,w)=>`<g transform="translate(60 128) rotate(${r})"><path d="M0 0C${-w} ${-L*.3} ${-w*.8} ${-L*.8} 0 ${-L}C${w*.8} ${-L*.8} ${w} ${-L*.3} 0 0Z" fill="url(#lf2)"/><path d="M0 0C${w} ${-L*.3} ${w*.8} ${-L*.8} 0 ${-L}C${w*.2} ${-L*.6} ${w*.1} ${-L*.3} 0 0Z" fill="var(--leaf-lo)" opacity=".28"/>${[.25,.42,.6,.78].map(t=>`<circle cx="${-w*(1-t)*.8-.4}" cy="${-L*t}" r="1.1" fill="#F3EBC6"/><circle cx="${w*(1-t)*.8+.4}" cy="${-L*t}" r="1.1" fill="#F3EBC6"/>`).join('')}</g>`;
+const fruit=_w("fr",fruit0),pep=_w("fr",pep0),lm=_w("fr",lm0),flo=_w("fl",flo0),ob=_w("fl",ob0),gum=_w("fl",gum0);
 const SIL={
  lemon:stem('M60 129C59 112 62 98 60 84S58 54 60 32','var(--dirt)',4.2)+thin('M60 100C50 92 43 84 40 74')+thin('M60 80C70 72 77 64 80 54')+[[60,110,-66],[60,106,68],[60,92,-58],[60,88,62],[41,76,-40],[41,76,22],[79,56,-20],[79,56,40],[60,66,-50],[60,60,48],[60,44,-26],[60,34,12],[60,46,32]].map(([x,y,r])=>Lf(x,y,23,9,r)).join('')+lm(42,104,-14)+lm(78,92,12)+lm(46,66,-8)+`<g fill="#fff"><circle cx="70" cy="40" r="2.6"/><circle cx="52" cy="50" r="2.2"/></g>`,
  orchid:Lf(60,129,36,16,-74)+Lf(60,129,36,16,76)+Lf(60,129,30,14,-34)+Lf(60,129,30,13,36)+stem('M60 124C60 92 64 64 80 42','var(--leaf-lo)',2.2)+ob(65,86,.78,-8)+ob(71,66,.84,6)+ob(80,48,.9,12)+`<circle cx="85" cy="34" r="3.2" fill="url(#orc)"/><circle cx="88" cy="28" r="2.4" fill="url(#orc)"/>`,
@@ -505,17 +540,17 @@ const SIL={
 };
 let potN=0;
 function sceneSvg(o){const id='c'+(++potN),lv=Math.max(0,Math.min(100,o.level))/100,ty=r=>139-r*.28,vb=o.plant?'0 -10 120 160':'22 90 76 60';
- return `<svg class="${o.plant?'scene':'pot'}" viewBox="${vb}" role="img" aria-label="${o.plant?'Растение в горшке. ':'Горшок. '}${o.level==null?'Нет данных':'Влажность земли '+Math.round(o.level)+'%'}"><defs><clipPath id="${id}"><rect x="50" y="111" width="20" height="28" rx="10"/></clipPath></defs>
+ return `<svg class="${o.plant?'scene st-'+(o.st||'adult')+' mood-'+(o.mood||'ok'):'pot'}" viewBox="${vb}" role="img" aria-label="${o.plant?'Растение в горшке. ':'Горшок. '}${o.level==null?'Нет данных':'Влажность земли '+Math.round(o.level)+'%'}"><defs><clipPath id="${id}"><rect x="50" y="111" width="20" height="28" rx="10"/></clipPath></defs>
  <ellipse cx="60" cy="146" rx="42" ry="5" fill="url(#shd)"/>
  <g class="potg"><path d="M30 104h60l-6 36a4.5 4.5 0 01-4.5 4h-39a4.5 4.5 0 01-4.5-4z" fill="var(--pot)"/><path d="M60 104h30l-6 36a4.5 4.5 0 01-4.5 4H60z" fill="#000" opacity=".15"/><path d="M33.5 107h9l-2.6 31h-4.6z" fill="#fff" opacity=".14"/><path d="M30 104h60l-.9 7c-14 3.2-44 3.2-58.2 0z" fill="#000" opacity=".2"/>
  <rect x="25" y="96" width="70" height="11" rx="4.5" fill="var(--pot)"/><path d="M60 96h30.5a4.5 4.5 0 014.5 4.5v2a4.5 4.5 0 01-4.5 4.5H60z" fill="#000" opacity=".12"/><rect x="28" y="98" width="30" height="2.4" rx="1.2" fill="#fff" opacity=".25"/>
  <ellipse cx="60" cy="96.6" rx="35" ry="4.2" fill="var(--pot)"/><ellipse cx="60" cy="96.6" rx="35" ry="4.2" fill="#fff" opacity=".16"/><ellipse cx="60" cy="97.4" rx="31" ry="3" fill="url(#sg)"/>
  <rect x="50" y="111" width="20" height="28" rx="10" fill="var(--surface)" opacity=".9"/><g clip-path="url(#${id})"><rect class="lv" data-l="${lv}" x="50" y="111" width="20" height="28" fill="var(--water)" style="transform:scaleY(0);transform-origin:50% 100%;transform-box:fill-box"/></g><rect x="50" y="111" width="20" height="28" rx="10" fill="none" stroke="#000" stroke-opacity=".22"/><rect x="53.2" y="114" width="2.2" height="13" rx="1.1" fill="#fff" opacity=".55"/>
  ${o.ticks?`<path d="M73 ${ty(o.range[0])}h5M73 ${ty(o.range[1])}h5" stroke="var(--tx)" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>`:''}</g>
- ${o.plant?`<g transform="translate(60 97) scale(.95) translate(-60 -129)">${SIL[o.kind]||SIL.generic}</g>`:''}</svg>`;}
+ ${o.plant?`<g transform="translate(60 97) scale(.95) translate(-60 -129)"><g class="pl">${SIL[o.kind]||SIL.generic}</g></g>`:''}${o.plant&&o.mood==='action'?'<path class="tdrop" d="M98 34c4 5 6.5 8 6.5 11a6.5 6.5 0 01-13 0c0-3 2.5-6 6.5-11z" fill="var(--water)" opacity=".9"/><path d="M95.6 43.5c0 1.6.9 3 2.4 3.4" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".7"/>':''}</svg>`;}
 const pot=(level,range,ticks)=>sceneSvg({plant:false,level,range,ticks});
 function arch(p,ticks){const unk=S.flags.sensor;
- return `<div class="arch${unk?' unk':''}"><div class="glow"></div>${sceneSvg({plant:true,kind:p.kind,level:unk?0:p.moisture,range:p.range,ticks})}<div class="sheen"></div></div>`;}
+ return `<div class="arch${unk?' unk':''}"><div class="glow"></div>${sceneSvg({plant:true,kind:p.kind,st:p.st,mood:health(p),level:unk?0:p.moisture,range:p.range,ticks})}<div class="sheen"></div></div>`;}
 function animatePots(root=document){requestAnimationFrame(()=>requestAnimationFrame(()=>root.querySelectorAll('.lv').forEach(el=>el.style.transform=`scaleY(${el.dataset.l})`)));}
 function rb(p){if(S.flags.sensor)return '';return `<div class="rb" role="img" aria-label="Влажность ${p.moisture}%, норма ${p.range[0]}–${p.range[1]}%"><div class="tz" style="left:${p.range[0]}%;width:${p.range[1]-p.range[0]}%"></div><div class="mk" style="left:${p.moisture}%"></div></div>`;}
 
@@ -575,7 +610,7 @@ function vHome(){
  const nextList=[...PLANTS].map(p=>`<div class="row"><div><b>${esc(p.name)}</b><div class="sub">${p.next}</div></div><span class="t2">≈ ${p.nextMl} мл</span></div>`).join('');
  const ins=`<div class="why"><b>Томат.</b> Земля держит влагу дольше обычного, поэтому система не поливала сегодня утром: ${P('tomato').moisture}% при пороге 35%.</div><div class="why"><b>Монстера.</b> Света меньше обычного. Попробуйте переставить ближе к окну.</div>`;
  return `<header class="ph"><p class="eyebrow">Среда, 14 октября</p><h1 class="disp">Мои растения</h1><p class="lead">${summary()}</p></header>${banner}
- <div class="shwrap"><button class="shnav l" data-act="shl" aria-label="Назад">${ic('back',20)}</button><button class="shnav r" data-act="shr" aria-label="Вперёд">${ic('chev',20)}</button><div class="shelf">${cards}<button class="addcard" style="--i:${list.length}" data-act="addplant">${ic('plus',26)}<span>Добавить растение</span></button></div></div>
+ <div class="shelf">${cards}<button class="addcard" style="--i:${list.length}" data-act="addplant">${ic('plus',26)}<span>Добавить растение</span></button></div>
  <div class="cols"><section class="sec"><h2>Дальше</h2>${nextList}</section><section class="sec"><h2>Что заметили</h2>${ins}${S.mode!=='simple'?`<div class="row"><div><b>Вода сегодня</b><div class="sub">Бак 72%, хватит примерно на 11 дней</div></div><span class="num m">320<span class="u">мл</span></span></div>`:''}</section></div>`;}
 
 function grpSoil(p){
@@ -665,7 +700,8 @@ function vCare(){const c=S.care,M=[['smart','Умный','Поливает, ко
  <div class="chips" style="margin-bottom:14px">${PLANTS.map(q=>`<button class="chip" data-act="careplant" data-id="${q.id}" aria-pressed="${q.id===S.pid}">${esc(q.name.split(' ')[0])}</button>`).join('')}</div>
  ${prof}<div class="modes" role="group" aria-label="Режим ухода">${M.map(([k,t,d])=>`<button class="mode" data-act="cmode" data-v="${k}" aria-pressed="${c.mode===k}"><b>${t}</b><span>${d}</span></button>`).join('')}</div>
  <div style="margin-top:22px">${body}</div>
- <section class="grp" style="margin-top:26px"><h2>Нужно что-то особенное?</h2><div class="row" style="padding-top:0"><div><b>Свой алгоритм полива</b><div class="sub">Задайте правило: когда и сколько поливать</div></div><button class="btn" data-act="algo">Задать</button></div></section>`;}
+ <section class="grp" style="margin-top:26px"><h2>Нужно что-то особенное?</h2><div class="row" style="padding-top:0"><div><b>Свой алгоритм полива</b><div class="sub">Задайте правило: когда и сколько поливать</div></div><button class="btn" data-act="algo">Задать</button></div></section>
+ <section class="grp" style="margin-top:26px"><h2>Рецепты ухода</h2>${cp.recipe?`<div class="why" style="margin-bottom:10px">Сейчас применён рецепт «${esc(cp.recipe)}». <button class="btn quiet" data-act="resetrange">Вернуть рекомендации</button></div>`:''}<p class="t2" style="margin:0 0 6px">Готовый набор: норма влажности, порция и режим. Рецептом можно поделиться файлом.</p>${allRecipes().filter(r=>recFits(r,cp)).map(r=>`<button class="row" data-act="recipe" data-id="${r.id}"><div style="text-align:left"><b>${esc(r.name)}</b><div class="sub">${recSum(r)}</div></div>${ic('chev',18)}</button>`).join('')}<div class="chips" style="margin-top:12px"><button class="btn quiet" data-act="rimport">${ic('plus',18)}Импортировать рецепт</button><button class="btn quiet" data-act="rsave">Сохранить мои настройки</button></div></section>`;}
 function vAlgo(){const c=S.care,p=P(S.pid),thr=p.range[0],t=S.algoTab;
  const seg=`<div class="seg full" role="group" aria-label="Раздел" style="max-width:420px;margin:12px 0 18px">${[['main','Основные'],['adv','Продвинутые']].map(([k,l])=>`<button data-act="algotab" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join('')}</div>`;
  const main=`${sentence()}<div class="why">${preview()}</div><p class="note">Алгоритм работает вместе с правилами безопасности: например, насос не включится при пустом баке.</p>`;
@@ -811,6 +847,11 @@ function panel(kind){let h='',c=S.cfg;
  if(kind==='backup')h=shHead('Резервные копии')+`${swr('Делать копии автоматически','autoBackup','Настройки и история сохраняются на устройстве')}${c.autoBackup?`<div class="fld"><label for="bf">Как часто</label>${sel('bf','bkFreq',[['daily','Каждый день'],['weekly','Раз в неделю']],c.bkFreq)}</div>`:''}<p class="note">История: сырые данные 3 дня, по часам 30 дней, по суткам 365 дней. Последняя копия сегодня в 06:15.</p><div class="acts"><button class="btn" data-act="demo">Скачать копию</button><button class="btn" data-act="demo">Восстановить из копии</button></div>`;
  if(kind==='sim')h=shHead('Проверка состояний')+`<p class="t2">Включите состояние и посмотрите, как выглядит интерфейс.</p>`+[['offline','Нет связи с устройством'],['sensor','Датчик влажности не отвечает'],['tank','Бак пуст'],['emptyHist','Пустая история']].map(([k,l])=>`<div class="row"><span>${l}</span><input class="sw" type="checkbox" role="switch" data-act="flag" data-k="${k}" ${S.flags[k]?'checked':''} aria-label="${l}"></div>`).join('');
  if(kind==='reset')h=shHead('Сбросить настройки')+`<p class="t2">Вернём значения по умолчанию: порции, лимиты, уведомления, тему и интеграции. Растения, история и калибровка датчиков останутся.</p><button class="btn danger big" data-act="doreset">Сбросить настройки</button><button class="btn big" style="margin-top:10px" data-act="closesheet">Отмена</button>`;
+ if(kind==='recipe'){const r=allRecipes().find(x=>x.id===S.rid),p=P(S.pid);if(!r)return;const cap=Math.min(r.ml,S.cfg.maxWater),cc=S.care;
+  h=shHead(esc(r.name))+`<p class="t2">${esc(r.note||'')}</p><p class="sub" style="margin:2px 0 12px">Автор: ${esc(r.by||'неизвестен')}${r.stage?'':''}</p>`+`<div class="card" style="margin-bottom:14px"><p class="eyebrow">Для «${esc(p.name)}» изменится</p>${[['Норма влажности',`${p.range[0]}–${p.range[1]}%`,`${r.range[0]}–${r.range[1]}%`],['Порция',`${p.nextMl} мл`,`${cap} мл`],['Режим',MODEN[cc.mode],MODEN[r.mode]]].map(([k,a,b])=>`<div class="row"><span>${k}</span><span class="t2">${a} → <b>${b}</b></span></div>`).join('')}</div>`+(!recFits(r,p)?`<div class="banner" role="status">${ic('alert')}<div>Рецепт написан для другого типа растений. Проверьте норму.</div></div>`:'')+(r.ml>S.cfg.maxWater?`<p class="note">Порция уменьшена до вашего лимита ${S.cfg.maxWater} мл. Лимиты воды и защита насоса работают на устройстве и рецептом не меняются.</p>`:`<p class="note">Лимиты воды и защита насоса работают на устройстве и рецептом не меняются.</p>`)+`<div class="chips" style="margin-top:14px"><button class="btn" data-act="rapply" data-id="${r.id}">Применить</button><button class="btn quiet" data-act="rshare" data-id="${r.id}">Поделиться</button></div>`}
+ if(kind==='rshare'){const r=allRecipes().find(x=>x.id===S.rid);if(!r)return;h=shHead('Поделиться рецептом')+`<p class="t2">Отправьте этот текст или файл. Получатель добавит его через «Импортировать рецепт».</p><textarea class="inp" id="rtx" readonly rows="11" style="font:13px/1.5 var(--mono);width:100%">${esc(recFile(r))}</textarea><div class="chips" style="margin-top:12px"><button class="btn" data-act="rcopy">Скопировать</button><button class="btn quiet" data-act="rdl" data-id="${r.id}">Скачать файл</button></div>`}
+ if(kind==='rimport')h=shHead('Импортировать рецепт')+`<p class="t2">Вставьте текст рецепта. Мы проверим его, прежде чем добавить. Применять его или нет, решаете вы.</p><textarea class="inp" id="rtx" rows="9" placeholder="{ &quot;format&quot;: &quot;smart-plant-recipe&quot;, … }" style="font:13px/1.5 var(--mono);width:100%"></textarea>${S.rerr?`<p class="note" role="alert" style="color:var(--danger)">${esc(S.rerr)}</p>`:''}<div class="chips" style="margin-top:12px"><button class="btn" data-act="rdoimp">Проверить и добавить</button></div>`
+ if(kind==='rsave'){const p=P(S.pid);h=shHead('Сохранить как рецепт')+`<p class="t2">Сохраним текущую норму ${p.range[0]}–${p.range[1]}%, порцию ${S.care.amount} мл и режим «${MODEN[S.care.mode]}».</p><div class="fld"><label for="rnm">Название</label><input class="inp" id="rnm" value="${esc('Мой рецепт: '+p.name.split(' ')[0])}" maxlength="60" autocomplete="off"></div><div class="chips"><button class="btn" data-act="rdosave">Сохранить</button></div>`}
  openSheet(h)}
 
 /* события */
@@ -818,7 +859,15 @@ document.addEventListener('click',e=>{
  const t=e.target.closest('[data-act]');if(!t||t.tagName==='SELECT'||(t.tagName==='INPUT'&&t.type!=='checkbox'))return;const a=t.dataset.act,v=t.dataset.v,id=t.dataset.id;
  switch(a){
  case 'nav':go(v);break;
- case 'shl':case 'shr':{const s=t.parentElement.querySelector('.shelf'),c=s.querySelector('.pcard');s.scrollBy({left:(a==='shl'?-1:1)*(c.offsetWidth+16)})}break;
+ case 'recipe':S.rid=t.dataset.id;panel('recipe');break;
+ case 'rapply':{const r=allRecipes().find(x=>x.id===t.dataset.id),p=P(S.pid);if(!r)break;const ml=Math.min(r.ml,S.cfg.maxWater);p.range=[r.range[0],r.range[1]];p.nextMl=ml;p.recipe=r.name;S.care.mode=r.mode;S.care.amount=ml;closeSheet();render(true);toast('Рецепт «'+r.name+'» применён');break}
+ case 'rshare':S.rid=t.dataset.id;panel('rshare');break;
+ case 'rcopy':{const x=document.getElementById('rtx');try{navigator.clipboard.writeText(x.value).then(()=>toast('Скопировано'),()=>{x.select();toast('Выделено: нажмите «Копировать» в системе')})}catch(e){x.select()}break}
+ case 'rdl':{const r=allRecipes().find(x=>x.id===t.dataset.id);if(!r)break;const a2=document.createElement('a');a2.href=URL.createObjectURL(new Blob([recFile(r)],{type:'application/json'}));a2.download=r.id+'.recipe.json';document.body.append(a2);a2.click();a2.remove();break}
+ case 'rimport':S.rerr='';panel('rimport');break;
+ case 'rdoimp':{const x=recParse(document.getElementById('rtx').value);if(x.err){S.rerr=x.err;panel('rimport');break}S.rerr='';S.myRecipes.push(x.r);S.rid=x.r.id;render(true);panel('recipe');toast('Рецепт добавлен');break}
+ case 'rsave':panel('rsave');break;
+ case 'rdosave':{const p=P(S.pid),n=(document.getElementById('rnm').value||'').trim().slice(0,60)||'Мой рецепт';S.myRecipes.push({id:'u'+Date.now(),name:n,type:p.type,stage:p.st||'',range:[p.range[0],p.range[1]],ml:S.care.amount,mode:S.care.mode,note:'Сохранено из ваших настроек.',by:'Вы'});closeSheet();render(true);toast('Рецепт сохранён');break}
  case 'open':go('plant',{pid:id,tab:'now'});break;
  case 'home':go('home');break;
  case 'more':go('more',{setTab:'adv'});break;
@@ -849,9 +898,9 @@ document.addEventListener('click',e=>{
  case 'kbt':S.kbt=v;render(true);break;
  case 'kbopen':kbSheet(id);break;
  case 'kbadd':{const k=kbOf(id);Object.assign(AP,{step:0,name:k.name,type:k.type,kb:k.id,st:defStage(k.type),room:S.rooms[0]||null,adding:false,newRoom:'',kq:''});renderAddPlant();break}
- case 'stage':{const p=P(S.pid);p.st=v;applyStage(p);render(true);toast('Стадия: '+stageLabel(p)+'. Норма обновлена');break}
+ case 'stage':{const p=P(S.pid);p.st=v;p.recipe=null;applyStage(p);render(true);toast('Стадия: '+stageLabel(p)+'. Норма обновлена');break}
  case 'applyml':S.care.amount=+v;render(true);toast('Порция '+v+' мл применена');break;
- case 'resetrange':{const p=P(S.pid);applyStage(p);render(true);toast('Рекомендации восстановлены');break}
+ case 'resetrange':{const p=P(S.pid);p.recipe=null;applyStage(p);render(true);toast('Рекомендации восстановлены');break}
  case 'motion':S.motion=v;document.documentElement.dataset.motion=v==='off'?'off':'';panel('appear');render(true);break;
  case 'doreset':Object.assign(S.cfg,{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,localApi:true});Object.assign(S.care,{amount:150,night:true,limit:600,vac:14});S.notif={needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true};closeSheet();render(true);toast('Настройки сброшены');break;
  case 'calib':case 'calibp':if(id)S.pid=id;openSensor(3);break;
@@ -899,6 +948,17 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a)re
 function setThemeIcon(){}
 document.addEventListener('toggle',e=>{if(e.target.dataset&&e.target.dataset.k==='adv')S.advOpen=e.target.open},true);
 
+(function(){
+/* лента растений: мышью зажать и тянуть (с инерцией); пальцем работает нативный свайп */
+const sh=e=>e.target.closest&&e.target.closest('.shelf');
+let d=null,vel=0,raf=0;
+const clamp=(s,v)=>Math.max(0,Math.min(s.scrollWidth-s.clientWidth,v));
+function glide(s){cancelAnimationFrame(raf);const step=()=>{if(Math.abs(vel)<.02||d)return;s.scrollLeft=clamp(s,s.scrollLeft+vel*16);vel*=.94;raf=requestAnimationFrame(step)};raf=requestAnimationFrame(step)}
+document.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button)return;const s=sh(e);if(!s)return;cancelAnimationFrame(raf);vel=0;d={s,x:e.clientX,l:s.scrollLeft,m:false,lx:e.clientX,lt:performance.now()}});
+document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;if(!d.m&&Math.abs(dx)>5){d.m=true;d.s.classList.add('drag')}if(d.m){d.s.scrollLeft=clamp(d.s,d.l-dx);const t=performance.now(),dt=Math.max(1,t-d.lt);vel=.7*vel+.3*((d.lx-e.clientX)/dt);d.lx=e.clientX;d.lt=t}});
+const end=()=>{if(!d)return;const s=d.s,m=d.m;d=null;s.classList.remove('drag');if(m){const k=ev=>{ev.stopPropagation();ev.preventDefault()};s.addEventListener('click',k,{capture:true,once:true});setTimeout(()=>s.removeEventListener('click',k,true),60);glide(s)}};
+document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
+})();
 PLANTS.forEach(applyStage);setThemeIcon();render();
 setTimeout(()=>{S.booting=false;render(true);enter()},700);
 </script>
