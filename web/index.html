@@ -108,11 +108,9 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 /* растение: арка и горшок */
 .arch{position:relative;width:var(--aw,150px);aspect-ratio:3/4.1;border-radius:999px 999px 14px 14px;background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 55%,var(--surface)),var(--sky));border:1px solid var(--border);display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:14px;overflow:hidden;flex:none}
 .lv{transition:transform .7s cubic-bezier(.2,.7,.2,1)}
-.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none;cursor:grab}
+.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none}
 .shelf::-webkit-scrollbar{display:none}
-.shelf{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
-@media(hover:hover) and (pointer:fine){.shelf{scroll-snap-type:none}}
-.shelf.drag{user-select:none}
+.shelf{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
 .pcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);background:none;border:0;padding:0;text-align:left;display:grid;gap:12px;justify-items:start;--aw:100%}
 .pcard .arch{transition:transform .2s}
 .pcard:hover .arch{transform:translateY(-3px)}
@@ -120,6 +118,11 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 .pcard .meta{font-size:14px;color:var(--mu);display:grid;gap:4px}
 .addcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);border:1.5px dashed var(--border);border-radius:999px 999px 14px 14px;aspect-ratio:3/4.1;background:none;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--tx2);font-weight:500;align-self:start}
 @media(min-width:760px){.shelf{margin:0 -32px;padding-inline:32px;scroll-padding-inline:32px}.pcard,.addcard{flex:0 0 220px}}
+.shwrap{position:relative}
+.shnav{position:absolute;top:36%;z-index:3;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:var(--elev);color:var(--tx);display:none;place-items:center;box-shadow:var(--shadow);cursor:pointer}
+.shnav.l{left:-6px}.shnav.r{right:-6px}
+@media(hover:hover) and (pointer:fine){.shnav{display:grid}}
+.shnav:hover{background:var(--surface)}
 .cols{display:grid;gap:28px;margin-top:20px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr;gap:56px}}
 .sec h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
@@ -572,7 +575,7 @@ function vHome(){
  const nextList=[...PLANTS].map(p=>`<div class="row"><div><b>${esc(p.name)}</b><div class="sub">${p.next}</div></div><span class="t2">≈ ${p.nextMl} мл</span></div>`).join('');
  const ins=`<div class="why"><b>Томат.</b> Земля держит влагу дольше обычного, поэтому система не поливала сегодня утром: ${P('tomato').moisture}% при пороге 35%.</div><div class="why"><b>Монстера.</b> Света меньше обычного. Попробуйте переставить ближе к окну.</div>`;
  return `<header class="ph"><p class="eyebrow">Среда, 14 октября</p><h1 class="disp">Мои растения</h1><p class="lead">${summary()}</p></header>${banner}
- <div class="shelf">${cards}<button class="addcard" style="--i:${list.length}" data-act="addplant">${ic('plus',26)}<span>Добавить растение</span></button></div>
+ <div class="shwrap"><button class="shnav l" data-act="shl" aria-label="Назад">${ic('back',20)}</button><button class="shnav r" data-act="shr" aria-label="Вперёд">${ic('chev',20)}</button><div class="shelf">${cards}<button class="addcard" style="--i:${list.length}" data-act="addplant">${ic('plus',26)}<span>Добавить растение</span></button></div></div>
  <div class="cols"><section class="sec"><h2>Дальше</h2>${nextList}</section><section class="sec"><h2>Что заметили</h2>${ins}${S.mode!=='simple'?`<div class="row"><div><b>Вода сегодня</b><div class="sub">Бак 72%, хватит примерно на 11 дней</div></div><span class="num m">320<span class="u">мл</span></span></div>`:''}</section></div>`;}
 
 function grpSoil(p){
@@ -815,6 +818,7 @@ document.addEventListener('click',e=>{
  const t=e.target.closest('[data-act]');if(!t||t.tagName==='SELECT'||(t.tagName==='INPUT'&&t.type!=='checkbox'))return;const a=t.dataset.act,v=t.dataset.v,id=t.dataset.id;
  switch(a){
  case 'nav':go(v);break;
+ case 'shl':case 'shr':{const s=t.parentElement.querySelector('.shelf'),c=s.querySelector('.pcard');s.scrollBy({left:(a==='shl'?-1:1)*(c.offsetWidth+16)})}break;
  case 'open':go('plant',{pid:id,tab:'now'});break;
  case 'home':go('home');break;
  case 'more':go('more',{setTab:'adv'});break;
@@ -895,20 +899,6 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a)re
 function setThemeIcon(){}
 document.addEventListener('toggle',e=>{if(e.target.dataset&&e.target.dataset.k==='adv')S.advOpen=e.target.open},true);
 
-(function(){
-/* плавная лента растений: мышь (колесо, перетаскивание с инерцией); на сенсорных экранах работает нативный свайп со снапом */
-const fine=matchMedia('(hover:hover) and (pointer:fine)');
-const sh=e=>e.target.closest&&e.target.closest('.shelf');
-let raf=0,tgt=0,cur=0,el=null,d=null,vel=0;
-const clamp=(s,v)=>Math.max(0,Math.min(s.scrollWidth-s.clientWidth,v));
-function loop(){if(!el){raf=0;return}cur+=(tgt-cur)*.16;if(Math.abs(tgt-cur)<.4)cur=tgt;el.scrollLeft=cur;if(cur===tgt&&!d){el=null;raf=0;return}raf=requestAnimationFrame(loop)}
-function go(s,v){if(el!==s){el=s;cur=s.scrollLeft}tgt=clamp(s,v);if(!raf)raf=requestAnimationFrame(loop)}
-document.addEventListener('wheel',e=>{if(!fine.matches)return;const s=sh(e);if(!s||s.scrollWidth<=s.clientWidth)return;const dx=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;const base=el===s?tgt:s.scrollLeft;if((dx<0&&base<=0)||(dx>0&&base>=s.scrollWidth-s.clientWidth-1))return;e.preventDefault();go(s,base+dx*1.1)},{passive:false});
-document.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button)return;const s=sh(e);if(!s)return;el=null;d={s,x:e.clientX,l:s.scrollLeft,m:false,lx:e.clientX,lt:performance.now()};vel=0});
-document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;if(!d.m&&Math.abs(dx)>5){d.m=true;d.s.classList.add('drag')}if(d.m){d.s.scrollLeft=clamp(d.s,d.l-dx);const t=performance.now(),dt=Math.max(1,t-d.lt);vel=.8*vel+.2*((d.lx-e.clientX)/dt);d.lx=e.clientX;d.lt=t}});
-const end=()=>{if(!d)return;const s=d.s,m=d.m;d=null;s.classList.remove('drag');if(m){const k=ev=>{ev.stopPropagation();ev.preventDefault()};s.addEventListener('click',k,{capture:true,once:true});setTimeout(()=>s.removeEventListener('click',k,true),60);el=s;cur=s.scrollLeft;go(s,s.scrollLeft+vel*220)}};
-document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
-})();
 PLANTS.forEach(applyStage);setThemeIcon();render();
 setTimeout(()=>{S.booting=false;render(true);enter()},700);
 </script>
