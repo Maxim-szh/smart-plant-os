@@ -108,14 +108,15 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 /* растение: арка и горшок */
 .arch{position:relative;width:var(--aw,150px);aspect-ratio:3/4.1;border-radius:999px 999px 14px 14px;background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 55%,var(--surface)),var(--sky));border:1px solid var(--border);display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:14px;overflow:hidden;flex:none}
 .lv{transition:transform .7s cubic-bezier(.2,.7,.2,1)}
-.shelf{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 14px;padding:6px 0 16px}
-.pcard{background:none;border:0;padding:0;text-align:left;display:grid;gap:10px;justify-items:start;align-content:start;--aw:100%;min-width:0;width:100%}
+.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none;cursor:grab}
+.shelf::-webkit-scrollbar{display:none}
+.pcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);background:none;border:0;padding:0;text-align:left;display:grid;gap:12px;justify-items:start;--aw:100%}
 .pcard .arch{transition:transform .2s}
 .pcard:hover .arch{transform:translateY(-3px)}
-.pcard h3{font-size:17px;line-height:1.2}
-.pcard .meta{font-size:13.5px;color:var(--mu);display:grid;gap:3px}
-.addcard{border:1.5px dashed var(--border);border-radius:999px 999px 14px 14px;aspect-ratio:3/4.1;background:none;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--tx2);font-weight:500;align-self:start;width:100%}
-@media(min-width:620px){.shelf{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:30px 22px}.pcard h3{font-size:20px}.pcard .meta{font-size:14px}}
+.pcard h3{font-size:20px;line-height:1.2}
+.pcard .meta{font-size:14px;color:var(--mu);display:grid;gap:4px}
+.addcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);border:1.5px dashed var(--border);border-radius:999px 999px 14px 14px;aspect-ratio:3/4.1;background:none;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--tx2);font-weight:500;align-self:start}
+@media(min-width:760px){.shelf{margin:0 -32px;padding-inline:32px;scroll-padding-inline:32px}.pcard,.addcard{flex:0 0 220px}}
 .cols{display:grid;gap:28px;margin-top:20px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr;gap:56px}}
 .sec h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
@@ -890,6 +891,14 @@ document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a)re
  if(a==='r0'||a==='r1'){render(true)}});
 function setThemeIcon(){}
 document.addEventListener('toggle',e=>{if(e.target.dataset&&e.target.dataset.k==='adv')S.advOpen=e.target.open},true);
+
+(function(){let d=null;const sh=e=>e.target.closest&&e.target.closest('.shelf');
+document.addEventListener('pointerdown',e=>{const s=sh(e);if(s&&e.pointerType==='mouse'){d={s,x:e.clientX,l:s.scrollLeft,m:false}}});
+document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;if(Math.abs(dx)>5)d.m=true;if(d.m){d.s.style.scrollSnapType='none';d.s.scrollLeft=d.l-dx}});
+document.addEventListener('pointerup',()=>{if(d){const s=d.s;setTimeout(()=>{s.style.scrollSnapType=''},0);}d&&d.m&&(window.__drag=1,setTimeout(()=>window.__drag=0,50));d=null});
+document.addEventListener('click',e=>{if(window.__drag){e.stopPropagation();e.preventDefault()}},true);
+document.addEventListener('wheel',e=>{const s=sh(e);if(s&&s.scrollWidth>s.clientWidth&&Math.abs(e.deltaX)<Math.abs(e.deltaY)&&!(e.deltaY<0&&s.scrollLeft<=0)&&!(e.deltaY>0&&s.scrollLeft>=s.scrollWidth-s.clientWidth-1)){s.scrollLeft+=e.deltaY;e.preventDefault()}},{passive:false});
+})();
 PLANTS.forEach(applyStage);setThemeIcon();render();
 setTimeout(()=>{S.booting=false;render(true);enter()},700);
 </script>
