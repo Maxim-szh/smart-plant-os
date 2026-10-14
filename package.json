@@ -1,0 +1,11 @@
+{
+  "name": "smart-plant-os",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Открытая локальная система ухода за растениями на ESP32 (ранний прототип интерфейса)",
+  "license": "Apache-2.0",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "serve": "python3 -m http.server 8080"
+  }
+}

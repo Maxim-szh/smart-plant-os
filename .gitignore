@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+*.log
+.env
+.vscode/
+.idea/
+# прошивка
+firmware/.pio/
+firmware/build/
+firmware/sdkconfig.old
