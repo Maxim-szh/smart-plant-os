@@ -38,7 +38,9 @@ else {
 }
 
 // 3. Прототип не должен тянуть внешние сервисы, кроме шрифтов
-const ext = [...html.matchAll(/https?:\/\/[^\s"'`)<]+/g)].map((x) => new URL(x[0]).host)
+// Примеры адресов в подсказках полей (placeholder) не считаются зависимостями
+const htmlNoHints = html.replace(/placeholder="[^"]*"|placeholder="\$\{[^}]*\}"/g, '').replace(/placeholder="\$\{.*?\}"/g, '');
+const ext = [...htmlNoHints.matchAll(/https?:\/\/[^\s"'`)<]+/g)].map((x) => new URL(x[0]).host)
   .filter((h) => !['fonts.googleapis.com', 'fonts.gstatic.com'].includes(h));
 if (ext.length) fail('внешние адреса в прототипе: ' + [...new Set(ext)].join(', '));
 else ok('внешних зависимостей кроме шрифтов нет');

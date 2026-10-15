@@ -142,6 +142,8 @@ button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom
 .radar i{position:absolute;inset:0;border-radius:50%;border:2px solid var(--pri);opacity:0;animation:ping 2s ease-out infinite}.radar i+i{animation-delay:1s}
 .radar span{width:56px;height:56px;border-radius:50%;background:color-mix(in srgb,var(--pri) 14%,var(--surface));display:grid;place-items:center}
 @keyframes ping{0%{transform:scale(.4);opacity:.7}100%{transform:scale(1);opacity:0}}
+.code{font:13.5px/1.6 var(--mono);width:100%;min-height:250px;white-space:pre;overflow:auto;tab-size:2;resize:vertical}
+.fct .t2{text-align:right;max-width:46%}
 .cols{display:grid;gap:28px;margin-top:20px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr;gap:56px}}
 .sec h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
@@ -425,7 +427,7 @@ const EVENTS=[
  {d:'Сегодня',t:'06:15',p:null,k:'sys',title:'Копия настроек сохранена',why:'Настройки и история сохранены на устройстве.',tag:'Автоматически'},
  {d:'Вчера',t:'10:00',p:'lemon',k:'water',ml:200,title:'Полито 200 мл',why:'Земля подсохла, и лимон получил воду. Стало 47%.',tag:'Автоматически'},
  {d:'Вчера',t:'09:32',p:'tomato',k:'water',ml:150,title:'Полито 150 мл',why:'Полив по расписанию «Утро». Земля стала влажнее: было 46%, стало 58%.',tag:'Автоматически'},
- {d:'Вчера',t:'06:05',p:'tomato',k:'sys',title:'Томат вошёл в стадию цветения',why:'Определено автоматически: идёт 46-й день, а воды уходит заметно больше. Если это не так, выберите стадию вручную в разделе «Уход».',tag:'Автоматически'},
+ {d:'Вчера',t:'06:05',p:'tomato',k:'warn',title:'Похоже, у томата началось цветение',why:'Воды уходит на 28% больше, чем месяц назад. Предложение сменить стадию ждёт в разделе «Уход».',tag:'Совет'},
  {d:'Вчера',t:'06:50',p:'monstera',k:'warn',title:'Монстере не хватает света',why:'За неделю света было в среднем 3 ч 10 мин вместо 5 ч. Попробуйте переставить ближе к окну.',tag:'Совет'},
  {d:'Вчера',t:'02:04',p:null,k:'sys',title:'Пропадал Wi‑Fi',why:'Связи не было 4 минуты. Растения всё это время поливались по вашим настройкам.',tag:'Автоматически'},
  {d:'13 октября',t:'14:40',p:null,k:'sys',title:'Вода в баке долита',why:'Воды 96%, всё работает как обычно.',tag:'Вы'},
@@ -456,7 +458,7 @@ const ADJ={
  rest:{dm:-12,ml:.6,rate:.5,txt:'В покое воды нужно заметно меньше: даём земле подсохнуть глубже.'}};
 
 /* рецепты ухода: нормы, которыми можно делиться */
-const MODEN={smart:'умный',plan:'по расписанию',manual:'вручную',vac:'отпуск'};
+const MODEN={smart:'умный',manual:'вручную'};
 const RECIPES=[
  {id:'r-tom-fruit',name:'Томат: плодоношение',type:'fruit',stage:'fruit',range:[50,70],ml:200,mode:'smart',note:'Ровная влажность без перепадов: плоды не трескаются.',by:'Smart Plant OS'},
  {id:'r-seed',name:'Росток: бережный старт',type:'fruit',stage:'seed',range:[55,70],ml:60,mode:'smart',note:'Корни слабые: земля чуть влажнее, порции маленькие.',by:'Smart Plant OS'},
@@ -464,8 +466,8 @@ const RECIPES=[
  {id:'r-citrus',name:'Цитрус: зимняя прохлада',type:'fruit',stage:'',range:[30,45],ml:120,mode:'smart',note:'Зимой цитрусам нужен более редкий полив.',by:'Smart Plant OS'},
  {id:'r-orchid',name:'Орхидея: подсушка',type:'flower',stage:'',range:[25,40],ml:60,mode:'smart',note:'Субстрат должен хорошо подсохнуть между поливами.',by:'Smart Plant OS'},
  {id:'r-leaf',name:'Лиственные: мало света',type:'leaf',stage:'',range:[30,50],ml:150,mode:'smart',note:'При нехватке света растение пьёт меньше, не переливайте.',by:'Smart Plant OS'},
- {id:'r-succ',name:'Суккулент: редко и мало',type:'succ',stage:'',range:[10,28],ml:40,mode:'smart',note:'Мясистые листья хранят воду. Переполив опаснее недолива.',by:'Smart Plant OS'},
- {id:'r-vac',name:'Отпуск на две недели',type:'any',stage:'',range:[35,55],ml:80,mode:'vac',note:'Малые порции и жёсткий дневной лимит. Проверьте, что воды в баке хватит.',by:'Smart Plant OS'}];
+ {id:'r-succ',name:'Суккулент: редко и мало',type:'succ',stage:'',range:[10,28],ml:40,mode:'smart',note:'Мясистые листья хранят воду. Переполив опаснее недолива.',by:'Smart Plant OS'}
+];
 const allRecipes=()=>RECIPES.concat(S.myRecipes||[]);
 const recFits=(r,p)=>r.type==='any'||r.type===p.type;
 const recSum=r=>`норма ${r.range[0]}–${r.range[1]}% · ${r.ml} мл · ${MODEN[r.mode]||r.mode}`;
@@ -500,12 +502,12 @@ const isAuto=p=>p.auto!==false;
 function syncStage(p){if(isAuto(p)){const g=guessStage(p);if(p.st!==g.st){p.st=g.st;p.recipe=null;applyStage(p)}}}
 function stageBlock(p){const stl=STAGES[p.type]||[],g=guessStage(p),au=isAuto(p);
  return `<div class="seg" role="group" aria-label="Как определять стадию" style="margin:8px 0">${[['1','Автоматически'],['0','Вручную']].map(([k,l])=>`<button data-act="stauto" data-v="${k}" aria-pressed="${au===(k==='1')}">${l}</button>`).join('')}</div>`
- +(au?`<div class="why"><b>Похоже, это: ${stageLabel(p)}.</b> Уверенность: ${CONF[g.conf]}. ${g.why.join('. ')}.</div>`:'')
+ +(!au&&stageSug(p)?(()=>{const g=stageSug(p),lb=((STAGES[p.type]||[]).find(x=>x[0]===g.st)||['',''])[1];return `<div class="why"><b>Система предлагает: ${lb}.</b> ${g.why.join('. ')}. <div class="chips" style="margin-top:8px"><button class="btn" data-act="stsug">Сменить</button><button class="btn quiet" data-act="stno">Не сейчас</button></div></div>`})():'')+(au?`<div class="why"><b>Похоже, это: ${stageLabel(p)}.</b> Уверенность: ${CONF[g.conf]}. ${g.why.join('. ')}.</div>`:'')
  +`<div class="chips" style="margin:8px 0;${au?'opacity:.6':''}">${stl.map(([k,l])=>`<button class="chip" data-act="stage" data-v="${k}" aria-pressed="${k===p.st}">${l}</button>`).join('')}</div>`
- +(au?`<p class="note">Нажмёте на стадию сами, и автоопределение для этого растения выключится.</p>`:'')}
+ +(au?`<p class="note">Нажмёте на стадию сами, и автоопределение для этого растения выключится. Тогда система будет только предлагать сменить стадию.</p>`:'')}
 const stageLabel=p=>((STAGES[p.type]||[]).find(x=>x[0]===p.st)||(STAGES[p.type]||[['','']])[0])[1];
 const defStage=t=>t==='fruit'||t==='flower'?'grow':'adult';
-function applyStage(p){const b=p.base,a=ADJ[p.st];p.range=[Math.max(5,Math.round(b.min+a.dm)),Math.min(95,Math.round(b.max+a.dm))];p.rate=Math.round(b.rate*a.rate*10)/10;p.nextMl=Math.max(20,Math.round(p.ml0*a.ml/10)*10)}
+function applyStage(p){const b=p.base,a=ADJ[p.st];p.range=[Math.max(5,Math.round(b.min+a.dm)),Math.min(95,Math.round(b.max+a.dm))];p.rate=Math.round(b.rate*a.rate*10)/10;p.nextMl=Math.max(20,Math.round(p.ml0*a.ml*(p.sens||1)/10)*10)}
 const RAW=[
 ['tomato-cherry','Томат черри','Solanum lycopersicum','fruit','tomato',40,60,9,8,18,26,'50–70','Любит яркий свет и ровную влажность. Пересушка и перелив вызывают растрескивание плодов.'],
 ['pepper-chili','Перец острый (чили)','Capsicum annuum','fruit','pepper',40,60,12,8,20,28,'50–65','Тёплое окно и стабильный полив. Подсыхает быстрее томата в небольшом горшке.'],
@@ -524,7 +526,8 @@ const spName=p=>{const k=kbOf(p.kb);return k?k.name:p.species};
 const plural=(n,a,b,c)=>n%10===1&&n%100!==11?a:(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?b:c;
 const tc=v=>S.units==='C'?v:Math.round(v*9/5+32);
 [['tomato','tomato-cherry','flower',140],['pepper','pepper-chili','grow',120],['monstera','monstera','adult',250],['lemon','lemon','fruit',200],['orchid','orchid','flower',60],['aloe','aloe','adult',50]].forEach(([id,kb,st,ml])=>{const p=PLANTS.find(x=>x.id===id),e=kbOf(kb);Object.assign(p,{kb,st,ml0:ml,base:{min:e.min,max:e.max,rate:e.rate}});});
-const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,time:'09:30',days:[1,1,1,1,1,1,1],vac:14},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{weekly:true,needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto',myRecipes:[],rid:null,rerr:'',mods:{soil:true,light:true,air:true,pump:true,tank:true},weekDone:false,ob:null};
+const EXAMPLE='# Мой алгоритм полива\nevery 10 min:\n  if soil < 40 and tank > 10 and not night:\n    water 150 ml\n    cooldown 6 h\n  if light_h < 3 and hour == 14:\n    notify "Мало света, переставьте ближе к окну"\n';
+const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,mt:'simple',mthr:40,mauto:true,code:EXAMPLE},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{weekly:true,needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto',myRecipes:[],rid:null,rerr:'',codeOut:'',ai:{prov:'off',url:'',model:'',key:'',logs:true,sensors:true,photo:false},mods:{soil:true,light:true,air:true,pump:true,tank:true},weekDone:false,ob:null};
 const P=id=>PLANTS.find(p=>p.id===id);
 const fmtT=v=>S.units==='C'?`${v.toFixed(1).replace('.',',')}<span class="u">°C</span>`:`${(v*9/5+32).toFixed(1).replace('.',',')}<span class="u">°F</span>`;
 const dec=v=>String(v).replace('.',',');
@@ -654,7 +657,7 @@ function vHome(){
  const ins=`<div class="why"><b>Томат.</b> Земля держит влагу дольше обычного, поэтому система не поливала сегодня утром: ${P('tomato').moisture}% при пороге 35%.</div><div class="why"><b>Монстера.</b> Света меньше обычного. Попробуйте переставить ближе к окну.</div>`;
  return `<header class="ph"><p class="eyebrow">Среда, 14 октября</p><h1 class="disp">Мои растения</h1><p class="lead">${summary()}</p></header>${banner}
  <div class="shelf">${cards}<button class="addcard" style="--i:${list.length}" data-act="addplant">${ic('plus',26)}<span>Добавить растение</span></button></div>
- <div class="cols"><section class="sec"><h2>Дальше</h2>${nextList}</section><section class="sec"><h2>Что заметили</h2>${ins}</section></div>${remind()}`;}
+ <div class="cols"><section class="sec"><h2>Дальше</h2>${nextList}</section><section class="sec"><h2>Что заметили</h2>${ins}${PLANTS.filter(stageSug).map(q=>{const g=stageSug(q),lb=((STAGES[q.type]||[]).find(x=>x[0]===g.st)||['',''])[1];return `<div class="why"><b>${esc(q.name.split(' ')[0])}.</b> Похоже, началась стадия «${lb}»: ${g.why[g.why.length-1].toLowerCase()}. <button class="btn" data-act="stsug" data-id="${q.id}">Сменить</button></div>`}).join('')}</section></div>${remind()}`;}
 
 
 const MODS=[['soil','Датчики влажности земли','Для каждого растения'],['light','Датчик света','BH1750'],['air','Температура и влажность воздуха','SHT41'],['pump','Насос','Реле, порт P1'],['tank','Датчик уровня воды','Поплавок']];
@@ -701,6 +704,49 @@ function vOnb(){const o=S.ob,st=o.step,N=6;let h='',foot='';
   <div class="why"><b>Что будет дальше.</b> ${autoLevel().d} Мы напомним долить воду и раз в неделю осмотреть растения.</div>`;
   foot=`<button class="btn pri big" data-act="obplant">Добавить растение</button><button class="btn quiet" data-act="obdone" style="margin-top:8px">Пропустить</button>`}
  return `<div class="onb">${back}${stepsBar(N,st)}${h}<div class="obf">${foot}</div></div>`}
+
+/* программа ухода: простой псевдокод, разбор и прогон на истории */
+const CODEHELP=`<b>Когда проверять:</b> <code>every 10 min:</code> или <code>every 2 h:</code><br><b>Условия:</b> <code>if soil &lt; 40 and not night:</code><br><b>Данные:</b> soil (влажность земли, %), light_h (часов света), temp, hum, tank (%), hour (0–23), night, days_since_water, stage (seed, grow, flower, fruit, adult, rest)<br><b>Действия:</b> <code>water 150 ml</code>, <code>cooldown 6 h</code>, <code>notify "текст"</code>`;
+const STG=['seed','grow','flower','fruit','adult','rest'],VARS=['soil','light_h','temp','hum','tank','hour','night','days_since_water','stage'];
+function condJs(src,ln){const re=/\s*(\d+(?:\.\d+)?|[A-Za-z_]+|<=|>=|==|!=|<|>|\(|\))/y;let out='',m,pos=0;
+ while(pos<src.length){re.lastIndex=pos;m=re.exec(src);if(!m){if(!src.slice(pos).trim())break;return{err:`Строка ${ln}: непонятный символ «${src.slice(pos).trim()[0]}»`}}pos=re.lastIndex;const w=m[1];
+  if(w==='and')out+=' && ';else if(w==='or')out+=' || ';else if(w==='not')out+=' !';
+  else if(/^[A-Za-z_]+$/.test(w)){if(VARS.includes(w))out+=` v.${w} `;else if(STG.includes(w))out+=` "${w}" `;else return{err:`Строка ${ln}: незнакомое слово «${w}»`}}
+  else out+=` ${w} `}
+ if(!out.trim())return{err:`Строка ${ln}: пустое условие`};return{js:out}}
+function parseProg(src){const L=src.split('\n').map((s,i)=>({n:i+1,t:s.replace(/#.*$/,'').replace(/\t/g,'  ')})).filter(x=>x.t.trim());
+ if(!L.length)return{err:'Программа пустая.'};
+ let i=0;const ind=s=>s.match(/^ */)[0].length;
+ function block(minInd,deep){const arr=[];const base=L[i]&&ind(L[i].t);
+  while(i<L.length&&ind(L[i].t)>=minInd){const x=L[i],tx=x.t.trim();if(ind(x.t)!==base)return{err:`Строка ${x.n}: неровный отступ`};i++;
+   let m;
+   if((m=/^if (.+):$/.exec(tx))){if(deep>=3)return{err:`Строка ${x.n}: слишком много вложенных условий`};const c=condJs(m[1],x.n);if(c.err)return c;if(!(i<L.length&&ind(L[i].t)>base))return{err:`Строка ${x.n}: после условия нужны действия с отступом`};const b=block(base+1,deep+1);if(b.err)return b;arr.push({k:'if',js:c.js,body:b.arr})}
+   else if((m=/^water (\d+) ml$/.exec(tx))){const ml=+m[1];if(ml<10||ml>500)return{err:`Строка ${x.n}: порция от 10 до 500 мл`};arr.push({k:'water',ml})}
+   else if((m=/^cooldown (\d+) h$/.exec(tx))){const hh=+m[1];if(hh<1||hh>72)return{err:`Строка ${x.n}: пауза от 1 до 72 ч`};arr.push({k:'cool',h:hh})}
+   else if((m=/^notify "([^"]{1,80})"$/.exec(tx)))arr.push({k:'note',text:m[1]});
+   else return{err:`Строка ${x.n}: не понимаю «${tx.slice(0,40)}». Можно: if…:, water N ml, cooldown N h, notify "текст"`}}
+  return{arr}}
+ const rules=[];
+ while(i<L.length){const x=L[i],tx=x.t.trim();if(ind(x.t)!==0)return{err:`Строка ${x.n}: лишний отступ`};let m;
+  if((m=/^every (\d+) (min|h):$/.exec(tx))){i++;const mins=+m[1]*(m[2]==='h'?60:1);if(mins<1||mins>1440)return{err:`Строка ${x.n}: проверка от 1 минуты до 24 часов`};if(!(i<L.length&&ind(L[i].t)>0))return{err:`Строка ${x.n}: внутри every нужны строки с отступом`};const b=block(1,0);if(b.err)return b;rules.push({mins,body:b.arr})}
+  else{const b=block(0,0);if(b.err)return b;rules.push({mins:60,body:b.arr})}}
+ return{rules}}
+function progStats(rules){let c=0,a=0;const w=n=>n.forEach(s=>{if(s.k==='if'){c++;w(s.body)}else a++});rules.forEach(r=>w(r.body));return{c,a}}
+function simProg(rules,p){const H=168,per=p.rate/24,gain=ml=>ml/(p.pot*1000)*100*2.2,cap=S.cfg.maxWater,day=S.care.limit;
+ let m=(p.range[0]+p.range[1])/2,min=m,max=m,n=0,ml=0,notes=0,clip=0,last=-999;const cool=rules.map(()=>-1),dayMl={};
+ for(let t=0;t<H;t++){m=Math.max(0,m-per);const hour=t%24,v={soil:m,light_h:Math.min(p.lightH,Math.max(0,hour-7)),temp:p.air,hum:p.hum,tank:80,hour,night:hour<7||hour>=22,days_since_water:(t-last)/24,stage:p.st};
+  rules.forEach((r,ri)=>{if(t*60%r.mins>=60&&r.mins>=60&&t%Math.round(r.mins/60)!==0)return;if(r.mins<60||t%Math.max(1,Math.round(r.mins/60))===0){
+   const run=list=>{for(const s of list){if(s.k==='if'){let ok=false;try{ok=!!new Function('v','return ('+s.js+')')(v)}catch(e){}if(ok)run(s.body)}
+    else if(s.k==='water'){if(t<cool[ri])continue;const d=Math.floor(t/24);let q=Math.min(s.ml,cap);if(q<s.ml)clip++;if((dayMl[d]||0)+q>day){q=Math.max(0,day-(dayMl[d]||0));clip++}if(q<=0||t-last<1)continue;dayMl[d]=(dayMl[d]||0)+q;m=Math.min(100,m+gain(q));n++;ml+=q;last=t;v.soil=m}
+    else if(s.k==='cool')cool[ri]=t+s.h;else if(s.k==='note')notes++}};run(r.body)}});
+  min=Math.min(min,m);max=Math.max(max,m)}
+ return{n,ml,min:Math.round(min),max:Math.round(max),notes,clip}}
+function runCode(sim){const p=P(S.pid),r=parseProg(S.care.code);
+ if(r.err){S.codeOut=`<div class="err" role="alert"><b>Нужно поправить.</b> <span class="t2">${esc(r.err)}</span></div>`;return}
+ const st=progStats(r.rules);let o=`<div class="why"><b>Всё понятно.</b> Условий: ${st.c}, действий: ${st.a}. Лимиты воды устройство соблюдает само.</div>`;
+ if(sim){const x=simProg(r.rules,p);const w=[];if(x.min<p.range[0]-10)w.push('земля сильно пересыхала');if(x.max>p.range[1]+15)w.push('возможен перелив');if(x.clip)w.push('часть поливов обрезана лимитами');
+  o+=`<div class="card"><p class="eyebrow">Прогон на 7 дней (оценка)</p><p style="margin:6px 0 0"><b>${x.n} ${plural(x.n,'полив','полива','поливов')}, ${x.ml} мл.</b> Влажность держалась в пределах ${x.min}–${x.max}%${x.notes?`, уведомлений: ${x.notes}`:''}.</p>${w.length?`<p class="note">Обратите внимание: ${w.join(', ')}.</p>`:`<p class="note">Выглядит спокойно: в нормальных пределах.</p>`}<p class="note">Это расчёт по скорости подсыхания растения, а не реальные измерения.</p></div>`}
+ S.codeOut=o}
 function grpSoil(p){
  if(S.flags.sensor)return `<section class="grp"><h2>Земля</h2><div class="err" role="alert"><b>Датчик влажности не отвечает</b><span class="t2">Проверьте, что провод надёжно вставлен и датчик воткнут в землю. Автополив для этого растения остановлен, пока датчик не ответит.</span><div><button class="btn" data-act="fixsensor">Проверить датчик</button></div>${S.mode==='developer'?`<div class="tech">${p.mod} timeout 3×  last_ok=14:02:11  err=E_SENSOR_TIMEOUT</div>`:''}</div></section>`;
  return `<section class="grp"><h2>Земля</h2><div class="mrow"><div class="h"><span class="num" data-to="${p.moisture}">${p.moisture}<span class="u">%</span></span><span class="t2">норма ${p.range[0]}–${p.range[1]}%</span></div>${rb(p)}</div>
@@ -776,19 +822,49 @@ function sentence(){const c=S.care,p=P(S.pid);
  const sel=(id,opts,cur)=>`<select id="${id}" data-act="care" data-k="${id}" aria-label="${id}">${opts.map(([v,l])=>`<option value="${v}" ${String(v)===String(cur)?'selected':''}>${l}</option>`).join('')}</select>`;
  return `<p class="sent">Когда ${sel('when',[['dry','земля подсохнет'],['hot','станет жарко'],['morning','наступит утро']],c.when)} полить ${sel('amount',[[80,'немного, 80 мл'],[150,'средне, 150 мл'],[250,'много, 250 мл']],c.amount)}.</p>`;}
 function preview(){const p=P(S.pid),c=S.care,gain=c.amount/(p.pot*5),n=Math.max(0,Math.round(7*p.rate/gain*(c.when==='hot'?.5:1)));return `За прошлые 7 дней по этому правилу было бы около ${n} ${n===1?'полива':n<5?'полива':'поливов'}, примерно ${n*c.amount} мл. Это оценка по вашей истории.`;}
-function vCare(){const c=S.care,M=[['smart','Умный','Поливает, когда земля подсохла'],['plan','По расписанию','В выбранные дни и время'],['manual','Вручную','Система только следит'],['vac','Отпуск','Малые порции, жёсткий лимит']];
- let body='';
- if(c.mode==='smart')body=`<div class="fld" style="max-width:340px"><label for="amount">Сколько воды за раз</label><select class="inp" id="amount" data-act="care" data-k="amount">${[[80,'Немного, 80 мл'],[150,'Средне, 150 мл'],[250,'Много, 250 мл']].concat([80,150,250].includes(c.amount)?[]:[[c.amount,'Своя порция, '+c.amount+' мл']]).map(([v,l])=>`<option value="${v}" ${v===c.amount?'selected':''}>${l}</option>`).join('')}</select></div><div class="why">${preview()}</div>`;
- else if(c.mode==='plan')body=`<div class="fld" style="max-width:340px"><label for="time">Время</label><input class="inp" id="time" type="time" value="${c.time}" data-act="care" data-k="time"></div><div class="lbl">Дни</div><div class="chips" style="margin:8px 0 14px">${['пн','вт','ср','чт','пт','сб','вс'].map((d,i)=>`<button class="chip" data-act="day" data-v="${i}" aria-pressed="${!!c.days[i]}">${d}</button>`).join('')}</div><p class="note">Порция: ${c.amount} мл. Если земля уже в норме, полив пропускается, и система объясняет почему.</p>`;
- else if(c.mode==='manual')body=`<p class="t2">Система показывает состояние и подсказывает, когда пора полить, но сама не включает насос.</p>`;
- else body=`<div class="fld" style="max-width:340px"><label for="vac">Сколько дней вас не будет</label><select class="inp" id="vac" data-act="care" data-k="vac">${[7,14,21,30].map(v=>`<option value="${v}" ${v===c.vac?'selected':''}>${v} дней</option>`).join('')}</select></div><p class="t2">Порции уменьшены, не более 100 мл в сутки, при пустом баке придёт уведомление.</p>`;
- const cp=P(S.pid),csl=STAGES[cp.type]||[];
- const prof=`<div class="card" style="margin-bottom:18px"><p class="eyebrow">Стадия растения</p>${stageBlock(cp)}<p class="t2">${ADJ[cp.st].txt}</p><div class="row" style="padding-bottom:0"><div><b>Порция для этой стадии: около ${cp.nextMl} мл</b><div class="sub">Норма влажности ${cp.range[0]}–${cp.range[1]}%</div></div>${c.amount!==cp.nextMl?`<button class="btn" data-act="applyml" data-v="${cp.nextMl}">Применить</button>`:`<span class="pill ok">${ic('check',16)}Применено</span>`}</div></div>`;
- return `<header class="ph"><p class="eyebrow">Уход · ${esc(P(S.pid).name)}</p><h1 class="disp">Как ухаживать</h1><p class="lead">Выберите, как поливать. Система всегда объяснит, почему полила или пропустила полив.</p></header>
+const SEAS=m=>m>=11||m<=1?'зима: светового дня мало, воды нужно меньше':m<=4?'весна: растения набирают рост, воды нужно больше':m<=7?'лето: тепло и много света, воды нужно больше':'осень: светового дня меньше, воды нужно меньше';
+function smartBody(p){const c=S.care,g=guessStage(p),dl=daysLeft(p),m=NOW.getMonth();
+ const R=(k,v,s)=>`<div class="row fct"><div><b>${k}</b><div class="sub">${s}</div></div><span class="t2">${v}</span></div>`;
+ const soil=S.flags.sensor?R('Земля','нет данных','датчик не отвечает, полив на паузе'):R('Земля',`${p.moisture}%`,p.moisture<p.range[0]?'ниже нормы, пора поливать':p.moisture<p.range[0]+8?'близко к нижней границе':`в норме ${p.range[0]}–${p.range[1]}%`);
+ const f=[soil,
+  R('Прогноз',S.flags.sensor?'—':dstr(dl),'через сколько земля дойдёт до нижней границы'),
+  R('Свет',`${lightStr(p.lightH)}`,p.lightH<p.lightNeed*.8?'света мало, земля подсыхает медленнее':'света хватает'),
+  R('Температура',fmtT(p.air),p.air>=24?'тепло, земля подсыхает быстрее':p.air<20?'прохладно, земля подсыхает медленнее':'комфортно'),
+  R('Стадия',stageLabel(p),`${ADJ[p.st].txt}`),
+  R('Сезон',['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'][m],SEAS(m)),
+  R('Статистика',`${p.rate}% в сутки`,'так земля подсыхала у этого растения за последние 14 дней'),
+  R('Бак',S.mods.tank?'96%':'по расчёту',S.mods.tank?'воды достаточно':'датчика уровня нет, напомним долить по расчёту')].join('');
+ const mods=MODS.map(([k,t])=>`<span class="tag ${S.mods[k]?'c':''}" style="${S.mods[k]?'':'opacity:.6'}">${S.mods[k]?'✓':'—'} ${t}</span>`).join(' ');
+ const L=autoLevel(),ai=S.ai.prov==='off';
+ return `<div class="why" style="border-left-color:${L.c}"><b>${L.t}.</b> ${L.d}</div>
+ <div class="card" style="margin:14px 0"><p class="eyebrow">Что система решит дальше</p><p style="margin:6px 0 0"><b>Следующий полив: ${p.next}, около ${p.nextMl} мл.</b></p><p class="t2" style="margin:6px 0 0">${p.nextWhy}</p></div>
+ <section class="grp"><h2>Что учитывает умный режим</h2>${f}</section>
+ <section class="grp"><h2>Датчики</h2><div class="chips" style="gap:6px">${mods}</div><p class="note">Подключили датчики по инструкции и включили умный режим, больше ничего настраивать не нужно. Отключённый датчик можно вернуть в мастере подключения.</p></section>
+ <details class="more" style="margin-top:12px"><summary>Тонкая настройка (необязательно)</summary><div class="lbl" style="margin-top:10px">Сколько воды давать</div><div class="seg" role="group" aria-label="Порция" style="margin:8px 0">${[[.8,'Бережнее'],[1,'Обычно'],[1.2,'Щедрее']].map(([k,l])=>`<button data-act="sens" data-v="${k}" aria-pressed="${(p.sens||1)===k}">${l}</button>`).join('')}</div><p class="note">Меняет порции примерно на 20%. Норма влажности и лимиты безопасности остаются прежними.</p></details>
+ <div class="row" style="margin-top:12px"><div><b>ИИ-помощник</b><div class="sub">${ai?'Выключен. Это необязательно: умный режим работает без него.':'Подключён: даёт советы по журналу, решения принимает устройство.'}</div></div><button class="btn quiet" data-act="ai">Настроить</button></div>`}
+function manualBody(p){const c=S.care,t=c.mt;
+ const seg=`<div class="seg" role="group" aria-label="Вид ручного режима" style="margin:0 0 14px">${[['simple','Простое правило'],['code','Программа']].map(([k,l])=>`<button data-act="mt" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join('')}</div>`;
+ if(t==='simple')return seg+`<div class="fld" style="max-width:340px"><label for="mthr">Поливать, когда влажность ниже</label><select class="inp" id="mthr" data-act="care" data-k="mthr">${[25,30,35,40,45,50,55].map(v=>`<option value="${v}" ${v===c.mthr?'selected':''}>${v}%</option>`).join('')}</select></div>
+ <div class="fld" style="max-width:340px"><label for="amount">Сколько воды за раз</label><select class="inp" id="amount" data-act="care" data-k="amount">${[[80,'Немного, 80 мл'],[150,'Средне, 150 мл'],[250,'Много, 250 мл']].concat([80,150,250].includes(c.amount)?[]:[[c.amount,'Своя порция, '+c.amount+' мл']]).map(([v,l])=>`<option value="${v}" ${v===c.amount?'selected':''}>${l}</option>`).join('')}</select></div>
+ <div class="fld" style="max-width:340px"><label for="gap">Не чаще, чем раз в</label><select class="inp" id="gap" data-act="care" data-k="gap">${[6,12,24,48].map(v=>`<option value="${v}" ${v===c.gap?'selected':''}>${v} ч</option>`).join('')}</select></div>
+ <div class="row"><div><b>Включать насос самой</b><div class="sub">${c.mauto?'Система поливает по этому правилу.':'Только подсказки: поливаете вы.'}</div></div><input class="sw" type="checkbox" role="switch" data-act="mauto" ${c.mauto?'checked':''} aria-label="Включать насос самой"></div>
+ <div class="why">${preview()}</div>`;
+ return seg+`<p class="t2">Напишите свою программу полива. Сейчас язык один, псевдокод: он читается как обычный текст. Позже добавим C++ для тех, кому нужна полная свобода.</p>
+ <div class="seg" role="group" aria-label="Язык" style="margin:10px 0"><button aria-pressed="true">Псевдокод</button><button disabled aria-pressed="false" title="В планах">C++ (в планах)</button></div>
+ <label class="sr" for="code">Программа</label><textarea class="inp code" id="code" rows="13" spellcheck="false" data-act="code" autocapitalize="off" autocomplete="off">${esc(c.code)}</textarea>
+ <div class="chips" style="margin:10px 0"><button class="btn" data-act="codecheck">Проверить</button><button class="btn quiet" data-act="codesim">Прогнать на истории</button><button class="btn quiet" data-act="codeex">Вернуть пример</button></div>
+ <div id="codeout" role="status" aria-live="polite">${S.codeOut||''}</div>
+ <details class="more"><summary>Что можно писать</summary><div class="t2" style="margin-top:8px">${CODEHELP}</div></details>
+ <p class="note">Программа не может обойти защиту: лимиты воды и защита насоса работают на устройстве.</p>`}
+function stageSug(p){if(isAuto(p))return null;const g=guessStage(p);return g.st!==p.st&&g.conf!=='low'&&p.dis!==g.st?g:null}
+function vCare(){const c=S.care,cp=P(S.pid),M=[['smart','Умный','Система сама решает, когда и сколько поливать. Подходит почти всем.'],['manual','Вручную','Вы управляете сами: простое правило или своя программа.']];
+ const body=c.mode==='smart'?smartBody(cp):manualBody(cp);
+ const prof=`<div class="card" style="margin:18px 0"><p class="eyebrow">Стадия растения</p>${stageBlock(cp)}<p class="t2">${ADJ[cp.st].txt}</p><div class="row" style="padding-bottom:0"><div><b>Порция для этой стадии: около ${cp.nextMl} мл</b><div class="sub">Норма влажности ${cp.range[0]}–${cp.range[1]}%</div></div></div></div>`;
+ return `<header class="ph"><p class="eyebrow">Уход · ${esc(cp.name)}</p><h1 class="disp">Как ухаживать</h1><p class="lead">Включите умный режим, и система сама поливает, учитывая датчики, стадию и сезон. Объяснит каждое решение.</p></header>
  <div class="chips" style="margin-bottom:14px">${PLANTS.map(q=>`<button class="chip" data-act="careplant" data-id="${q.id}" aria-pressed="${q.id===S.pid}">${esc(q.name.split(' ')[0])}</button>`).join('')}</div>
- ${prof}<div class="modes" role="group" aria-label="Режим ухода">${M.map(([k,t,d])=>`<button class="mode" data-act="cmode" data-v="${k}" aria-pressed="${c.mode===k}"><b>${t}</b><span>${d}</span></button>`).join('')}</div>
+ <div class="modes" role="group" aria-label="Режим ухода">${M.map(([k,t,d])=>`<button class="mode" data-act="cmode" data-v="${k}" aria-pressed="${c.mode===k}"><b>${t}</b><span>${d}</span></button>`).join('')}</div>
  <div style="margin-top:22px">${body}</div>
- <section class="grp" style="margin-top:26px"><h2>Нужно что-то особенное?</h2><div class="row" style="padding-top:0"><div><b>Свой алгоритм полива</b><div class="sub">Задайте правило: когда и сколько поливать</div></div><button class="btn" data-act="algo">Задать</button></div></section>
+ ${prof}
  <section class="grp" style="margin-top:26px"><h2>Рецепты ухода</h2>${cp.recipe?`<div class="why" style="margin-bottom:10px">Сейчас применён рецепт «${esc(cp.recipe)}». <button class="btn quiet" data-act="resetrange">Вернуть рекомендации</button></div>`:''}<p class="t2" style="margin:0 0 6px">Готовый набор: норма влажности, порция и режим. Рецептом можно поделиться файлом.</p>${allRecipes().filter(r=>recFits(r,cp)).map(r=>`<button class="row" data-act="recipe" data-id="${r.id}"><div style="text-align:left"><b>${esc(r.name)}</b><div class="sub">${recSum(r)}</div></div>${ic('chev',18)}</button>`).join('')}<div class="chips" style="margin-top:12px"><button class="btn quiet" data-act="rimport">${ic('plus',18)}Импортировать рецепт</button><button class="btn quiet" data-act="rsave">Сохранить мои настройки</button></div></section>`;}
 function vAlgo(){const c=S.care,p=P(S.pid),thr=p.range[0],t=S.algoTab;
  const seg=`<div class="seg full" role="group" aria-label="Раздел" style="max-width:420px;margin:12px 0 18px">${[['main','Основные'],['adv','Продвинутые']].map(([k,l])=>`<button data-act="algotab" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join('')}</div>`;
@@ -824,7 +900,7 @@ function vMore(){const t=S.setTab,c=S.cfg,th={system:'как в системе',
   +sgrp('Уход и уведомления',[sitem('defaults','care','Полив по умолчанию',`${S.care.amount} мл · ночью ${S.care.night?'не поливаем':'можно'} · до ${S.care.limit} мл в сутки`),sitem('notif','alert','Уведомления',c.quiet?`Тишина с ${c.qFrom} до ${c.qTo}`:'Без тихих часов')])
   +sgrp('Приложение',[sitem('appear','sun','Внешний вид',`Тема: ${th} · °${S.units} · анимации: ${S.motion==='off'?'выключены':'авто'}`)]);
  const adv=sgrp('Устройство',[sitem('device','chip','Устройство и сеть',`${esc(c.devName)} · Wi-Fi ${esc(c.wifi)}`),sitem('sensors','thermo','Датчики и калибровка','Список, калибровка, добавление'),sitem('tankpump','tank','Бак и насос',`Бак ${c.tankL} л · до ${c.maxWater} мл за один полив`)])
-  +sgrp('Интеграции и данные',[sitem('ha','list','Home Assistant',c.ha?'Подключено (демо)':'Необязательная интеграция, сейчас выключена'),sitem('backup','clock','Резервные копии',c.autoBackup?(c.bkFreq==='daily'?'Каждый день':'Раз в неделю'):'Автокопии выключены')])
+  +sgrp('Интеграции и данные',[sitem('ha','list','Home Assistant',c.ha?'Подключено (демо)':'Необязательная интеграция, сейчас выключена'),sitem('ai','eye','ИИ-помощник',S.ai.prov==='off'?'Необязательно, сейчас выключен':'Подключён'),sitem('backup','clock','Резервные копии',c.autoBackup?(c.bkFreq==='daily'?'Каждый день':'Раз в неделю'):'Автокопии выключены')])
   +sgrp('Для разработчиков',[sitem('diag','chip','Диагностика и журналы','Модули, интерфейсы, трасса событий'),sitem('sim','eye','Проверка состояний','Нет связи, ошибка датчика, пустой бак')])
   +sgrp('Опасная зона',[sitem('reset','alert','Сбросить настройки','Вернуть значения по умолчанию, растения останутся')]);
  return `<header class="ph"><h1 class="disp">Настройки</h1></header>${seg}<div style="max-width:680px">${t==='main'?main:adv}</div>
@@ -941,6 +1017,12 @@ function panel(kind){let h='',c=S.cfg;
  if(kind==='rimport')h=shHead('Импортировать рецепт')+`<p class="t2">Вставьте текст рецепта. Мы проверим его, прежде чем добавить. Применять его или нет, решаете вы.</p><textarea class="inp" id="rtx" rows="9" placeholder="{ &quot;format&quot;: &quot;smart-plant-recipe&quot;, … }" style="font:13px/1.5 var(--mono);width:100%"></textarea>${S.rerr?`<p class="note" role="alert" style="color:var(--danger)">${esc(S.rerr)}</p>`:''}<div class="chips" style="margin-top:12px"><button class="btn" data-act="rdoimp">Проверить и добавить</button></div>`
  if(kind==='rsave'){const p=P(S.pid);h=shHead('Сохранить как рецепт')+`<p class="t2">Сохраним текущую норму ${p.range[0]}–${p.range[1]}%, порцию ${S.care.amount} мл и режим «${MODEN[S.care.mode]}».</p><div class="fld"><label for="rnm">Название</label><input class="inp" id="rnm" value="${esc('Мой рецепт: '+p.name.split(' ')[0])}" maxlength="60" autocomplete="off"></div><div class="chips"><button class="btn" data-act="rdosave">Сохранить</button></div>`}
  if(kind==='chsp'){const p=P(S.pid);h=shHead('Какой это вид?')+`<p class="t2">Выберите вид: рисунок, норма полива, света и температуры обновятся. Название растения останется вашим.</p><div class="pick" style="max-height:340px">${KB.map(k=>kbRow(k,'dosp',`aria-pressed="${p.kb===k.id}"`)).join('')}</div>`}
+ if(kind==='ai'){const a=S.ai,P2=[['off','Выключен'],['api','Свой API'],['local','Локальная модель'],['cloud','Облако Smart Plant OS']];
+  h=shHead('ИИ-помощник')+`<p class="t2">Необязательно. Умный режим работает полностью без ИИ. ИИ только анализирует журнал и советует; решения о поливе принимает устройство по правилам безопасности.</p><div class="lbl">Откуда брать ИИ</div><div class="chips" role="group" aria-label="Источник ИИ" style="margin:8px 0 12px">${P2.map(([k,l])=>`<button class="chip" data-act="aiprov" data-v="${k}" aria-pressed="${a.prov===k}" ${k==='cloud'?'disabled title="В планах"':''}>${l}${k==='cloud'?' (в планах)':''}</button>`).join('')}</div>`
+  +(a.prov==='api'||a.prov==='local'?`<div class="fld"><label for="aiu">Адрес API</label><input class="inp" id="aiu" data-act="aif" data-k="url" value="${esc(a.url)}" placeholder="${a.prov==='local'?'http://192.168.1.10:11434':'https://api.example.com/v1'}" autocomplete="off"></div><div class="fld"><label for="aim">Модель</label><input class="inp" id="aim" data-act="aif" data-k="model" value="${esc(a.model)}" autocomplete="off"></div>${a.prov==='api'?`<div class="fld"><label for="aik">Ключ</label><input class="inp" id="aik" type="password" data-act="aif" data-k="key" value="${esc(a.key)}" autocomplete="off"></div>`:''}<p class="note">Запросы к ИИ отправляет приложение на телефоне. Плата про ИИ ничего не знает и работает как обычно.</p>`:'')
+  +`<h3 class="sgh" style="margin-top:16px">Что можно отправлять</h3>`+[['logs','События и журнал поливов',false],['sensors','Суточные сводки датчиков',false],['photo','Фото растения раз в сутки (в планах)',true]].map(([k,l,d])=>`<div class="row"><span>${l}</span><input class="sw" type="checkbox" role="switch" data-act="aitog" data-k="${k}" ${a[k]?'checked':''} ${d?'disabled':''} aria-label="${l}"></div>`).join('')
+  +`<h3 class="sgh" style="margin-top:16px">Плагины для популярных ИИ (в планах)</h3><p class="t2">Плагин готовит данные в нужном формате и разбирает ответ, чтобы советы были точнее. Планируем: Claude, ChatGPT, Gemini и локальные модели через Ollama.</p>
+  <details class="more"><summary>Как ИИ получает данные и отвечает</summary><div class="t2" style="margin-top:8px">ИИ получает сводку, а отвечает советами и предложениями. Предложение вы подтверждаете сами, потом устройство проверяет лимиты.</div><div class="rule" style="margin-top:8px">{ "plant": "Томат", "stage": "grow",\n  "soil_7d": [58, 52, 47, 41, 63, 57, 51],\n  "water_ml_7d": 450, "light_h": 6.7, "events": ["…"] }</div><div class="rule" style="margin-top:8px">{ "advice": [{ "title": "Пора на цветение",\n    "why": "Воды уходит на 28% больше" }],\n  "proposals": [{ "type": "stage", "value": "flower" }] }</div></details>`}
  openSheet(h)}
 
 /* события */
@@ -973,6 +1055,16 @@ document.addEventListener('click',e=>{
  case 'obdone':go('home');toast('Готово');break;
  case 'tankfill':toast('Отметили: бак полон');break;
  case 'weekdone':S.weekDone=true;render(true);toast('Спасибо, напомню через неделю');break;
+ case 'sens':{const p=P(S.pid);p.sens=+v;applyStage(p);render(true);toast('Порции обновлены');break}
+ case 'mt':S.care.mt=v;render(true);break;
+ case 'code-':break;
+ case 'codecheck':runCode(false);render(true);break;
+ case 'codesim':runCode(true);render(true);break;
+ case 'codeex':S.care.code=EXAMPLE;S.codeOut='';render(true);break;
+ case 'stsug':{const p=P(t.dataset.id||S.pid),g=guessStage(p);p.st=g.st;p.recipe=null;applyStage(p);render(true);toast('Стадия: '+stageLabel(p));break}
+ case 'stno':{const p=P(t.dataset.id||S.pid);p.dis=guessStage(p).st;render(true);toast('Хорошо, пока не меняем');break}
+ case 'ai':panel('ai');break;
+ case 'aiprov':S.ai.prov=v;panel('ai');break;
  case 'open':go('plant',{pid:id,tab:'now'});break;
  case 'home':go('home');break;
  case 'more':go('more',{setTab:'adv'});break;
@@ -1035,6 +1127,8 @@ document.addEventListener('click',e=>{
  case 'demo':toast('В прототипе не подключено');break;
  }});
 document.addEventListener('input',e=>{const t=e.target,a=t.dataset.act;if(!a)return;
+ if(a==='code'){S.care.code=t.value;return}
+ if(a==='aif'){S.ai[t.dataset.k]=t.value;return}
  if(a==='obpw'){S.ob.pw=t.value;const b=document.querySelector('[data-act=obconn]');if(b)b.disabled=t.value.length<8;return}
  if(a==='cm'){W.ml=Math.max(20,Math.min(500,+t.value||20))}
  if(a==='aname'){AP.name=t.value;const b=sheet.querySelector('[data-act=anext]');if(b)b.disabled=!AP.name.trim()}
@@ -1044,11 +1138,13 @@ document.addEventListener('input',e=>{const t=e.target,a=t.dataset.act;if(!a)ret
  if(a==='sname')WZ.name=t.value;
  if(a==='r0'||a==='r1'){const p=P(S.pid);p.range[a==='r0'?0:1]=+t.value;$('#'+a+'v').textContent=t.value+'%'}});
 document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a)return;
- if(a==='care'){const k=t.dataset.k;S.care[k]=['amount','gap','limit','vac'].includes(k)?+t.value:t.value;render(true)}
+ if(a==='care'){const k=t.dataset.k;S.care[k]=['amount','gap','limit','mthr'].includes(k)?+t.value:t.value;render(true)}
  if(a==='aplace')AP.place=t.value;
  if(a==='nt')S.notif[t.dataset.k]=t.checked;
  if(a==='cfg'){S.cfg[t.dataset.k]=t.checked;if(t.dataset.k==='ha')panel('ha');render(true)}
  if(a==='cfgv'){const k=t.dataset.k;S.cfg[k]=['tankL','maxWater'].includes(k)?+t.value:t.value;render(true)}
+ if(a==='mauto'){S.care.mauto=t.checked;render(true)}
+ if(a==='aitog'){S.ai[t.dataset.k]=t.checked;panel('ai')}
  if(a==='obmod'){S.mods[t.dataset.v]=t.checked;render(true)}
  if(a==='flag'){S.flags[t.dataset.k]=t.checked;render(true)}
  if(a==='r0'||a==='r1'){render(true)}});
@@ -1066,6 +1162,6 @@ document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;
 const end=()=>{if(!d)return;const s=d.s,m=d.m;d=null;s.classList.remove('drag');if(m){const k=ev=>{ev.stopPropagation();ev.preventDefault()};s.addEventListener('click',k,{capture:true,once:true});setTimeout(()=>s.removeEventListener('click',k,true),60);glide(s)}};
 document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
 })();
-PLANTS.forEach(applyStage);PLANTS.forEach(syncStage);setThemeIcon();render();
+P('tomato').auto=false;P('tomato').st='grow';PLANTS.forEach(applyStage);PLANTS.forEach(syncStage);setThemeIcon();render();
 setTimeout(()=>{S.booting=false;render(true);enter()},700);
 </script>
