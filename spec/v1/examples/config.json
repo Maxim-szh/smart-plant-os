@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "device_id": "spo-a1b2c3d4e5f6",
+  "revision": 7,
+  "plant_id": "2d73455d-b5ab-47cf-948e-20449d0d47dd",
+  "plant_name": "Томат Черри",
+  "species_id": "tomato-cherry",
+  "mode": "automatic_threshold",
+  "dry_threshold_pct": 40,
+  "portion_ml": 80,
+  "max_daily_ml": 240,
+  "max_run_seconds": 20,
+  "min_interval_minutes": 360,
+  "sensor_max_age_seconds": 300,
+  "soil_calibration": { "dry_raw": 2900, "wet_raw": 1300 },
+  "pump_calibration_ml_per_second": 8
+}

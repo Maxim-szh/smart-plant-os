@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "error": {
+    "code": "cursor_expired",
+    "message": "Requested events were overwritten by the bounded journal",
+    "oldest_seq": 41
+  }
+}

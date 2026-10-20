@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Maxim-szh/smart-plant-os/blob/main/spec/v1/schema.json",
+  "title": "Smart Plant OS local contract v1",
+  "$defs": {
+    "deviceId": { "type": "string", "pattern": "^spo-[a-f0-9]{12}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "timestamp": { "type": ["string", "null"], "format": "date-time", "pattern": "Z$" },
+    "clockState": { "enum": ["synced", "unset"] },
+    "quality": { "enum": ["ok", "stale", "uncalibrated", "fault", "missing"] },
+    "mode": { "enum": ["manual", "automatic_threshold"] },
+    "reason": {
+      "enum": ["soil_not_dry", "sensor_stale", "sensor_fault", "sensor_uncalibrated", "tank_empty", "tank_unknown", "pump_uncalibrated", "cooldown_active", "daily_limit", "single_limit", "pump_busy", "clock_unset", "hardware_fault", "config_invalid"]
+    },
+    "Device": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema_version", "device_id", "api_version", "firmware_version", "board", "capabilities"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "device_id": { "$ref": "#/$defs/deviceId" },
+        "api_version": { "const": "1.0" },
+        "firmware_version": { "type": "string", "minLength": 1 },
+        "board": { "enum": ["esp32-s3-n16r8", "esp32-c3-super-mini"] },
+        "capabilities": {
+          "type": "object", "additionalProperties": false,
+          "required": ["soil_sensor", "tank_sensor", "pump", "water_volume", "event_history"],
+          "properties": {
+            "soil_sensor": { "const": "analog" },
+            "tank_sensor": { "type": "boolean" },
+            "pump": { "type": "boolean" },
+            "water_volume": { "const": "estimated" },
+            "event_history": { "const": "local_bounded" }
+          }
+        }
+      }
+    },
+    "State": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "device_id", "revision", "clock_state", "observed_at", "uptime_ms", "plant", "soil", "tank", "pump", "watering", "last_decision"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "device_id": { "$ref": "#/$defs/deviceId" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "clock_state": { "$ref": "#/$defs/clockState" },
+        "observed_at": { "$ref": "#/$defs/timestamp" },
+        "uptime_ms": { "type": "integer", "minimum": 0 },
+        "plant": {
+          "type": "object", "additionalProperties": false,
+          "required": ["plant_id", "name", "species_id"],
+          "properties": {
+            "plant_id": { "$ref": "#/$defs/uuid" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "species_id": { "type": ["string", "null"], "pattern": "^[a-z0-9-]+$" }
+          }
+        },
+        "soil": {
+          "type": "object", "additionalProperties": false,
+          "required": ["raw_adc", "soil_index_pct", "quality", "sampled_at", "sample_age_ms"],
+          "properties": {
+            "raw_adc": { "type": ["integer", "null"], "minimum": 0 },
+            "soil_index_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "quality": { "$ref": "#/$defs/quality" },
+            "sampled_at": { "$ref": "#/$defs/timestamp" },
+            "sample_age_ms": { "type": ["integer", "null"], "minimum": 0 }
+          }
+        },
+        "tank": {
+          "type": "object", "additionalProperties": false,
+          "required": ["water_present", "quality"],
+          "properties": {
+            "water_present": { "type": ["boolean", "null"] },
+            "quality": { "$ref": "#/$defs/quality" }
+          }
+        },
+        "pump": {
+          "type": "object", "additionalProperties": false,
+          "required": ["state"],
+          "properties": { "state": { "enum": ["off", "running", "fault"] } }
+        },
+        "watering": {
+          "type": "object", "additionalProperties": false,
+          "required": ["mode", "active_command_id", "last_completed_at", "daily_estimated_ml"],
+          "properties": {
+            "mode": { "$ref": "#/$defs/mode" },
+            "active_command_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+            "last_completed_at": { "$ref": "#/$defs/timestamp" },
+            "daily_estimated_ml": { "type": ["number", "null"], "minimum": 0 }
+          }
+        },
+        "last_decision": {
+          "type": "object", "additionalProperties": false,
+          "required": ["status", "reason_code", "evaluated_at"],
+          "properties": {
+            "status": { "enum": ["ready", "not_needed", "blocked"] },
+            "reason_code": { "oneOf": [{ "$ref": "#/$defs/reason" }, { "type": "null" }] },
+            "evaluated_at": { "$ref": "#/$defs/timestamp" }
+          }
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "clock_state": { "const": "synced" } } }, "then": { "properties": { "observed_at": { "type": "string", "format": "date-time" } } } },
+        { "if": { "properties": { "clock_state": { "const": "unset" } } }, "then": { "properties": { "observed_at": { "type": "null" }, "watering": { "properties": { "daily_estimated_ml": { "type": "null" } } } } } },
+        { "if": { "properties": { "soil": { "properties": { "quality": { "const": "ok" } } } } }, "then": { "properties": { "soil": { "properties": { "raw_adc": { "type": "integer" }, "soil_index_pct": { "type": "number" }, "sample_age_ms": { "type": "integer" } } } } } },
+        { "if": { "properties": { "tank": { "properties": { "quality": { "const": "ok" } } } } }, "then": { "properties": { "tank": { "properties": { "water_present": { "type": "boolean" } } } } } },
+        { "if": { "properties": { "pump": { "properties": { "state": { "const": "running" } } } } }, "then": { "properties": { "watering": { "properties": { "active_command_id": { "$ref": "#/$defs/uuid" } } } } } }
+      ]
+    },
+    "Config": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "device_id", "revision", "plant_id", "plant_name", "species_id", "mode", "dry_threshold_pct", "portion_ml", "max_daily_ml", "max_run_seconds", "min_interval_minutes", "sensor_max_age_seconds", "soil_calibration", "pump_calibration_ml_per_second"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "device_id": { "$ref": "#/$defs/deviceId" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "plant_id": { "$ref": "#/$defs/uuid" },
+        "plant_name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "species_id": { "type": ["string", "null"], "pattern": "^[a-z0-9-]+$" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "dry_threshold_pct": { "type": "integer", "minimum": 1, "maximum": 99 },
+        "portion_ml": { "type": "integer", "minimum": 10, "maximum": 300 },
+        "max_daily_ml": { "type": "integer", "minimum": 10, "maximum": 1000 },
+        "max_run_seconds": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "min_interval_minutes": { "type": "integer", "minimum": 60, "maximum": 10080 },
+        "sensor_max_age_seconds": { "type": "integer", "minimum": 30, "maximum": 900 },
+        "soil_calibration": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "object", "additionalProperties": false, "required": ["dry_raw", "wet_raw"], "properties": { "dry_raw": { "type": "integer", "minimum": 0 }, "wet_raw": { "type": "integer", "minimum": 0 } } }
+          ]
+        },
+        "pump_calibration_ml_per_second": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+      },
+      "allOf": [
+        { "if": { "properties": { "mode": { "const": "automatic_threshold" } } }, "then": { "properties": { "soil_calibration": { "type": "object" }, "pump_calibration_ml_per_second": { "type": "number" } } } }
+      ]
+    },
+    "CommandRequest": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["schema_version", "command_id", "requested_ml"],
+          "properties": { "schema_version": { "const": 1 }, "command_id": { "$ref": "#/$defs/uuid" }, "requested_ml": { "type": "integer", "minimum": 10, "maximum": 300 } }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["schema_version", "command_id", "target_command_id"],
+          "properties": { "schema_version": { "const": 1 }, "command_id": { "$ref": "#/$defs/uuid" }, "target_command_id": { "$ref": "#/$defs/uuid" } }
+        }
+      ]
+    },
+    "CommandResult": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "device_id", "command_id", "kind", "status", "reason_code", "requested_ml", "estimated_ml", "started_at", "finished_at"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "device_id": { "$ref": "#/$defs/deviceId" },
+        "command_id": { "$ref": "#/$defs/uuid" },
+        "kind": { "enum": ["water", "stop"] },
+        "status": { "enum": ["accepted", "running", "completed", "stopped", "failed", "rejected"] },
+        "reason_code": { "oneOf": [{ "$ref": "#/$defs/reason" }, { "type": "null" }] },
+        "requested_ml": { "type": ["integer", "null"], "minimum": 10, "maximum": 300 },
+        "estimated_ml": { "type": ["number", "null"], "minimum": 0 },
+        "started_at": { "$ref": "#/$defs/timestamp" },
+        "finished_at": { "$ref": "#/$defs/timestamp" }
+      },
+      "allOf": [
+        { "if": { "properties": { "status": { "const": "rejected" } } }, "then": { "properties": { "reason_code": { "$ref": "#/$defs/reason" }, "started_at": { "type": "null" }, "estimated_ml": { "type": "null" } } } },
+        { "if": { "properties": { "status": { "const": "completed" } } }, "then": { "properties": { "finished_at": { "type": "string", "format": "date-time" }, "estimated_ml": { "type": "number" } } } }
+      ]
+    },
+    "EventPage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "device_id", "events", "next_cursor", "oldest_seq"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "device_id": { "$ref": "#/$defs/deviceId" },
+        "events": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/Event" } },
+        "next_cursor": { "type": "integer", "minimum": 0 },
+        "oldest_seq": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "Event": {
+      "type": "object", "additionalProperties": false,
+      "required": ["event_id", "seq", "type", "source", "at", "uptime_ms", "payload"],
+      "properties": {
+        "event_id": { "type": "string", "pattern": "^spo-[a-f0-9]{12}:[1-9][0-9]*$" },
+        "seq": { "type": "integer", "minimum": 1 },
+        "type": { "enum": ["soil.sampled", "watering.decision", "watering.started", "watering.finished", "fault.raised", "config.changed"] },
+        "source": { "enum": ["device", "user", "automatic", "coordinator", "home_assistant"] },
+        "at": { "$ref": "#/$defs/timestamp" },
+        "uptime_ms": { "type": "integer", "minimum": 0 },
+        "payload": { "type": "object" }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "soil.sampled" } } }, "then": { "properties": { "payload": { "type": "object", "additionalProperties": false, "required": ["raw_adc", "soil_index_pct", "quality"], "properties": { "raw_adc": { "type": "integer", "minimum": 0 }, "soil_index_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 }, "quality": { "$ref": "#/$defs/quality" } } } } } },
+        { "if": { "properties": { "type": { "const": "watering.decision" } } }, "then": { "properties": { "payload": { "type": "object", "additionalProperties": false, "required": ["status", "reason_code", "soil_index_pct"], "properties": { "status": { "enum": ["ready", "not_needed", "blocked"] }, "reason_code": { "oneOf": [{ "$ref": "#/$defs/reason" }, { "type": "null" }] }, "soil_index_pct": { "type": ["number", "null"], "minimum": 0, "maximum": 100 } } } } } },
+        { "if": { "properties": { "type": { "const": "watering.started" } } }, "then": { "properties": { "payload": { "type": "object", "additionalProperties": false, "required": ["command_id", "requested_ml"], "properties": { "command_id": { "$ref": "#/$defs/uuid" }, "requested_ml": { "type": "integer", "minimum": 10, "maximum": 300 } } } } } },
+        { "if": { "properties": { "type": { "const": "watering.finished" } } }, "then": { "properties": { "payload": { "type": "object", "additionalProperties": false, "required": ["command_id", "result", "run_ms", "estimated_ml"], "properties": { "command_id": { "$ref": "#/$defs/uuid" }, "result": { "enum": ["completed", "stopped", "failed"] }, "run_ms": { "type": "integer", "minimum": 0 }, "estimated_ml": { "type": "number", "minimum": 0 } } } } } },
+        { "if": { "properties": { "type": { "const": "fault.raised" } } }, "then": { "properties": { "payload": { "type": "object", "additionalProperties": false, "required": ["reason_code"], "properties": { "reason_code": { "$ref": "#/$defs/reason" } } } } } },
+        { "if": { "properties": { "type": { "const": "config.changed" } } }, "then": { "properties": { "payload": { "type": "object", "additionalProperties": false, "required": ["revision"], "properties": { "revision": { "type": "integer", "minimum": 1 } } } } } }
+      ]
+    },
+    "Registry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "nodes"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["device_id", "display_name", "online", "last_seen_at"],
+            "properties": {
+              "device_id": { "$ref": "#/$defs/deviceId" },
+              "display_name": { "type": "string", "minLength": 1, "maxLength": 80 },
+              "online": { "type": "boolean" },
+              "last_seen_at": { "$ref": "#/$defs/timestamp" }
+            }
+          }
+        }
+      }
+    },
+    "Error": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schema_version", "error"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "error": {
+          "type": "object", "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+            "message": { "type": "string", "minLength": 1 },
+            "field": { "type": "string", "minLength": 1 },
+            "oldest_seq": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    }
+  }
+}

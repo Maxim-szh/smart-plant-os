@@ -5,7 +5,11 @@
   "description": "Открытая локальная система ухода за растениями на ESP32 (ранний прототип интерфейса)",
   "license": "Apache-2.0",
   "scripts": {
-    "check": "node scripts/check.mjs",
+    "check": "node scripts/check.mjs && node scripts/check-contract.mjs",
     "serve": "python3 -m http.server 8080"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
   }
 }

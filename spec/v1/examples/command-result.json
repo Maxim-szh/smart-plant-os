@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "device_id": "spo-a1b2c3d4e5f6",
+  "command_id": "97d56b15-50b2-4f22-b15b-a74835e8667c",
+  "kind": "water",
+  "status": "completed",
+  "reason_code": null,
+  "requested_ml": 80,
+  "estimated_ml": 79.2,
+  "started_at": "2026-10-20T09:30:00Z",
+  "finished_at": "2026-10-20T09:30:10Z"
+}

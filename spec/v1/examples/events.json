@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "device_id": "spo-a1b2c3d4e5f6",
+  "events": [
+    {
+      "event_id": "spo-a1b2c3d4e5f6:41",
+      "seq": 41,
+      "type": "soil.sampled",
+      "source": "device",
+      "at": "2026-10-20T09:29:50Z",
+      "uptime_ms": 86390000,
+      "payload": { "raw_adc": 1920, "soil_index_pct": 38.5, "quality": "ok" }
+    },
+    {
+      "event_id": "spo-a1b2c3d4e5f6:42",
+      "seq": 42,
+      "type": "watering.decision",
+      "source": "automatic",
+      "at": "2026-10-20T09:30:00Z",
+      "uptime_ms": 86400000,
+      "payload": { "status": "ready", "reason_code": null, "soil_index_pct": 38.5 }
+    },
+    {
+      "event_id": "spo-a1b2c3d4e5f6:43",
+      "seq": 43,
+      "type": "watering.started",
+      "source": "user",
+      "at": "2026-10-20T09:30:00Z",
+      "uptime_ms": 86400100,
+      "payload": { "command_id": "97d56b15-50b2-4f22-b15b-a74835e8667c", "requested_ml": 80 }
+    },
+    {
+      "event_id": "spo-a1b2c3d4e5f6:44",
+      "seq": 44,
+      "type": "watering.finished",
+      "source": "device",
+      "at": "2026-10-20T09:30:10Z",
+      "uptime_ms": 86410100,
+      "payload": { "command_id": "97d56b15-50b2-4f22-b15b-a74835e8667c", "result": "completed", "run_ms": 10000, "estimated_ml": 79.2 }
+    }
+  ],
+  "next_cursor": 44,
+  "oldest_seq": 1
+}

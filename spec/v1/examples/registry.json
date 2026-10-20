@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "nodes": [
+    {
+      "device_id": "spo-a1b2c3d4e5f6",
+      "display_name": "Томат на окне",
+      "online": true,
+      "last_seen_at": "2026-10-20T09:30:00Z"
+    },
+    {
+      "device_id": "spo-0123456789ab",
+      "display_name": "Алоэ",
+      "online": false,
+      "last_seen_at": "2026-10-20T08:10:00Z"
+    }
+  ]
+}

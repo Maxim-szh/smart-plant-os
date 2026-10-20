@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "device_id": "spo-a1b2c3d4e5f6",
+  "revision": 18,
+  "clock_state": "synced",
+  "observed_at": "2026-10-20T09:30:00Z",
+  "uptime_ms": 86400000,
+  "plant": {
+    "plant_id": "2d73455d-b5ab-47cf-948e-20449d0d47dd",
+    "name": "Томат Черри",
+    "species_id": "tomato-cherry"
+  },
+  "soil": {
+    "raw_adc": 1920,
+    "soil_index_pct": 38.5,
+    "quality": "ok",
+    "sampled_at": "2026-10-20T09:29:50Z",
+    "sample_age_ms": 10000
+  },
+  "tank": { "water_present": true, "quality": "ok" },
+  "pump": { "state": "off" },
+  "watering": {
+    "mode": "automatic_threshold",
+    "active_command_id": null,
+    "last_completed_at": "2026-10-19T09:30:00Z",
+    "daily_estimated_ml": 0
+  },
+  "last_decision": {
+    "status": "ready",
+    "reason_code": null,
+    "evaluated_at": "2026-10-20T09:30:00Z"
+  }
+}
