@@ -4,7 +4,20 @@ node_modules/
 .env
 .vscode/
 .idea/
-# прошивка
+
+# прошивка (ESP-IDF): артефакты сборки и локальные настройки
+firmware/*/build/
+firmware/*/sdkconfig
+firmware/*/sdkconfig.old
+firmware/*/managed_components/
 firmware/.pio/
-firmware/build/
-firmware/sdkconfig.old
+
+# тесты и инструменты на хосте
+tests/build/
+tools/**/build/
+
+# секреты не хранятся в репозитории: ключи устройств, сертификаты, дампы NVS
+*.pem
+*.key
+*.nvs.bin
+secrets/
