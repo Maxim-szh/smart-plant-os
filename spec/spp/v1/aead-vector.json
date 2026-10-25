@@ -1,0 +1,8 @@
+{
+  "note": "Test-only all-zero key; never provision devices with this key. AES-128-GCM, independently computed with Python cryptography.",
+  "key_hex": "00000000000000000000000000000000",
+  "nonce_hex": "000000010000000200000003",
+  "aad_hex": "53500101000000020000000300000004",
+  "plaintext_cbor_hex": "a20003021b0000018cc251f400",
+  "frame_hex": "535001010000000200000003000000045a68445958fab19f9d2037202175250716099364cacca0b4e0f9ce414e"
+}

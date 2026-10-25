@@ -1,5 +1,9 @@
 # Локальный контракт v1
 
+Публичный HTTP-сервер ещё не реализован. Инженерные прошивки используют отдельный [SPP](../spec/spp/v1/README.md); [матрица готовности](FIRMWARE.md) перечисляет недостающие части адаптера. SPP не следует выдавать за готовый `/api/v1`.
+
+Добавлены причины `command_expired`, `command_conflict`, `storage_fault`, `watering_no_response` и необязательное `State.watering.safety_reserved_ml`. Последнее — консервативный защитный резерв ([ADR-0011](adr/0011-conservative-water-accounting.md)), не поданный объём и не замена `daily_estimated_ml`. Пример отказа находится в [command-rejected.json](../spec/v1/examples/command-rejected.json). Числовой reason=0 в SPP преобразуется в null, enum нельзя выдавать числом в публичном JSON.
+
 Это спецификация будущего API, а не описание работающей прошивки. Публичный REST API принадлежит Smart Plant Hub ([ADR-0001](adr/0001-roles-hub-node.md)); Smart Plant Node отвечает по внутреннему протоколу SPP поверх ESP-NOW, который описывается отдельно ([ADR-0002](adr/0002-transport-espnow-and-spp.md), [ADR-0003](adr/0003-serialization-cbor.md)). Структуры данных ниже не меняются: меняется только то, кто их отдаёт. Формальная схема — [`spec/v1/schema.json`](../spec/v1/schema.json), примеры — [`spec/v1/examples`](../spec/v1/examples). JSON кодируется UTF-8. Все числа имеют единицы в имени поля или в структуре измерения. `null` означает отсутствие достоверного значения; `0` означает измеренный ноль. Не подменяйте одно другим.
 
 ## Идентификаторы и версии

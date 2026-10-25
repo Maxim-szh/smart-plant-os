@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+set(EXTRA_COMPONENT_DIRS "../components")
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(smart_plant_node VERSION 0.1.0)
+if(NOT IDF_TARGET STREQUAL "esp32c3")
+  message(FATAL_ERROR "Node requires idf.py set-target esp32c3")
+endif()
