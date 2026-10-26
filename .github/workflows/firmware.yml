@@ -20,6 +20,15 @@ jobs:
           ctest --test-dir tests/build --output-on-failure
           python tests/firmware/test_provision.py
           python tools/spp_inspect.py --check-vectors spec/spp/v1/vectors.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Validate real C API output against JSON Schema
+        run: |
+          npm ci
+          tests/build/sp_api_tests > /tmp/api-output.jsonl
+          node scripts/check-api-output.mjs /tmp/api-output.jsonl
   target:
     runs-on: ubuntu-latest
     container: espressif/idf:v5.3.4

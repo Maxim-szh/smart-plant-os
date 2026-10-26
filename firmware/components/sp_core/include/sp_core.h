@@ -113,6 +113,8 @@ bool sp_core_configure(sp_core_t *, const sp_config_t *, uint32_t expected_revis
 bool sp_core_set_time(sp_core_t *, uint64_t utc_ms, uint64_t mono_ms);
 uint64_t sp_core_utc(const sp_core_t *, uint64_t mono_ms);
 void sp_core_sample(sp_core_t *, const uint16_t samples[SP_SAMPLE_COUNT], bool valid, uint64_t mono_ms);
+/* Normalized primary soil binding. Drivers cannot bypass freshness, confirmation or hysteresis. */
+void sp_core_observe_soil(sp_core_t *,sp_quality_t,int index_pct,uint16_t raw,uint16_t spread,uint64_t mono_ms);
 void sp_core_tank(sp_core_t *, int value, uint64_t mono_ms);
 void sp_core_tick(sp_core_t *, uint64_t mono_ms);
 sp_reason_t sp_core_can_water(const sp_core_t *, uint16_t ml, bool automatic);

@@ -1,4 +1,5 @@
 #include "sp_internal.h"
+#include "sp_web.h"
 #include <stdio.h>
 #include <string.h>
 #include "esp_event.h"
@@ -112,6 +113,8 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     TRY(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     /* Engineering firmware uses STA radio without joining an access point. */
     TRY(esp_wifi_set_mode(WIFI_MODE_STA));
+    if (id->hub)
+        (void)sp_web_ap(id->channel);
     wifi_country_t country = {.schan = 1, .nchan = 11, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(country.cc, id->country, 3);
     TRY(esp_wifi_set_country(&country));

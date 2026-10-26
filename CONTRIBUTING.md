@@ -33,6 +33,8 @@
 
 ## Где сейчас нужна помощь
 
+Первый запуск выполняйте по [FLASHING.md](docs/FLASHING.md). Для изменения датчиков используйте `sp_sensors` и явную привязку к правилам Node; для API — `sp_api`, а не GPIO из HTTP task. Стендовый UI находится в `web/live.html`/`web/live.js`, полный дизайн — в `web/index.html`. Реальный и демонстрационный источники не должны смешиваться. Изменения формата измерений синхронизируйте с SPP, JSON Schema и примерами. Добавляйте проверки в `tests/firmware/test_api.c`; его JSON-ответы можно проверить командой `tests/build/sp_api_tests > /tmp/api.jsonl && node scripts/check-api-output.mjs /tmp/api.jsonl`. Сценарии браузера — `tests/web-live.cjs` (только mock API, не физический полив).
+
 - Проверка справочника растений по источникам и отделение советов по уходу от управления насосом.
 - Измерение и документирование конкретных ESP32-S3 N16R8 и ESP32-C3 Super Mini, а также ESP-NOW на стенде ([NETWORK.md](docs/NETWORK.md)).
 - Ревью JSON-схем, сценариев отказа и авторизации команд.

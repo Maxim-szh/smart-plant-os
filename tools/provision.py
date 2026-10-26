@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import re
 import secrets
+import subprocess
 import uuid
 
 
@@ -43,6 +44,19 @@ def generate(args):
     previous_umask = os.umask(0o077)
     try:
         args.output.mkdir(parents=True, exist_ok=False)
+        web = None
+        if getattr(args, "web", False):
+            cert, key = args.output / "hub-cert.pem", args.output / "hub-key.pem"
+            subprocess.run(["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
+                "-nodes", "-days", "3650", "-subj", "/CN=Smart Plant OS", "-addext", "subjectAltName=IP:192.168.4.1",
+                "-keyout", str(key), "-out", str(cert)], check=True, capture_output=True)
+            web = {"admin": secrets.token_hex(32), "ap_pass": secrets.token_urlsafe(18),
+                   "cert": cert.read_text(), "key": key.read_text()}
+            fingerprint = subprocess.run(["openssl", "x509", "-in", str(cert), "-noout", "-fingerprint", "-sha256"],
+                                         check=True, capture_output=True, text=True).stdout.strip()
+            with (args.output / "access.json").open("x") as access:
+                json.dump({"ssid": "SmartPlantOS", "url": "https://192.168.4.1", "wifi_password": web["ap_pass"],
+                           "admin_password": web["admin"], "certificate_sha256": fingerprint}, access, indent=2)
         pmk = secrets.token_bytes(16)
         devices = [secrets.token_bytes(6) for _ in range(len(args.node_mac) + 1)]
         plants = [uuid.uuid4().bytes for _ in devices]
@@ -74,6 +88,10 @@ def generate(args):
             if not role and args.pins:
                 for key, value in zip(("soil_pin", "tank_pin", "pump_pin"), args.pins[index - 1]):
                     data(key, "i32", value)
+            if role and web:
+                rows.append(["web", "namespace", "", ""])
+                for key, value in web.items():
+                    data(key, "string", value)
             with (args.output / f"{name}.csv").open("x", newline="") as output:
                 csv.writer(output).writerows(rows)
             manifest["devices"].append({"name": name, "mac": address.hex(":"), "device_id": "spo-" + devices[index].hex(),
@@ -88,6 +106,7 @@ def generate(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hub-mac", type=mac, required=True)
+    parser.add_argument("--web", action="store_true", help="generate Hub HTTPS certificate and unique Wi-Fi/admin secrets; requires OpenSSL")
     parser.add_argument("--node-mac", type=mac, action="append", required=True)
     parser.add_argument("--pins", type=pins, action="append", help="verified soil,tank,pump GPIOs, once per Node; omitted => all disabled")
     parser.add_argument("--country", required=True)

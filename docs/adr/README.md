@@ -17,6 +17,7 @@ ADR фиксируют решения, которые влияют на неск
 | [0009](0009-browser-access-to-hub.md) | Доступ браузера к Hub | Предложено |
 | [0010](0010-engineering-firmware-profile.md) | Инженерная прошивка, физический provisioning и SPP | Принято |
 | [0011](0011-conservative-water-accounting.md) | Консервативный учёт воды при перезапусках | Принято |
+| [0012](0012-bench-web-and-sensor-registry.md) | Стендовый HTTPS API, интерфейс и реестр датчиков | Принято |
 
 ## Формат
 

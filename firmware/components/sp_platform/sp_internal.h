@@ -2,6 +2,7 @@
 #define SP_INTERNAL_H
 #include "sp_core.h"
 #include "sp_wire.h"
+#include "sp_sensors.h"
 #include "nvs.h"
 #include "esp_err.h"
 
@@ -31,4 +32,5 @@ bool sp_board_sample(uint16_t out[SP_SAMPLE_COUNT]);
 int sp_board_tank(void);
 void sp_board_pump(void *, bool on, uint32_t duration_ms);
 bool sp_board_healthy(void);
+void sp_board_register_sensors(sp_sensor_registry_t *, sp_core_t *);
 #endif
