@@ -77,6 +77,38 @@ int sp_board_tank(void) {
 bool sp_board_healthy(void) {
     return healthy;
 }
+static bool read_soil(void *ctx, uint64_t now, sp_measurement_t *m) {
+    sp_core_t *c = ctx;
+    if (now - c->boot_ms < 2000) {
+        *m = (sp_measurement_t){.quality = SP_Q_MISSING, .sampled_ms = now};
+        return true;
+    }
+    uint16_t raw[SP_SAMPLE_COUNT];
+    bool ok = sp_board_sample(raw);
+    sp_core_sample(c, raw, ok, now);
+    *m = (sp_measurement_t){.quality = c->soil.quality,
+                            .milli_value = c->soil.index_pct * 1000,
+                            .sampled_ms = c->soil.sampled_ms,
+                            .has_raw = ok,
+                            .raw = c->soil.raw_adc};
+    return true;
+}
+static bool read_tank(void *ctx, uint64_t now, sp_measurement_t *m) {
+    sp_core_t *c = ctx;
+    sp_core_tank(c, sp_board_tank(), now);
+    *m = (sp_measurement_t){.quality = c->tank < 0 ? SP_Q_MISSING : SP_Q_OK,
+                            .milli_value = c->tank == 1 ? 1000 : 0,
+                            .sampled_ms = now};
+    return true;
+}
+void sp_board_register_sensors(sp_sensor_registry_t *r, sp_core_t *c) {
+    const sp_sensor_descriptor_t soil = {
+        .slot = 0, .kind = SP_SENSOR_SOIL, .unit = SP_UNIT_PERCENT, .interval_ms = 500, .max_age_ms = 30000};
+    const sp_sensor_descriptor_t tank = {
+        .slot = 1, .kind = SP_SENSOR_TANK, .unit = SP_UNIT_BOOLEAN, .interval_ms = 100, .max_age_ms = 1500};
+    (void)sp_sensors_register(r, &soil, read_soil, c);
+    (void)sp_sensors_register(r, &tank, read_tank, c);
+}
 void sp_board_pump(void *ctx, bool on, uint32_t ms) {
     (void)ctx;
     if (pump_pin < 0 || !healthy)

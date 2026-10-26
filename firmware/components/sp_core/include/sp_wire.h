@@ -25,7 +25,9 @@ enum {
     SP_CONFIG_RESULT = 8,
     SP_INFO = 9,
     SP_EVENT_QUERY = 10,
-    SP_EVENT = 11
+    SP_EVENT = 11,
+    SP_CONFIG_GET = 12,
+    SP_SENSOR = 13
 };
 /* Keys 0..23 are unsigned integers. 24..27 are byte strings. */
 enum {

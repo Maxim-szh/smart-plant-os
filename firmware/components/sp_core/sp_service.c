@@ -33,6 +33,23 @@ void sp_node_state(const sp_core_t *c, sp_message_t *out) {
     sp_message_set(out, SP_K_SEQUENCE, c->saved.event_seq);
     sp_message_set(out, SP_K_SPREAD, c->soil.spread_adc);
     sp_message_set(out, SP_K_TIME, sp_core_utc(c, c->now_ms));
+    uint64_t utc = sp_core_utc(c, c->now_ms), last = 0;
+    uint32_t daily = 0;
+    bool known = utc != 0;
+    for (unsigned i = 0; i < SP_COMMAND_SLOTS; i++) {
+        const sp_result_t *r = &c->saved.commands[i];
+        if (!r->used || r->request.action != SP_WATER || r->status == SP_REJECTED)
+            continue;
+        if (r->status == SP_FAILED && !r->finished_ms)
+            known = false;
+        if (r->status == SP_COMPLETED && r->finished_ms > last)
+            last = r->finished_ms;
+        if (r->finished_ms && r->finished_ms / SP_DAY_MS == utc / SP_DAY_MS)
+            daily += r->estimated_ul;
+    }
+    sp_message_set(out, SP_K_FINISHED, last);
+    if (known)
+        sp_message_set(out, SP_K_VOLUME_UL, daily);
     if (c->active_slot >= 0)
         sp_message_bytes(out, SP_K_ID, c->saved.commands[c->active_slot].request.id);
 }
@@ -65,6 +82,10 @@ bool sp_node_dispatch(sp_core_t *c, const sp_message_t *m, sp_message_t *out) {
     unsigned kind = (unsigned)m->value[SP_K_KIND];
     if (!sp_message_has(m, 0))
         return false;
+    if (kind == SP_CONFIG_GET && shape(m, KEY(0))) {
+        sp_config_message(&c->saved.config, out);
+        return true;
+    }
     if (kind == SP_TIME && shape(m, KEY(0) | KEY(2))) {
         bool ok = sp_core_set_time(c, m->value[2], c->now_ms);
         sp_message_init(out, SP_INFO);
@@ -166,9 +187,10 @@ bool sp_registry_accept(sp_registry_entry_t *entry, const sp_message_t *m, uint6
     uint32_t required = 0;
     for (unsigned i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
         required |= KEY(keys[i]);
-    if (m->value[0] != SP_STATE || (m->present & ~KEY(24)) != required || m->value[7] >= SP_REASON_COUNT ||
-        m->value[8] > 4095 || m->value[9] > 100 || m->value[10] > SP_Q_STALE || m->value[11] > 2 ||
-        m->value[12] > 1 || m->value[13] > UINT32_MAX || m->value[20] > 1 || m->value[22] > 4095)
+    if (m->value[0] != SP_STATE || (m->present & ~(KEY(24) | KEY(18) | KEY(19))) != required ||
+        m->value[7] >= SP_REASON_COUNT || m->value[8] > 4095 || m->value[9] > 100 ||
+        m->value[10] > SP_Q_STALE || m->value[11] > 2 || m->value[12] > 1 || m->value[13] > UINT32_MAX ||
+        m->value[20] > 1 || m->value[22] > 4095)
         return false;
     entry->state = *m;
     entry->have_state = true;

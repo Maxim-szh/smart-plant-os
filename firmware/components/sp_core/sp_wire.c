@@ -107,7 +107,7 @@ bool sp_cbor_decode(sp_message_t *m, const uint8_t *s, size_t len) {
             p += (size_t)n;
         }
     }
-    return p == len && sp_message_has(m, 0) && m->value[0] >= SP_HELLO && m->value[0] <= SP_EVENT;
+    return p == len && sp_message_has(m, 0) && m->value[0] >= SP_HELLO && m->value[0] <= SP_SENSOR;
 }
 static void be32(uint8_t *o, uint32_t v) {
     for (unsigned i = 0; i < 4; i++)

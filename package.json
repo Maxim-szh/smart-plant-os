@@ -5,7 +5,7 @@
   "description": "Открытая локальная система ухода за растениями на ESP32 (ранний прототип интерфейса)",
   "license": "Apache-2.0",
   "scripts": {
-    "check": "node scripts/check.mjs && node scripts/check-contract.mjs && node scripts/check-docs.mjs",
+    "check": "node scripts/check.mjs && node scripts/check-contract.mjs && node scripts/check-api-output.mjs && node --check web/live.js && node scripts/check-docs.mjs",
     "serve": "python3 -m http.server 8080"
   },
   "devDependencies": {

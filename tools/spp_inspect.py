@@ -50,7 +50,7 @@ def decode(data):
                 raise ValueError("invalid byte string")
             result[str(key)] = {"hex": data[pos:pos + size].hex()}
             pos += size
-    if pos != len(data) or not 1 <= result.get("0", 0) <= 11:
+    if pos != len(data) or not 1 <= result.get("0", 0) <= 13:
         raise ValueError("trailing data or invalid message kind")
     return result
 

@@ -177,48 +177,21 @@ bool sp_core_configure(sp_core_t *c, const sp_config_t *next, uint32_t revision)
     c->dry_armed = true;
     return true;
 }
-void sp_core_sample(sp_core_t *c, const uint16_t samples[SP_SAMPLE_COUNT], bool valid, uint64_t now) {
+void sp_core_observe_soil(sp_core_t *c, sp_quality_t quality, int pct, uint16_t raw, uint16_t spread,
+                          uint64_t now) {
     c->now_ms = now;
-    if (!valid || !samples) {
-        c->soil.quality = SP_Q_FAULT;
-        c->soil.stable_samples = c->soil.dry_samples = 0;
-        return;
-    }
-    uint16_t sorted[SP_SAMPLE_COUNT];
-    memcpy(sorted, samples, sizeof(sorted));
-    for (size_t i = 1; i < SP_SAMPLE_COUNT; i++) {
-        uint16_t v = sorted[i];
-        size_t j = i;
-        while (j && sorted[j - 1] > v) {
-            sorted[j] = sorted[j - 1];
-            j--;
-        }
-        sorted[j] = v;
-    }
     sp_soil_t *s = &c->soil;
-    s->raw_adc = sorted[SP_SAMPLE_COUNT / 2];
-    s->spread_adc = sorted[SP_SAMPLE_COUNT - 2] - sorted[1];
+    s->raw_adc = raw;
+    s->spread_adc = spread;
     s->sampled_ms = now;
-    /* A median rejects isolated spikes; the inner spread rejects sustained noise. */
-    if (s->raw_adc <= 15 || s->raw_adc >= 4080 || s->spread_adc > 300) {
-        s->quality = SP_Q_FAULT;
+    if (quality != SP_Q_OK || pct < 0 || pct > 100 || raw > 4095) {
+        s->quality = (unsigned)quality <= SP_Q_STALE && quality != SP_Q_OK ? quality : SP_Q_FAULT;
         s->stable_samples = s->dry_samples = 0;
         return;
     }
-    if (!s->stable_samples)
-        s->filtered_q8 = (int32_t)s->raw_adc * 256;
-    else
-        s->filtered_q8 += ((int32_t)s->raw_adc * 256 - s->filtered_q8) / 4;
+    s->index_pct = (uint8_t)pct;
     if (s->stable_samples < SP_CONFIRM_SAMPLES)
         s->stable_samples++;
-    int dry = c->saved.config.dry_raw, wet = c->saved.config.wet_raw;
-    if (dry == wet) {
-        s->quality = SP_Q_UNCALIBRATED;
-        s->dry_samples = 0;
-        return;
-    }
-    int pct = (s->filtered_q8 / 256 - dry) * 100 / (wet - dry);
-    s->index_pct = (uint8_t)(pct < 0 ? 0 : pct > 100 ? 100 : pct);
     s->quality = s->stable_samples >= SP_CONFIRM_SAMPLES ? SP_Q_OK : SP_Q_STALE;
     if (s->quality == SP_Q_OK && s->index_pct < c->saved.config.threshold_pct) {
         if (s->dry_samples < SP_CONFIRM_SAMPLES)

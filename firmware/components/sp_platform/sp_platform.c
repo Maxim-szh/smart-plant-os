@@ -1,6 +1,7 @@
 #include "sp_platform.h"
 #include "sp_internal.h"
 #include "sp_service.h"
+#include "sp_web.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -24,6 +25,9 @@ static sp_ram_history_t *history;
 static sp_history_store_t history_store;
 static uint64_t event_cursor[SP_PEER_MAX];
 static uint64_t hub_utc, hub_mono;
+static sp_api_t *api;
+static sp_api_request_t *web_request;
+static sp_sensor_registry_t sensors;
 typedef struct {
     bool active;
     sp_message_t request;
@@ -36,6 +40,35 @@ static uint64_t now_ms(void) {
 }
 static uint64_t utc_ms(uint64_t now) {
     return hub_utc ? hub_utc + now - hub_mono : 0;
+}
+static bool api_send(void *ctx, unsigned peer, const sp_message_t *m) {
+    (void)ctx;
+    bool stop = m->value[0] == SP_COMMAND && m->value[3] == SP_STOP;
+    if (peer >= identity.count || (pending[peer].active && !stop))
+        return false;
+    pending[peer] = (pending_t){.active = true, .request = *m, .due = now_ms()};
+    return true;
+}
+static bool api_time(void *ctx, uint64_t value) {
+    (void)ctx;
+    uint64_t now = now_ms(), expected = utc_ms(now);
+    if (value < SP_MIN_EPOCH_MS || value > SP_MAX_EPOCH_MS ||
+        (expected && (value > expected ? value - expected : expected - value) > 5000))
+        return false;
+    hub_utc = value < expected ? expected : value;
+    hub_mono = now;
+    return true;
+}
+static bool api_save_plant(void *ctx, const uint8_t device[6], const sp_plant_meta_t *meta) {
+    (void)ctx;
+    char id[17];
+    sp_api_device_id(device, id);
+    nvs_handle_t h;
+    if (nvs_open("plants", NVS_READWRITE, &h) != ESP_OK)
+        return false;
+    bool ok = nvs_set_blob(h, id + 4, meta, sizeof(*meta)) == ESP_OK && nvs_commit(h) == ESP_OK;
+    nvs_close(h);
+    return ok;
 }
 static bool save_core(void *ctx, const sp_persist_t *p) {
     (void)ctx;
@@ -250,6 +283,10 @@ static void poll_console(void) {
 static void hub_receive(const sp_received_t *r, uint64_t now) {
     const sp_message_t *m = &r->message;
     unsigned i = r->peer;
+    if (api)
+        sp_api_receive(api, i, identity.peers[i].boot, m);
+    if (m->value[0] == SP_CONFIG && pending[i].active && pending[i].request.value[0] == SP_CONFIG_GET)
+        pending[i].active = false;
     if (observed_boot[i] != identity.peers[i].boot) {
         registry[i].have_state = false; /* A known reboot invalidates the previous snapshot immediately. */
         observed_boot[i] = identity.peers[i].boot;
@@ -334,6 +371,7 @@ void sp_platform_run(bool hub) {
             return;
         }
         core.hardware_ready = hardware;
+        sp_board_register_sensors(&sensors, &core);
     }
     if (hub) {
         history = calloc(1, sizeof(*history));
@@ -345,25 +383,49 @@ void sp_platform_run(bool hub) {
     err = sp_radio_start(&identity);
     if (err != ESP_OK)
         printf("radio_unavailable error=%d; local safety remains active\n", err);
+    if (hub && err == ESP_OK) {
+        api = calloc(1, sizeof(*api));
+        web_request = malloc(sizeof(*web_request));
+        if (api) {
+            api->count = identity.count;
+            api->history = history_store;
+            api->io = (sp_api_io_t){
+                .send = api_send, .reply = sp_web_reply, .save_plant = api_save_plant, .set_time = api_time};
+            for (unsigned i = 0; i < identity.count; i++) {
+                memcpy(api->nodes[i].device, identity.peers[i].device, 6);
+                char id[17];
+                sp_api_device_id(identity.peers[i].device, id);
+                nvs_handle_t h;
+                if (nvs_open("plants", NVS_READONLY, &h) == ESP_OK) {
+                    sp_plant_meta_t meta;
+                    size_t size = sizeof(meta);
+                    if (nvs_get_blob(h, id + 4, &meta, &size) == ESP_OK && size == sizeof(meta) &&
+                        meta.version == 1 && memchr(meta.name, 0, sizeof(meta.name)) &&
+                        memchr(meta.species, 0, sizeof(meta.species)))
+                        api->nodes[i].plant = meta;
+                    nvs_close(h);
+                }
+            }
+            puts(sp_web_start() ? "Web: https://192.168.4.1 (physical credentials required)"
+                                : "Web unavailable: provision web credentials/certificate first");
+        }
+    }
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     if (flags >= 0)
         (void)fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
-    uint64_t sample_at = now_ms() + 2000, tank_at = 0, periodic_at = 0, last_command_at = 0;
+    uint64_t periodic_at = 0, last_command_at = 0, sensor_at = 0;
+    unsigned sensor_slot = 0;
     unsigned periodic_peer = 0;
     for (;;) {
         uint64_t now = now_ms();
+        if (api) {
+            sp_api_tick(api, now, utc_ms(now));
+            if (web_request && sp_web_take(web_request))
+                sp_api_handle(api, web_request);
+        }
         if (!hub) {
-            if (now >= tank_at) {
-                sp_core_tank(&core, sp_board_tank(), now);
-                tank_at = now + 100;
-            }
-            if (now >= sample_at) {
-                uint16_t samples[SP_SAMPLE_COUNT];
-                bool valid = sp_board_sample(samples);
-                sp_core_sample(&core, samples, valid, now);
-                sample_at = now + 500;
-            }
+            sp_sensors_poll(&sensors, now);
             core.hardware_ready = sp_board_healthy();
             sp_core_tick(&core, now);
             if (sp_core_auto_due(&core)) {
@@ -394,6 +456,13 @@ void sp_platform_run(bool hub) {
             }
         }
         poll_console();
+        if (!hub && sensors.count && now >= sensor_at) {
+            sp_message_t m;
+            sp_sensor_message(&sensors.drivers[sensor_slot], now, &m);
+            (void)sp_radio_send(0, &m);
+            sensor_slot = (sensor_slot + 1) % sensors.count;
+            sensor_at = now + 500;
+        }
         if (now >= periodic_at) {
             unsigned i = periodic_peer;
             hello(i);
@@ -425,6 +494,8 @@ void sp_platform_run(bool hub) {
                     printf("request_outcome_unknown peer=%u; query the SAME command ID; no new water ID\n",
                            i);
                     p->active = false;
+                    if (api)
+                        sp_api_timeout(api, i);
                     continue;
                 }
                 (void)sp_radio_send(i, &p->request);
