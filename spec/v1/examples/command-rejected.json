@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "device_id": "spo-a1b2c3d4e5f6",
+  "command_id": "97d56b15-50b2-4f22-b15b-a74835e8667c",
+  "kind": "water",
+  "status": "rejected",
+  "reason_code": "watering_no_response",
+  "requested_ml": 80,
+  "estimated_ml": null,
+  "started_at": null,
+  "finished_at": null
+}

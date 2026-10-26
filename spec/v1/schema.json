@@ -10,7 +10,7 @@
     "quality": { "enum": ["ok", "stale", "uncalibrated", "fault", "missing"] },
     "mode": { "enum": ["manual", "automatic_threshold"] },
     "reason": {
-      "enum": ["soil_not_dry", "sensor_stale", "sensor_fault", "sensor_uncalibrated", "tank_empty", "tank_unknown", "pump_uncalibrated", "cooldown_active", "daily_limit", "single_limit", "pump_busy", "clock_unset", "hardware_fault", "config_invalid"]
+      "enum": ["soil_not_dry", "sensor_stale", "sensor_fault", "sensor_uncalibrated", "tank_empty", "tank_unknown", "pump_uncalibrated", "cooldown_active", "daily_limit", "single_limit", "pump_busy", "clock_unset", "hardware_fault", "config_invalid", "command_expired", "command_conflict", "storage_fault", "watering_no_response"]
     },
     "Device": {
       "type": "object",
@@ -85,7 +85,8 @@
             "mode": { "$ref": "#/$defs/mode" },
             "active_command_id": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
             "last_completed_at": { "$ref": "#/$defs/timestamp" },
-            "daily_estimated_ml": { "type": ["number", "null"], "minimum": 0 }
+            "daily_estimated_ml": { "type": ["number", "null"], "minimum": 0 },
+            "safety_reserved_ml": { "type": "integer", "minimum": 0, "description": "Conservative rolling-24h reservation; retained at least 24h after reboot. Not delivered volume." }
           }
         },
         "last_decision": {

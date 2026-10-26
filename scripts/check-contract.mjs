@@ -17,6 +17,7 @@ const examples = [
   ['water-request.json', 'CommandRequest'],
   ['stop-request.json', 'CommandRequest'],
   ['command-result.json', 'CommandResult'],
+  ['command-rejected.json', 'CommandResult'],
   ['events.json', 'EventPage'],
   ['registry.json', 'Registry'],
   ['error.json', 'Error'],
@@ -66,5 +67,14 @@ assert(!validators.get('State')(invalidState), 'State schema accepted an invalid
 const invalidRequest = structuredClone(water);
 invalidRequest.requested_ml = 1000;
 assert(!validators.get('CommandRequest')(invalidRequest), 'Command schema accepted an oversized portion');
+
+for (const reason of ['command_expired', 'command_conflict', 'storage_fault', 'watering_no_response']) {
+  const rejected = structuredClone(docs.get('command-rejected.json'));
+  rejected.reason_code = reason;
+  assert(validators.get('CommandResult')(rejected), `Missing firmware reason: ${reason}`);
+}
+const invalidReserve = structuredClone(state);
+invalidReserve.watering.safety_reserved_ml = -1;
+assert(!validators.get('State')(invalidReserve), 'Negative safety reserve accepted');
 
 console.log(`✓ контракт v1: ${examples.length} примеров, идентификаторы и инварианты`);

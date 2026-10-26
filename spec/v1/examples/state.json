@@ -23,7 +23,8 @@
     "mode": "automatic_threshold",
     "active_command_id": null,
     "last_completed_at": "2026-10-19T09:30:00Z",
-    "daily_estimated_ml": 0
+    "daily_estimated_ml": 0,
+    "safety_reserved_ml": 0
   },
   "last_decision": {
     "status": "ready",

@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+set(EXTRA_COMPONENT_DIRS "../components")
+include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+project(smart_plant_hub VERSION 0.1.0)
+if(NOT IDF_TARGET STREQUAL "esp32s3")
+  message(FATAL_ERROR "Hub requires idf.py set-target esp32s3")
+endif()

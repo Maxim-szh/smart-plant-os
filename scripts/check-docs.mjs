@@ -11,7 +11,7 @@ const walk = (dir) => readdirSync(dir).flatMap((n) => {
   if (n === 'node_modules' || n === '.git') return [];
   return statSync(p).isDirectory() ? walk(p) : [p];
 });
-const mdFiles = [...walk('docs'), 'README.md', 'AGENTS.md', 'CONTRIBUTING.md'].filter((f) => f.endsWith('.md'));
+const mdFiles = [...walk('docs'), ...walk('spec'), 'README.md', 'AGENTS.md', 'CONTRIBUTING.md'].filter((f) => f.endsWith('.md'));
 
 // 1. Относительные ссылки ведут на существующие файлы
 let links = 0;

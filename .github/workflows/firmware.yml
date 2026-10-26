@@ -1,0 +1,52 @@
+name: Firmware
+on:
+  push:
+    branches: [main, feat/esp32-firmware-foundation]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.3.4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Domain, protocol and AEAD tests with sanitizers
+        shell: bash
+        run: |
+          . /opt/esp/idf/export.sh
+          cmake -S tests/firmware -B tests/build -DSP_MBEDTLS_SOURCE="$IDF_PATH/components/mbedtls/mbedtls"
+          cmake --build tests/build -j 2
+          ctest --test-dir tests/build --output-on-failure
+          python tests/firmware/test_provision.py
+          python tools/spp_inspect.py --check-vectors spec/spp/v1/vectors.json
+  target:
+    runs-on: ubuntu-latest
+    container: espressif/idf:v5.3.4
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: node
+            chip: esp32c3
+          - project: hub
+            chip: esp32s3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build pinned target
+        shell: bash
+        working-directory: firmware/${{ matrix.project }}
+        run: |
+          . /opt/esp/idf/export.sh
+          idf.py set-target ${{ matrix.chip }}
+          idf.py build
+          idf.py size
+      - uses: actions/upload-artifact@v4
+        with:
+          name: engineering-${{ matrix.chip }}
+          path: |
+            firmware/${{ matrix.project }}/build/*.bin
+            firmware/${{ matrix.project }}/build/bootloader/bootloader.bin
+            firmware/${{ matrix.project }}/build/partition_table/partition-table.bin
+            firmware/${{ matrix.project }}/build/flash_args
+          retention-days: 14
