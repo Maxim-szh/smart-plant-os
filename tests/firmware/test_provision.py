@@ -13,6 +13,10 @@ spec.loader.exec_module(provision)
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_idf_country_codes_are_supported(self):
+        self.assertIn("01", provision.IDF_COUNTRIES)
+        self.assertNotIn("RU", provision.IDF_COUNTRIES)
+
     def test_web_credentials_are_individual_and_certificate_is_local(self):
         with tempfile.TemporaryDirectory() as directory:
             args = Namespace(hub_mac=provision.mac("02:00:00:00:00:01"), node_mac=[provision.mac("02:00:00:00:00:02")],

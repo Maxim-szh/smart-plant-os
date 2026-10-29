@@ -106,7 +106,7 @@ Host-проверки используют ASan/UBSan, включают отка
 
 ```sh
 python3 tools/provision.py --hub-mac 02:00:00:00:00:01 \
-  --node-mac 02:00:00:00:00:02 --country RU --channel 6 \
+  --node-mac 02:00:00:00:00:02 --country 01 --channel 6 \
   --output secrets/bench-01
 ```
 

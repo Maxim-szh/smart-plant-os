@@ -101,8 +101,10 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
 #define TRY(call)                                                                                            \
     do {                                                                                                     \
         err = (call);                                                                                        \
-        if (err != ESP_OK)                                                                                   \
+        if (err != ESP_OK) {                                                                                 \
+            printf("radio_start_failed step=%s error=%d\n", #call, (int)err);                                \
             return err;                                                                                      \
+        }                                                                                                    \
     } while (0)
     TRY(esp_netif_init());
     TRY(esp_event_loop_create_default());

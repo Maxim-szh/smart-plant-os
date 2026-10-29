@@ -31,13 +31,16 @@ def pins(value):
     return soil, tank, pump
 
 
+IDF_COUNTRIES = {"01", "AT", "AU", "BE", "BG", "BR", "CA", "CH", "CN", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR", "GB", "GR", "HK", "HR", "HU", "IE", "IN", "IS", "IT", "JP", "KR", "LI", "LT", "LU", "LV", "MT", "MX", "NL", "NO", "NZ", "PL", "PT", "RO", "SE", "SI", "SK", "TW", "US"}
+
+
 def generate(args):
     if not 1 <= len(args.node_mac) <= 10 or len(set([args.hub_mac, *args.node_mac])) != len(args.node_mac) + 1:
         raise ValueError("1..10 distinct Node STA MACs and a distinct Hub STA MAC required")
     if args.pins and len(args.pins) != len(args.node_mac):
         raise ValueError("supply --pins once per node, or omit all to disable hardware")
-    if not re.fullmatch(r"[A-Z]{2}", args.country):
-        raise ValueError("country must be an ISO alpha-2 regulatory country code")
+    if args.country not in IDF_COUNTRIES:
+        raise ValueError("country is not supported by the pinned ESP-IDF 5.3.4 Wi-Fi country table; use 01 (world-safe mode) if your local rules permit")
     # Restrict this engineering profile to channels 1..11; local RF rules still apply.
     if not 1 <= args.channel <= 11:
         raise ValueError("engineering profile supports channels 1..11")
