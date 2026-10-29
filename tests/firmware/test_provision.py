@@ -2,6 +2,7 @@ import csv
 import json
 import importlib.util
 import stat
+import subprocess
 import tempfile
 import unittest
 from argparse import Namespace
@@ -13,10 +14,14 @@ spec.loader.exec_module(provision)
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_idf_country_codes_are_supported(self):
+        self.assertIn("01", provision.IDF_COUNTRIES)
+        self.assertNotIn("RU", provision.IDF_COUNTRIES)
+
     def test_web_credentials_are_individual_and_certificate_is_local(self):
         with tempfile.TemporaryDirectory() as directory:
             args = Namespace(hub_mac=provision.mac("02:00:00:00:00:01"), node_mac=[provision.mac("02:00:00:00:00:02")],
-                country="RU", channel=6, pins=None, web=True, output=Path(directory) / "web")
+                country="01", channel=6, pins=None, web=True, output=Path(directory) / "web")
             provision.generate(args)
             access = json.loads((args.output / "access.json").read_text())
             self.assertEqual(len(access["admin_password"]), 64)
@@ -26,12 +31,21 @@ class ProvisionTests(unittest.TestCase):
                 rows = {row["key"]: row["value"] for row in csv.DictReader(source)}
             self.assertEqual(rows["admin"], access["admin_password"])
             self.assertIn("BEGIN CERTIFICATE", rows["cert"])
+            # LibreSSL otherwise emits explicit EC parameters rejected by ESP-IDF mbedTLS.
+            public = subprocess.run(["openssl", "x509", "-in", str(args.output / "hub-cert.pem"),
+                "-pubkey", "-noout"], check=True, capture_output=True).stdout
+            details = subprocess.run(["openssl", "pkey", "-pubin", "-text", "-noout"],
+                input=public, check=True, capture_output=True).stdout
+            self.assertIn(b"ASN1 OID: prime256v1", details)
+            key_details = subprocess.run(["openssl", "ec", "-in", str(args.output / "hub-key.pem"),
+                "-text", "-noout"], check=True, capture_output=True).stdout
+            self.assertIn(b"ASN1 OID: prime256v1", key_details)
             self.assertNotIn("web,namespace", (args.output / "node-0.csv").read_text())
 
     def test_pairwise_keys_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             args = Namespace(hub_mac=provision.mac("02:00:00:00:00:01"), node_mac=[provision.mac("02:00:00:00:00:02"), provision.mac("02:00:00:00:00:03")],
-                country="RU", channel=6, pins=None, output=Path(directory) / "installation")
+                country="01", channel=6, pins=None, output=Path(directory) / "installation")
             provision.generate(args)
 
             def read(name):
