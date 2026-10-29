@@ -51,6 +51,7 @@ def generate(args):
         if getattr(args, "web", False):
             cert, key = args.output / "hub-cert.pem", args.output / "hub-key.pem"
             subprocess.run(["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
+                "-pkeyopt", "ec_param_enc:named_curve",
                 "-nodes", "-days", "3650", "-subj", "/CN=Smart Plant OS", "-addext", "subjectAltName=IP:192.168.4.1",
                 "-keyout", str(key), "-out", str(cert)], check=True, capture_output=True)
             web = {"admin": secrets.token_hex(32), "ap_pass": secrets.token_urlsafe(18),
