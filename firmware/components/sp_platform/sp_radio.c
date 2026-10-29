@@ -9,6 +9,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/event_groups.h"
 #include "sp_crypto.h"
 
 typedef struct {
@@ -17,8 +18,37 @@ typedef struct {
 } rx_packet_t;
 static QueueHandle_t rx_queue;
 static SemaphoreHandle_t tx_done;
+static EventGroupHandle_t wifi_events;
 static sp_identity_t *identity;
 static bool radio_ok;
+static volatile bool home_wifi_enabled;
+#define WIFI_CONNECTED_BIT BIT0
+#define WIFI_CHANNEL_MISMATCH_BIT BIT1
+
+static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
+    (void)arg;
+    if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t *event = data;
+        wifi_ap_record_t ap = {0};
+        uint8_t primary = 0;
+        wifi_second_chan_t secondary;
+        if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK && esp_wifi_get_channel(&primary, &secondary) == ESP_OK) {
+            if (primary != identity->channel) {
+                printf("Home Wi-Fi channel changed to %u; restoring ESP-NOW channel %u\n", primary,
+                       identity->channel);
+                home_wifi_enabled = false;
+                xEventGroupSetBits(wifi_events, WIFI_CHANNEL_MISMATCH_BIT);
+            } else {
+                printf("Home Wi-Fi connected ip=" IPSTR " channel=%u ssid=%s\n", IP2STR(&event->ip_info.ip),
+                       primary, (const char *)ap.ssid);
+                xEventGroupSetBits(wifi_events, WIFI_CONNECTED_BIT);
+            }
+        }
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED && home_wifi_enabled) {
+        xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT);
+        (void)esp_wifi_connect();
+    }
+}
 
 static bool blob(nvs_handle_t nvs, const char *key, void *data, size_t expected) {
     size_t len = expected;
@@ -120,9 +150,50 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     wifi_country_t country = {.schan = 1, .nchan = 11, .policy = WIFI_COUNTRY_POLICY_MANUAL};
     memcpy(country.cc, id->country, 3);
     TRY(esp_wifi_set_country(&country));
+
+    char ssid[33] = {0}, password[64] = {0};
+    nvs_handle_t provision;
+    if (id->hub && nvs_open("provision", NVS_READONLY, &provision) == ESP_OK) {
+        size_t ssid_size = sizeof(ssid), password_size = sizeof(password);
+        bool has_home_wifi = nvs_get_str(provision, "home_ssid", ssid, &ssid_size) == ESP_OK && ssid[0];
+        if (has_home_wifi && nvs_get_str(provision, "home_pass", password, &password_size) == ESP_OK && password[0]) {
+            wifi_config_t sta = {0};
+            memcpy(sta.sta.ssid, ssid, strlen(ssid));
+            memcpy(sta.sta.password, password, strlen(password));
+            TRY(esp_wifi_set_config(WIFI_IF_STA, &sta));
+            home_wifi_enabled = true;
+        } else if (has_home_wifi) {
+            puts("Home Wi-Fi credentials are incomplete; using SmartPlantOS setup Wi-Fi only");
+        }
+        nvs_close(provision);
+    }
+    wifi_events = xEventGroupCreate();
+    if (!wifi_events)
+        return ESP_ERR_NO_MEM;
+    TRY(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_event, NULL));
+    TRY(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event, NULL));
     TRY(esp_wifi_start());
     TRY(esp_wifi_set_ps(WIFI_PS_NONE));
-    TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
+    if (home_wifi_enabled) {
+        TRY(esp_wifi_connect());
+        EventBits_t bits = xEventGroupWaitBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_MISMATCH_BIT,
+                                               pdFALSE, pdFALSE, pdMS_TO_TICKS(20000));
+        uint8_t primary = 0;
+        wifi_second_chan_t secondary;
+        bool channel_matches = (bits & WIFI_CONNECTED_BIT) && esp_wifi_get_channel(&primary, &secondary) == ESP_OK &&
+                               primary == id->channel;
+        if (!channel_matches) {
+            printf("Home Wi-Fi unavailable or channel mismatch (configured ESP-NOW channel=%u); continuing in setup mode\n", id->channel);
+            home_wifi_enabled = false;
+            xEventGroupClearBits(wifi_events, WIFI_CHANNEL_MISMATCH_BIT | WIFI_CONNECTED_BIT);
+            (void)esp_wifi_disconnect();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            TRY(esp_wifi_set_mode(WIFI_MODE_AP));
+            TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
+        }
+    } else {
+        TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
+    }
     TRY(esp_now_init());
     TRY(esp_now_set_pmk(id->pmk));
     for (unsigned i = 0; i < id->count; i++) {
@@ -136,6 +207,19 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     radio_ok = true;
     return ESP_OK;
 #undef TRY
+}
+void sp_radio_process(void) {
+    if (!wifi_events || !(xEventGroupGetBits(wifi_events) & WIFI_CHANNEL_MISMATCH_BIT))
+        return;
+    xEventGroupClearBits(wifi_events, WIFI_CHANNEL_MISMATCH_BIT | WIFI_CONNECTED_BIT);
+    (void)esp_wifi_disconnect();
+    vTaskDelay(pdMS_TO_TICKS(100));
+    if (esp_wifi_set_mode(WIFI_MODE_AP) != ESP_OK ||
+        esp_wifi_set_channel(identity->channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+        puts("Could not restore standalone Wi-Fi channel; reboot required");
+        return;
+    }
+    puts("Home Wi-Fi disabled; standalone AP and ESP-NOW restored on configured channel");
 }
 bool sp_radio_send(unsigned peer, const sp_message_t *m) {
     if (!radio_ok || peer >= identity->count || identity->tx_sequence == UINT32_MAX)

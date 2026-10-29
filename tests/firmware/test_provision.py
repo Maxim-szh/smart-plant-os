@@ -21,15 +21,19 @@ class ProvisionTests(unittest.TestCase):
     def test_web_credentials_are_individual_and_certificate_is_local(self):
         with tempfile.TemporaryDirectory() as directory:
             args = Namespace(hub_mac=provision.mac("02:00:00:00:00:01"), node_mac=[provision.mac("02:00:00:00:00:02")],
-                country="01", channel=6, pins=None, web=True, output=Path(directory) / "web")
+                country="01", channel=6, wifi_ssid="Plant-WiFi", wifi_password="example-pass",
+                pins=None, web=True, output=Path(directory) / "web")
             provision.generate(args)
             access = json.loads((args.output / "access.json").read_text())
-            self.assertEqual(len(access["admin_password"]), 64)
-            self.assertNotEqual(access["admin_password"], access["wifi_password"])
+            self.assertEqual(len(access["admin_password"]), 32)
+            self.assertEqual(access["home_wifi_ssid"], "Plant-WiFi")
+            self.assertIn("setup_wifi_password", access)
             self.assertEqual(stat.S_IMODE((args.output / "access.json").stat().st_mode), 0o600)
             with (args.output / "hub.csv").open() as source:
                 rows = {row["key"]: row["value"] for row in csv.DictReader(source)}
             self.assertEqual(rows["admin"], access["admin_password"])
+            self.assertEqual(rows["home_ssid"], "Plant-WiFi")
+            self.assertEqual(rows["home_pass"], "example-pass")
             self.assertIn("BEGIN CERTIFICATE", rows["cert"])
             # LibreSSL otherwise emits explicit EC parameters rejected by ESP-IDF mbedTLS.
             public = subprocess.run(["openssl", "x509", "-in", str(args.output / "hub-cert.pem"),
@@ -45,7 +49,8 @@ class ProvisionTests(unittest.TestCase):
     def test_pairwise_keys_and_no_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
             args = Namespace(hub_mac=provision.mac("02:00:00:00:00:01"), node_mac=[provision.mac("02:00:00:00:00:02"), provision.mac("02:00:00:00:00:03")],
-                country="01", channel=6, pins=None, output=Path(directory) / "installation")
+                country="01", channel=6, wifi_ssid="", wifi_password="", pins=None,
+                output=Path(directory) / "installation")
             provision.generate(args)
 
             def read(name):

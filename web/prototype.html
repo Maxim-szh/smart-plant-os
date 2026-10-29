@@ -1,0 +1,1167 @@
+<title>Smart Plant OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400..600&family=Onest:wght@300..700&display=swap">
+<style>
+/* Концепт: подоконник. Растение живёт в арке-окне, горшок показывает влажность. Остальное тихое: воздух, линии, текст. */
+:root{
+  --bg:#F0F2EC;--surface:#FAFBF8;--elev:#FFFFFF;--border:#D9DED4;
+  --tx:#17201B;--tx2:#4F5F56;--mu:#5C6C63;
+  --pri:#2C6A4F;--onpri:#FFFFFF;--water:#23788E;--sun:#8F5C08;
+  --ok:#2F7D4B;--warn:#8F5C08;--danger:#B3392F;
+  --sky:#E3EBE6;--soil:#BBA183;--shadow:0 12px 32px rgba(23,32,27,.14);--shine:rgba(255,255,255,.3);--leaf-hi:#5DAA80;--leaf-lo:#28694D;--fruit:#D4432E;--fruit-hi:#F58C76;--fruit-lo:#962818;--bloom:#DD789E;--bloom-hi:#F9C8DA;--pot:#C48A68;--dirt:#6D5039;
+  --display:'Literata',Georgia,serif;--body:'Onest',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --r1:6px;--r2:10px;--r3:16px;--r4:28px;
+} 
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111613;--surface:#181F1B;--elev:#202A25;--border:#2E3A34;
+  --tx:#E9EFEA;--tx2:#B5C2BA;--mu:#8D9D94;
+  --pri:#86CFA8;--onpri:#0E2A1C;--water:#74C4DA;--sun:#EDB655;
+  --ok:#7ACB92;--warn:#EDB655;--danger:#FF8A80;
+  --sky:#1E2A25;--soil:#5B4A3A;--shadow:none;--shine:rgba(255,255,255,.07);--leaf-hi:#6EBB92;--leaf-lo:#357B5A;--fruit:#E5604D;--fruit-hi:#F9A090;--fruit-lo:#A5342A;--bloom:#EE8FB0;--bloom-hi:#FAD2E0;--pot:#B07A5A;--dirt:#4A382A;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111613;--surface:#181F1B;--elev:#202A25;--border:#2E3A34;
+  --tx:#E9EFEA;--tx2:#B5C2BA;--mu:#8D9D94;
+  --pri:#86CFA8;--onpri:#0E2A1C;--water:#74C4DA;--sun:#EDB655;
+  --ok:#7ACB92;--warn:#EDB655;--danger:#FF8A80;
+  --sky:#1E2A25;--soil:#5B4A3A;--shadow:none;--shine:rgba(255,255,255,.07);--leaf-hi:#6EBB92;--leaf-lo:#357B5A;--fruit:#E5604D;--fruit-hi:#F9A090;--fruit-lo:#A5342A;--bloom:#EE8FB0;--bloom-hi:#FAD2E0;--pot:#B07A5A;--dirt:#4A382A;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:400 16px/1.5 var(--body);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--water);outline-offset:2px;border-radius:6px}
+h1,h2,h3,p{margin:0}
+.disp{font-family:var(--display);font-weight:500;letter-spacing:-.01em;text-wrap:balance}
+.mu{color:var(--mu)}.t2{color:var(--tx2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.eyebrow{font-size:13px;font-weight:500;color:var(--mu);letter-spacing:.04em;text-transform:uppercase}
+
+/* оболочка */
+.app{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr)}
+.rail{display:none}
+.main{width:100%;max-width:1120px;margin:0 auto;padding:0 20px calc(170px + env(safe-area-inset-bottom,0px))}
+.top{display:flex;align-items:center;justify-content:flex-start;gap:12px;padding:16px 0 10px}
+.brand{font:500 17px var(--display);display:flex;align-items:center;gap:10px}
+.brand i{width:18px;height:22px;border:2px solid var(--pri);border-radius:99px 99px 3px 3px;display:inline-block;position:relative}
+.brand i::after{content:"";position:absolute;left:50%;bottom:3px;width:2px;height:9px;background:var(--pri);transform:translateX(-50%)}
+.modebar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--r2);background:var(--surface);padding:3px;gap:2px}
+.seg button{border:0;background:none;min-height:38px;padding:0 14px;border-radius:7px;font-size:14px;font-weight:500;color:var(--tx2)}
+.seg button[aria-pressed=true]{background:var(--pri);color:var(--onpri)}
+.seg.full{display:flex}.seg.full button{flex:1}
+.modebar .seg{flex:1}
+.iconbtn{width:44px;height:44px;border-radius:var(--r2);border:1px solid var(--border);background:var(--surface);display:grid;place-items:center}
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);padding:6px 8px calc(6px + env(safe-area-inset-bottom,0px))}
+.tabbar button,.rail button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:52px;font-size:12px;font-weight:500;color:var(--mu);border-radius:var(--r2)}
+.tabbar button[aria-current=page],.rail button[aria-current=page]{color:var(--pri)}
+.tabbar button[aria-current=page] svg{transform:translateY(-1px)}
+@media(min-width:1000px){
+  .app{grid-template-columns:96px minmax(0,1fr)}
+  .rail{display:flex;flex-direction:column;gap:8px;padding:24px 8px;border-right:1px solid var(--border);position:sticky;top:0;height:100vh}
+  .rail .logo{display:grid;place-items:center;height:44px;margin-bottom:12px}
+  .rail button{width:100%;font-size:12px}
+  .tabbar{display:none}
+  .main{padding:0 40px 80px}
+}
+.ph{padding:14px 0 6px}
+.ph h1{font-size:34px;line-height:1.15;margin:4px 0 8px}
+.lead{font-size:17px;color:var(--tx2);max-width:56ch}
+
+/* кнопки и поля */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:var(--r2);border:1px solid var(--border);background:var(--surface);font-weight:600;font-size:16px;transition:transform .12s,filter .12s,background .12s}
+.btn:hover{filter:brightness(.97)}.btn:active{transform:scale(.98)}
+.btn.pri{background:var(--pri);border-color:var(--pri);color:var(--onpri)}
+.btn.quiet{border-color:transparent;background:none;color:var(--tx2)}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn.big{min-height:56px;font-size:18px;width:100%}
+.btn[disabled]{opacity:.55;cursor:not-allowed;transform:none;filter:none}
+.btn .spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.chip{border:1px solid var(--border);background:var(--surface);border-radius:99px;min-height:44px;padding:0 16px;font-weight:500}
+.chip[aria-pressed=true]{background:color-mix(in srgb,var(--pri) 14%,var(--surface));border-color:var(--pri);color:var(--tx);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.fld{display:grid;gap:6px;margin:12px 0}
+.fld label,.lbl{font-size:14px;font-weight:500;color:var(--tx2)}
+.inp{min-height:48px;border:1px solid var(--border);background:var(--elev);border-radius:var(--r1);padding:0 12px;width:100%}
+.sw{appearance:none;width:48px;height:28px;border-radius:99px;background:var(--border);position:relative;border:0;transition:background .2s;flex:none}
+.sw::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--elev);transition:transform .2s;box-shadow:0 1px 2px #0003}
+.sw:checked{background:var(--pri)}.sw:checked::after{transform:translateX(20px)}
+.sw:disabled{opacity:.6}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--border);min-width:0}
+.row:first-child{border-top:0}
+.row>div{min-width:0}
+.row .sub{font-size:14px;color:var(--mu)}
+button.row{width:100%;background:none;border-left:0;border-right:0;border-bottom:0;text-align:left;min-height:56px}
+
+/* статусы */
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 11px 4px 8px;border-radius:99px;font-size:13px;font-weight:600;color:var(--tx);white-space:nowrap}
+.pill.ok{background:color-mix(in srgb,var(--ok) 15%,var(--surface))}.pill.ok svg{color:var(--ok)}
+.pill.check{background:color-mix(in srgb,var(--warn) 16%,var(--surface))}.pill.check svg{color:var(--warn)}
+.pill.help{background:color-mix(in srgb,var(--danger) 14%,var(--surface))}.pill.help svg{color:var(--danger)}
+.pill.action{background:var(--pri);color:var(--onpri)}
+.banner{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--border);border-radius:var(--r2);background:color-mix(in srgb,var(--warn) 10%,var(--surface));margin:10px 0 14px;font-size:15px}
+.banner svg{flex:none;margin-top:2px;color:var(--warn)}
+.banner.err{background:color-mix(in srgb,var(--danger) 9%,var(--surface))}.banner.err svg{color:var(--danger)}
+
+/* растение: арка и горшок */
+.arch{position:relative;width:var(--aw,150px);aspect-ratio:3/4.1;border-radius:999px 999px 14px 14px;background:linear-gradient(180deg,color-mix(in srgb,var(--sky) 55%,var(--surface)),var(--sky));border:1px solid var(--border);display:flex;flex-direction:column;justify-content:flex-end;align-items:center;padding-bottom:14px;overflow:hidden;flex:none}
+.lv{transition:transform .7s cubic-bezier(.2,.7,.2,1)}
+.shelf{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;padding:6px 2px 16px;margin:0 -20px;padding-inline:20px;scroll-padding-inline:20px;scrollbar-width:none;cursor:grab}
+.shelf::-webkit-scrollbar{display:none}
+.shelf.drag{cursor:grabbing;user-select:none;scroll-snap-type:none;scroll-behavior:auto}
+@media(hover:hover) and (pointer:fine){.shelf{scroll-snap-type:none}}
+.shelf{overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+.pcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);background:none;border:0;padding:0;text-align:left;display:grid;gap:12px;justify-items:start;--aw:100%}
+.pcard .arch{transition:transform .2s}
+.pcard:hover .arch{transform:translateY(-3px)}
+.pcard h3{font-size:20px;line-height:1.2}
+.pcard .meta{font-size:14px;color:var(--mu);display:grid;gap:4px}
+.addcard{scroll-snap-align:start;flex:0 0 min(74vw,260px);border:1.5px dashed var(--border);border-radius:999px 999px 14px 14px;aspect-ratio:3/4.1;background:none;display:grid;place-content:center;justify-items:center;gap:8px;color:var(--tx2);font-weight:500;align-self:start}
+@media(min-width:760px){.shelf{margin:0 -32px;padding-inline:32px;scroll-padding-inline:32px}.pcard,.addcard{flex:0 0 220px}}
+/* характер растения: стадия и самочувствие */
+.pl{transform-origin:60px 129px;transform:rotate(var(--rot,0deg)) scale(var(--sc,1),calc(var(--sc,1)*var(--sy,1)));transition:transform 1s cubic-bezier(.2,.7,.2,1),filter .8s}
+.st-seed{--sc:.55}.st-grow{--sc:.84}.st-rest{--sc:.94}
+.st-seed .fr,.st-grow .fr,.st-seed .fl,.st-grow .fl,.st-rest .fl{display:none}
+.mood-action .pl{--rot:4.5deg;--sy:.9;filter:saturate(.62) brightness(.97)}
+.mood-check .pl{--rot:-2deg;filter:saturate(.88)}
+.mood-help .pl{--sy:.96;filter:grayscale(.75)}
+@keyframes sway{0%,100%{rotate:-.9deg}50%{rotate:.9deg}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.mood-ok .pl,.mood-check .pl{animation:sway 7s ease-in-out infinite}
+.tdrop{animation:bob 2.2s ease-in-out infinite}
+[data-motion="off"] .pl,[data-motion="off"] .tdrop{animation:none!important}
+/* первый запуск */
+[data-screen="onb"] #tabbar,[data-screen="onb"] #rail{display:none!important}
+@media(min-width:1000px){[data-screen="onb"] .app{grid-template-columns:minmax(0,1fr)}}
+.onb{max-width:520px;margin:0 auto;display:grid;gap:14px;padding-block:8px 24px}
+.obl{margin:0;padding-left:22px;display:grid;gap:10px;line-height:1.5}
+.obf{margin-top:8px;display:grid}
+.radar{position:relative;width:132px;height:132px;margin:10px auto;display:grid;place-items:center;color:var(--pri)}
+.radar i{position:absolute;inset:0;border-radius:50%;border:2px solid var(--pri);opacity:0;animation:ping 2s ease-out infinite}.radar i+i{animation-delay:1s}
+.radar span{width:56px;height:56px;border-radius:50%;background:color-mix(in srgb,var(--pri) 14%,var(--surface));display:grid;place-items:center}
+@keyframes ping{0%{transform:scale(.4);opacity:.7}100%{transform:scale(1);opacity:0}}
+.code{font:13.5px/1.6 var(--mono);width:100%;min-height:250px;white-space:pre;overflow:auto;tab-size:2;resize:vertical}
+.fct .t2{text-align:right;max-width:46%}
+.cols{display:grid;gap:28px;margin-top:20px}
+@media(min-width:900px){.cols{grid-template-columns:1fr 1fr;gap:56px}}
+.sec h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
+.why{border-left:2px solid var(--pri);padding:2px 0 2px 14px;margin:10px 0;color:var(--tx2)}
+.why b{color:var(--tx);font-weight:600}
+
+/* страница растения */
+.back{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:var(--tx2);font-weight:500;min-height:44px;padding:0;margin-top:4px}
+.pl{display:grid;gap:24px}
+@media(min-width:900px){.pl{grid-template-columns:300px minmax(0,1fr);gap:56px;align-items:start}.pl .hero{position:sticky;top:24px}}
+.hero{display:grid;gap:14px;justify-items:start;--aw:min(62vw,230px)}
+@media(min-width:900px){.hero{--aw:100%}}
+.hero h1{font-size:30px;line-height:1.15}
+.state{font:500 24px/1.25 var(--display)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:8px;overflow-x:auto}
+.tabs button{border:0;background:none;min-height:48px;padding:0 14px;font-weight:500;color:var(--mu);border-bottom:2px solid transparent;white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--tx);border-color:var(--pri);font-weight:600}
+.grp{padding:16px 0;border-top:1px solid var(--border)}
+.grp:first-of-type{border-top:0}
+.grp h2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:10px}
+.mrow{display:grid;gap:6px;margin-bottom:10px}
+.mrow .h{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.num{font:300 44px/1 var(--body);letter-spacing:-.02em}
+.num.m{font-size:30px}
+.num .u{font-size:.42em;font-weight:400;color:var(--tx2);margin-left:3px;letter-spacing:0}
+.pair{display:flex;gap:28px;flex-wrap:wrap}
+.rb{position:relative;height:8px;border-radius:9px;background:var(--border)}
+.rb .tz{position:absolute;top:0;bottom:0;border-radius:9px;background:color-mix(in srgb,var(--pri) 38%,var(--border))}
+.rb .mk{position:absolute;top:50%;width:16px;height:16px;border-radius:50%;background:var(--water);border:3px solid var(--surface);transform:translate(-50%,-50%);transition:left .6s cubic-bezier(.2,.7,.2,1)}
+.rb .fill{position:absolute;inset:0 auto 0 0;border-radius:9px;background:var(--sun);opacity:.85}
+.tech{font:12.5px/1.5 var(--mono);color:var(--mu);margin-top:4px;word-break:break-word}
+.err{display:grid;gap:8px;padding:14px;border:1px solid var(--border);border-radius:var(--r2);background:color-mix(in srgb,var(--danger) 8%,var(--surface))}
+.err b{font-weight:600}
+.cta{position:fixed;left:0;right:0;bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:15;padding:10px 20px;background:linear-gradient(transparent,var(--bg) 40%)}
+.cta .in{max-width:520px;margin:0 auto;display:grid;gap:6px;text-align:center}
+.cta small{color:var(--mu);font-size:13px}
+@media(min-width:1000px){.cta{position:static;padding:0;background:none}.cta .in{max-width:none;text-align:left}}
+
+/* график */
+.chartwrap{position:relative;width:100%;margin-top:8px}
+.chartwrap svg{display:block;width:100%;overflow:visible}
+.tip{position:absolute;pointer-events:none;background:var(--elev);border:1px solid var(--border);border-radius:var(--r1);padding:6px 10px;font-size:13px;box-shadow:var(--shadow);white-space:nowrap;z-index:3;transform:translate(-50%,-100%)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.stats div{display:grid;gap:2px}.stats b{font:400 24px var(--body);letter-spacing:-.01em}.stats span{font-size:13px;color:var(--mu)}
+@media(max-width:480px){.stats{grid-template-columns:repeat(2,1fr)}}
+.bars{display:flex;align-items:flex-end;gap:8px;height:96px;margin-top:8px}
+.bars div{flex:1;display:grid;gap:4px;justify-items:center;align-content:end;height:100%;font-size:12px;color:var(--mu)}
+.bars i{display:block;width:100%;background:color-mix(in srgb,var(--water) 40%,var(--surface));border-top:2px solid var(--water);border-radius:3px 3px 0 0}
+.dots{display:flex;gap:10px;margin:10px 0}
+.dots div{display:grid;gap:4px;justify-items:center;font-size:12px;color:var(--mu);flex:1}
+.dots i{width:100%;max-width:44px;height:44px;border-radius:99px 99px 8px 8px;border:1px solid var(--border);display:grid;place-items:center}
+.dots i.g{background:color-mix(in srgb,var(--ok) 18%,var(--surface))}.dots i.w{background:color-mix(in srgb,var(--warn) 20%,var(--surface))}
+
+/* события */
+.ev{display:grid;grid-template-columns:36px minmax(0,1fr);gap:12px;padding:16px 0;border-top:1px solid var(--border)}
+.ev:first-child{border-top:0}
+.ev .ico{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--sky)}
+.ev h3{font:600 16px var(--body)}
+.ev time{font-size:13px;color:var(--mu)}
+.ev .tr{font:12.5px/1.6 var(--mono);color:var(--tx2);background:var(--sky);padding:8px 10px;border-radius:var(--r1);margin-top:8px;white-space:pre-wrap;word-break:break-word}
+.dayh{font-size:13px;font-weight:600;color:var(--mu);margin:20px 0 0;letter-spacing:.04em;text-transform:uppercase}
+
+/* правило */
+.sent{font-size:20px;line-height:2.3;margin:6px 0 4px}
+.sent select{appearance:none;border:0;border-bottom:2px solid var(--pri);background:color-mix(in srgb,var(--pri) 10%,var(--surface));padding:5px 30px 5px 10px;border-radius:var(--r1) var(--r1) 0 0;font-weight:600;min-height:44px;background-image:linear-gradient(45deg,transparent 50%,var(--tx2) 50%),linear-gradient(135deg,var(--tx2) 50%,transparent 50%);background-position:calc(100% - 16px) 52%,calc(100% - 11px) 52%;background-size:5px 5px;background-repeat:no-repeat}
+.rule{font:14px/1.9 var(--mono);background:var(--sky);padding:12px 14px;border-radius:var(--r2);overflow-x:auto;white-space:pre}
+.rule b{color:var(--pri)}
+.modes{display:grid;gap:8px;grid-template-columns:repeat(2,1fr)}
+@media(min-width:700px){.modes{grid-template-columns:repeat(4,1fr)}}
+.mode{border:1px solid var(--border);background:var(--surface);border-radius:var(--r2);padding:12px;text-align:left;display:grid;gap:2px;min-height:76px;align-content:start}
+.mode b{font-weight:600}.mode span{font-size:13px;color:var(--mu)}
+.mode[aria-pressed=true]{border-color:var(--pri);background:color-mix(in srgb,var(--pri) 10%,var(--surface));box-shadow:inset 0 0 0 1px var(--pri)}
+
+/* лист */
+dialog{border:0;padding:0;background:var(--elev);color:var(--tx);width:min(560px,100%);max-width:100%;max-height:92vh;margin:auto auto 0;border-radius:var(--r4) var(--r4) 0 0;box-shadow:var(--shadow);overflow:auto}
+dialog[open]{animation:up .22s ease-out}
+dialog::backdrop{background:#0b110e99}
+@keyframes up{from{transform:translateY(36px);opacity:0}}
+@media(min-width:760px){dialog{margin:auto;border-radius:var(--r4)}}
+.sheet{padding:8px 20px calc(24px + env(safe-area-inset-bottom,0px))}
+.sh-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0}
+.sh-h h2{font-size:22px}
+.grab{width:40px;height:4px;border-radius:9px;background:var(--border);margin:6px auto 0}
+.steps{display:flex;gap:6px;margin:4px 0 14px}.steps i{flex:1;height:4px;border-radius:9px;background:var(--border)}.steps i.on{background:var(--pri)}
+.opts{display:grid;gap:8px;grid-template-columns:repeat(2,1fr);margin:8px 0}
+.opt{border:1px solid var(--border);background:var(--surface);border-radius:var(--r2);padding:12px;text-align:left;min-height:72px;display:grid;gap:2px;align-content:center}
+.opt b{font-weight:600}.opt span{font-size:13px;color:var(--mu)}
+.opt[aria-pressed=true]{border-color:var(--pri);background:color-mix(in srgb,var(--pri) 10%,var(--surface));box-shadow:inset 0 0 0 1px var(--pri)}
+.prog{height:10px;border-radius:9px;background:var(--border);overflow:hidden;margin:12px 0}.prog i{display:block;height:100%;background:var(--water);transition:width .9s linear}
+.wsheet{display:grid;gap:8px;justify-items:center;text-align:center}
+.wsheet .pot{width:130px}
+.toast{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:12px 18px;border-radius:var(--r2);font-weight:500;z-index:50;max-width:calc(100vw - 32px);text-align:center;animation:up .2s ease-out}
+@media(min-width:1000px){.toast{bottom:32px}}
+.sk{background:linear-gradient(90deg,var(--border),color-mix(in srgb,var(--border) 40%,var(--surface)),var(--border));background-size:200% 100%;animation:sh 1.4s linear infinite;border-radius:var(--r1)}
+@keyframes sh{to{background-position:-200% 0}}
+.empty{display:grid;justify-items:start;gap:10px;padding:20px 0}
+.mods{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+.mod{border:1px solid var(--border);border-radius:var(--r2);padding:12px;display:grid;gap:4px;background:var(--surface)}
+table.t{border-collapse:collapse;width:100%;font-size:13.5px}table.t td,table.t th{text-align:left;padding:8px 10px 8px 0;border-top:1px solid var(--border);font-weight:400;vertical-align:top}
+table.t th{font-size:12px;color:var(--mu);font-weight:500;border-top:0}
+.scroll{overflow-x:auto}
+.note{font-size:14px;color:var(--mu)}
+
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes grow{from{opacity:0;transform:scale(.9) translateY(8px)}to{opacity:1;transform:none}}
+.vin{animation:rise .32s cubic-bezier(.2,.7,.2,1)}
+.vin .pcard,.vin .addcard{animation:rise .5s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0)*70ms)}
+.hh{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--tx2);margin:6px 0 2px}
+.lg{display:inline-block;margin-right:6px;vertical-align:middle}
+.lg.l{width:16px;height:3px;border-radius:2px;background:var(--water)}.lg.w{width:16px;height:3px;border-radius:2px;background:var(--warn)}
+.lg.b{width:16px;height:10px;border-radius:3px;background:color-mix(in srgb,var(--pri) 25%,var(--surface))}.lg.d{width:10px;height:10px;border-radius:50%;background:var(--water)}
+@keyframes draw{from{stroke-dasharray:1;stroke-dashoffset:1}to{stroke-dasharray:1;stroke-dashoffset:0}}
+@keyframes fin{from{opacity:0}to{opacity:1}}
+@keyframes pop{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:none}}
+.draw{animation:draw 1.1s cubic-bezier(.4,.1,.2,1) both}
+.fade{animation:fin .9s .35s both}
+.mkr{transform-box:fill-box;transform-origin:center;animation:pop .35s cubic-bezier(.3,1.6,.5,1) both}
+.drops{height:34px;display:flex;gap:16px;justify-content:center}
+.drops i{width:6px;height:9px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;background:var(--water);opacity:0;animation:fall .9s ease-in infinite}
+.drops i:nth-child(2){animation-delay:.3s}.drops i:nth-child(3){animation-delay:.6s}
+@keyframes fall{0%{transform:translateY(-8px);opacity:0}20%{opacity:1}100%{transform:translateY(26px);opacity:0}}
+details.adv,details.more{border-top:1px solid var(--border);padding:4px 0}
+details.adv summary,details.more summary{cursor:pointer;min-height:48px;display:flex;align-items:center;font-weight:600;list-style:none;gap:8px}
+details.adv summary::-webkit-details-marker,details.more summary::-webkit-details-marker{display:none}
+details.adv summary::after,details.more summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--mu);border-bottom:2px solid var(--mu);transform:rotate(45deg);margin-left:auto;transition:transform .2s}
+details[open].adv summary::after,details[open].more summary::after{transform:rotate(-135deg)}
+details.more summary{font-weight:500;font-size:14px;color:var(--mu);min-height:36px}
+.chartwrap svg path{transition:none}
+
+.arch::before{content:"";position:absolute;inset:9px 9px 0;border-radius:999px 999px 4px 4px;border:1px solid color-mix(in srgb,var(--tx) 9%,transparent);border-bottom:0;pointer-events:none}
+.arch::after{content:"";position:absolute;left:0;right:0;bottom:0;height:14px;background:linear-gradient(color-mix(in srgb,var(--pot) 28%,var(--surface)),color-mix(in srgb,var(--pot) 55%,var(--tx)));border-top:1px solid var(--shine);z-index:0}
+.arch .glow{position:absolute;inset:0;background:radial-gradient(circle at 78% 14%,color-mix(in srgb,var(--sun) 30%,transparent),transparent 50%),conic-gradient(from 195deg at 92% -8%,transparent 0deg,color-mix(in srgb,var(--sun) 7%,transparent) 14deg,transparent 28deg,color-mix(in srgb,var(--sun) 4%,transparent) 40deg,transparent 54deg)}
+.arch .sheen{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(112deg,transparent 38%,var(--shine) 44%,transparent 51%,transparent 60%,color-mix(in srgb,var(--shine) 60%,transparent) 63%,transparent 69%)}
+.arch .scene{width:86%;position:relative;z-index:1;display:block;overflow:visible;transform-origin:50% 100%;transition:transform .35s}
+.pcard:hover .scene{transform:scale(1.03)}
+.vin .arch .scene{animation:grow .8s .12s cubic-bezier(.2,.7,.2,1) both}
+.arch.unk .potg{opacity:.5}
+.card{background:var(--elev);border:1px solid var(--border);border-radius:var(--r3);padding:14px 16px}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:14px 0}
+@media(min-width:700px){.tiles{grid-template-columns:repeat(4,1fr)}}
+.tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--r3);padding:12px 14px;display:grid;gap:6px}
+.tile .tic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c,var(--water)) 16%,var(--surface));color:var(--c,var(--water))}
+.tile b{font:500 26px/1 var(--body);letter-spacing:-.01em}.tile span{font-size:13px;color:var(--mu)}
+.tir{display:flex;height:12px;border-radius:9px;overflow:hidden;gap:2px;margin:10px 0 8px}.tir i{display:block;height:100%;min-width:3px}
+.caps{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin:12px 0}
+.cap{display:grid;justify-items:center;gap:6px;font-size:12px;color:var(--mu)}
+.cap i{width:100%;max-width:46px;aspect-ratio:3/4.4;border-radius:99px 99px 8px 8px;border:1.5px solid var(--border);display:grid;place-items:end center;padding-bottom:6px;position:relative;overflow:hidden;color:var(--tx2);background:var(--surface)}
+.cap i::before{content:"";position:absolute;left:0;right:0;bottom:0;height:var(--h);background:linear-gradient(color-mix(in srgb,var(--water) 40%,transparent),color-mix(in srgb,var(--water) 22%,transparent))}
+.cap i.g{border-color:color-mix(in srgb,var(--ok) 55%,var(--border))}.cap i.w{border-color:color-mix(in srgb,var(--warn) 65%,var(--border))}
+.cap i svg{position:relative}.cap.today span{color:var(--tx);font-weight:600}
+.bars2{display:flex;align-items:flex-end;gap:8px;height:120px;margin-top:6px}
+.bars2>div{flex:1;display:grid;gap:4px;justify-items:center;align-content:end;height:100%;font-size:12px;color:var(--mu)}
+.bars2 i{display:block;width:100%;border-radius:8px 8px 3px 3px;background:linear-gradient(var(--water),color-mix(in srgb,var(--water) 35%,var(--surface)));transform-origin:bottom;animation:growY .7s cubic-bezier(.2,.7,.2,1) both}
+@keyframes growY{from{transform:scaleY(0)}}
+.tl{position:relative;padding-left:28px;display:grid;gap:14px;margin-top:8px}
+.tl::before{content:"";position:absolute;left:9px;top:8px;bottom:8px;width:2px;background:var(--border);border-radius:2px}
+.tl>div{position:relative}.tl>div::before{content:"";position:absolute;left:-26px;top:3px;width:14px;height:14px;border-radius:50%;background:var(--water);border:3px solid var(--bg)}
+.stg{display:flex;margin:12px 0 4px}
+.stg button{flex:1;border:0;background:none;display:grid;justify-items:center;align-content:start;gap:6px;font-size:12.5px;font-weight:500;color:var(--mu);padding:0 2px;position:relative;min-height:64px}
+.stg button i{width:22px;height:22px;border-radius:50%;border:2px solid var(--border);background:var(--surface);z-index:1;transition:all .25s}
+.stg button::before{content:"";position:absolute;top:10px;left:-50%;right:50%;height:2px;background:var(--border)}
+.stg button:first-child::before{display:none}
+.stg button[aria-pressed=true]{color:var(--tx);font-weight:600}
+.stg button[aria-pressed=true] i{background:var(--pri);border-color:var(--pri);box-shadow:0 0 0 5px color-mix(in srgb,var(--pri) 18%,transparent)}
+.stg button.past i{border-color:var(--pri)}.stg button.past::before,.stg button[aria-pressed=true]::before{background:var(--pri)}
+.needs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:6px}
+.need{background:var(--surface);border:1px solid var(--border);border-radius:var(--r3);padding:12px 14px;display:grid;gap:3px;align-content:start}
+.need .nl{font-size:12.5px;color:var(--mu);display:flex;align-items:center;gap:6px;font-weight:500}
+.need b{font:500 22px/1.2 var(--body)}.need small{font-size:13px;color:var(--tx2)}
+.evsum{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+@media(min-width:700px){.evsum{grid-template-columns:repeat(4,1fr)}}
+.evs{border:1px solid var(--border);background:var(--surface);border-radius:var(--r3);padding:10px 14px;text-align:left;display:grid;gap:2px;min-height:76px;align-content:center;transition:transform .15s,border-color .15s}
+.evs:hover{transform:translateY(-1px)}
+.evs b{font:500 26px/1 var(--body)}.evs span{font-size:13px;color:var(--tx2)}
+.evs[aria-pressed=true]{border-color:var(--c,var(--pri));background:color-mix(in srgb,var(--c,var(--pri)) 10%,var(--surface));box-shadow:inset 0 0 0 1px var(--c,var(--pri))}
+.evday{display:flex;align-items:center;gap:12px;margin:26px 0 10px;font-size:13px;font-weight:600;color:var(--tx2);letter-spacing:.04em;text-transform:uppercase}
+.evday::after{content:"";flex:1;height:1px;background:var(--border);order:2}.evday em{font-style:normal;color:var(--mu);font-weight:500;order:3}
+.evc{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;background:var(--elev);border:1px solid var(--border);border-left:4px solid var(--c);border-radius:var(--r3);padding:14px;margin-bottom:10px;animation:rise .4s both;animation-delay:calc(var(--i,0)*40ms)}
+.evc .evi{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 14%,var(--surface));color:var(--c)}
+.evc .evh{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.evc h3{font:600 16px/1.3 var(--body)}.evc time{font-size:13px;color:var(--mu);white-space:nowrap}
+.evc p{color:var(--tx2);margin-top:2px;font-size:15px}
+.evm{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tag{font-size:12.5px;font-weight:500;padding:3px 10px;border-radius:99px;background:var(--sky);color:var(--tx2)}.tag.c{background:color-mix(in srgb,var(--c) 14%,var(--surface));color:var(--tx)}
+.sgroup{background:var(--elev);border:1px solid var(--border);border-radius:var(--r3);padding:0 14px;margin-bottom:22px}
+.itile{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--sky);color:var(--pri);flex:none}
+button.row.it{justify-content:flex-start;gap:14px}button.row.it>div{flex:1}
+.kbrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-top:1px solid var(--border);background:none;padding:8px 6px;min-height:60px;border-radius:0}
+.kbrow:first-child{border-top:0}.kbrow[aria-pressed=true]{background:color-mix(in srgb,var(--pri) 10%,var(--surface));box-shadow:inset 3px 0 0 var(--pri)}
+.kbi{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c,var(--pri)) 15%,var(--surface));color:var(--c,var(--pri));flex:none}
+.kbt{flex:1;display:grid;min-width:0}.kbt i{font-size:13px;color:var(--mu)}
+.kbhero{display:flex;gap:16px;align-items:flex-end;margin:6px 0 10px}.kbhero>div:last-child{min-width:0}
+
+.arch .scene{margin-bottom:-8%;filter:drop-shadow(0 4px 4px rgba(0,0,0,.1))}
+.sgh{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin:22px 4px 8px}
+.pick{max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:14px;padding:0 10px;margin:8px 0 12px}
+.evc .btn{min-height:40px;margin-top:10px;font-size:15px}
+.hhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.legend2{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--tx2);margin-top:6px}
+.legend2 i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.card+.card{margin-top:12px}
+.two{display:grid;gap:12px;margin-top:12px}.two .card{margin:0}
+@media(min-width:760px){.two{grid-template-columns:1fr 1fr}}
+.card h2.cap2{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--mu);margin-bottom:6px}
+.acts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="app" id="app">
+  <aside class="rail" id="rail" aria-label="Разделы"></aside>
+  <div class="main">
+    <div class="top">
+      <div class="brand"><i></i>Smart Plant</div>
+    </div>
+    <main id="view" tabindex="-1"></main>
+  </div>
+</div>
+<nav class="tabbar" id="tabbar" aria-label="Разделы"></nav>
+<div id="ctaHost"></div>
+<dialog id="sheet" aria-labelledby="shT"></dialog>
+<div id="live" class="sr" role="status" aria-live="polite"></div>
+<div id="toastHost"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<linearGradient id="lf" x1="0" y1="1" x2="0" y2="0"><stop offset="0" style="stop-color:var(--leaf-lo)"/><stop offset="1" style="stop-color:var(--leaf-hi)"/></linearGradient>
+<linearGradient id="lf2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" style="stop-color:color-mix(in srgb,var(--leaf-lo) 65%,var(--water))"/><stop offset="1" style="stop-color:color-mix(in srgb,var(--leaf-hi) 70%,var(--water))"/></linearGradient>
+<radialGradient id="frt" cx=".35" cy=".3" r=".8"><stop offset="0" style="stop-color:var(--fruit-hi)"/><stop offset=".5" style="stop-color:var(--fruit)"/><stop offset="1" style="stop-color:var(--fruit-lo)"/></radialGradient>
+<linearGradient id="pep" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--fruit-hi)"/><stop offset=".45" style="stop-color:var(--fruit)"/><stop offset="1" style="stop-color:var(--fruit-lo)"/></linearGradient>
+<radialGradient id="bl" cx=".5" cy=".85" r=".9"><stop offset="0" style="stop-color:var(--bloom)"/><stop offset="1" style="stop-color:var(--bloom-hi)"/></radialGradient>
+<radialGradient id="lem" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#FBEE95"/><stop offset=".55" stop-color="#EDC93A"/><stop offset="1" stop-color="#C79A14"/></radialGradient>
+<radialGradient id="orc" cx=".5" cy=".4" r=".75"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#F6E1EE"/><stop offset="1" stop-color="#DC9BC2"/></radialGradient>
+<radialGradient id="gp" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#F58A8A"/><stop offset="1" stop-color="#C93B4F"/></radialGradient>
+<radialGradient id="shd"><stop offset="0" stop-color="#000" stop-opacity=".34"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+<linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--dirt)"/><stop offset=".35" style="stop-color:var(--soil)"/><stop offset="1" style="stop-color:color-mix(in srgb,var(--soil) 80%,var(--dirt))"/></linearGradient>
+<g id="mleaf"><mask id="mmask" maskUnits="userSpaceOnUse" x="-40" y="-60" width="80" height="70"><rect x="-40" y="-60" width="80" height="70" fill="#fff"/><g fill="#000"><ellipse cx="-25" cy="-11" rx="9" ry="2.6" transform="rotate(-14 -25 -11)"/><ellipse cx="-27" cy="-23" rx="9" ry="2.6" transform="rotate(6 -27 -23)"/><ellipse cx="-21" cy="-35" rx="9" ry="2.6" transform="rotate(32 -21 -35)"/><ellipse cx="25" cy="-11" rx="9" ry="2.6" transform="rotate(14 25 -11)"/><ellipse cx="27" cy="-23" rx="9" ry="2.6" transform="rotate(-6 27 -23)"/><ellipse cx="21" cy="-35" rx="9" ry="2.6" transform="rotate(-32 21 -35)"/><ellipse cx="-10" cy="-20" rx="2.4" ry="3.2"/><ellipse cx="10" cy="-27" rx="2.4" ry="3.2"/></g></mask>
+<g mask="url(#mmask)"><path d="M0 0C-4 6-22 4-27-12C-31-28-16-42 0-49C16-42 31-28 27-12C22 4 4 6 0 0Z" fill="url(#lf)"/><path d="M0 0C4 6 22 4 27-12C31-28 16-42 0-49C4-34 4-14 0 0Z" fill="var(--leaf-lo)" opacity=".35"/></g></g>
+</defs></svg>
+<script>
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const WD=['вс','пн','вт','ср','чт','пт','сб'],MO=['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+const NOW=new Date(2026,9,14,12,0);
+const IC={
+ window:'M5 21V10a7 7 0 0114 0v11M5 21h14M12 3v18M5 11h14',
+ care:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4',
+ list:'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+ more:'M6 12h.01M12 12h.01M18 12h.01',
+ leaf:'M5 19c0-8 5-14 15-14 0 10-6 15-14 15M5 19c3-5 6-8 10-10',
+ gear:'M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3 1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8 1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z',
+ check:'M5 12.5l4.5 4.5L19 7.5',
+ drop:'M12 3c3.5 4.3 6 7.2 6 10.5a6 6 0 01-12 0C6 10.2 8.5 7.3 12 3z',
+ alert:'M12 4l9 16H3L12 4zM12 10v4M12 17h.01',
+ plus:'M12 5v14M5 12h14',back:'M15 5l-7 7 7 7',chev:'M9 5l7 7-7 7',close:'M6 6l12 12M18 6L6 18',
+ sun:'M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4',
+ thermo:'M10 14V5a2 2 0 014 0v9a4 4 0 11-4 0z',
+ tank:'M7 4h10l-1 16H8L7 4zM7.5 11h9',
+ clock:'M12 7v5l3 2',
+ eye:'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z',
+ moon:'M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z',
+ chip:'M8 8h8v8H8zM10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3',
+ tfruit:'M12 8.5C8.5 6.5 4 8.5 4 13.5S7.5 21 12 21s8-2.5 8-7.5S15.500 6.500 12 8.500zM12 8.5c0-2.200 1-3.800 3.500-4.800',
+ tflower:'M12 10a2 2 0 100 4 2 2 0 000-4zM12 10C10 6.500 11 3 12 3s2 3.500 0 7M14 12c3.500-2 7-1 7 0s-3.500 3-7 0M12 14c2 3.500 1 7 0 7s-2-3.500 0-7M10 12c-3.500 2-7 1-7 0s3.500-3 7 0',
+ tsucc:'M9.500 21V7a2.500 2.500 0 015 0v14M9.500 15H7a1.500 1.500 0 01-1.500-1.500V10M14.500 13H17a1.500 1.500 0 001.500-1.500V8M6 21h12'
+};
+const EX={sun:'<circle cx="12" cy="12" r="4"/>',clock:'<circle cx="12" cy="12" r="9"/>',eye:'<circle cx="12" cy="12" r="3"/>'};
+const ic=(n,s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[n]}"/>${EX[n]||''}</svg>`;
+
+const PLANTS=[
+ {id:'tomato',kind:'tomato',type:'fruit',name:'Томат «Черри»',species:'Томат низкорослый',place:'Гостиная',day:46,pot:3,moisture:58,range:[45,65],rate:9,air:23.4,hum:61,lightH:6.7,lightNeed:8,last:'вчера, 09:32',lastMl:150,next:'завтра, 09:30',nextMl:150,adc:1784,gpio:34,mod:'S1',nextWhy:'По расписанию «Утро». К этому времени влажность, скорее всего, снизится примерно до 46%, это почти нижняя граница вашей нормы 45%.',note:'Земля в этом горшке держит влагу дольше обычного. Цветущему томату это на пользу, пока нет застоя.'},
+ {id:'pepper',kind:'pepper',type:'fruit',name:'Перец «Халапеньо»',species:'Перец острый',place:'Кухня',day:31,pot:2,moisture:33,range:[40,60],rate:12,air:24.8,hum:55,lightH:7.2,lightNeed:8,last:'2 дня назад, 09:30',lastMl:120,next:'сегодня, после 18:00',nextMl:120,adc:2210,gpio:35,mod:'S2',nextWhy:'Земля уже ниже нормы. Полив запланирован на вечер, чтобы вода не попала на листья под жарким солнцем.',note:'Перец подсыхает быстрее томата: горшок меньше, а окно тёплое.'},
+ {id:'monstera',kind:'monstera',type:'leaf',name:'Монстера',species:'Monstera deliciosa',place:'Гостиная',day:null,pot:5,moisture:52,range:[35,60],rate:4,air:22.9,hum:58,lightH:3.2,lightNeed:5,last:'3 дня назад, 10:05',lastMl:250,next:'через 3 дня',nextMl:250,adc:1960,gpio:36,mod:'S3',nextWhy:'Монстера сохнет медленно: сейчас 52%, нижняя граница нормы 35% будет достигнута примерно через 4 дня.',note:'Света меньше обычного. Если передвинуть ближе к окну, листья будут расти плотнее.'},
+ {id:'lemon',kind:'lemon',type:'fruit',name:'Лимон «Павловский»',species:'Citrus limon',place:'Кухня',day:null,pot:6,moisture:47,range:[35,55],rate:5,air:22.1,hum:52,lightH:6.1,lightNeed:7,last:'вчера, 10:00',lastMl:200,next:'через 2 дня',nextMl:200,adc:1890,gpio:32,mod:'S4',nextWhy:'Лимон любит, когда земля слегка подсыхает между поливами. До нижней границы нормы примерно два дня.',note:'Зимой цитрусам нужна прохлада и более редкий полив.'},
+ {id:'orchid',kind:'orchid',type:'flower',name:'Орхидея',species:'Phalaenopsis',place:'Гостиная',day:null,pot:2,moisture:38,range:[25,45],rate:3,air:23.0,hum:60,lightH:4.8,lightNeed:4,last:'4 дня назад, 09:10',lastMl:60,next:'через 2 дня',nextMl:60,adc:2050,gpio:33,mod:'S5',nextWhy:'Субстрат орхидеи должен подсохнуть полностью. Влажность пока выше нижней границы.',note:'Вода не должна застаиваться в розетке листьев.'},
+ {id:'aloe',kind:'aloe',type:'succ',name:'Алоэ',species:'Aloe vera',place:'Гостиная',day:null,pot:3,moisture:24,range:[15,35],rate:2,air:23.6,hum:48,lightH:7.0,lightNeed:6,last:'6 дней назад, 10:00',lastMl:50,next:'через неделю',nextMl:50,adc:2380,gpio:39,mod:'S6',nextWhy:'Суккуленту воды нужно мало: полив будет, когда земля подсохнет до нижней границы.',note:'Мясистые листья хранят воду. Переполив опаснее недолива.'}
+];
+const EVENTS=[
+ {d:'Сегодня',t:'09:05',p:'lemon',k:'skip',title:'Полив пропущен',why:'Земля ещё влажная (47%), поливать рано. Проверю снова завтра.',tag:'Автоматически'},
+ {d:'Сегодня',t:'08:12',p:'tomato',k:'skip',title:'Полив пропущен',why:'Земля ещё влажная (52%), поливать рано. Проверю снова вечером.',tag:'Автоматически'},
+ {d:'Сегодня',t:'07:40',p:'pepper',k:'warn',title:'Перцу скоро понадобится вода',why:'Земля быстро подсыхает: на кухне тепло. Сейчас 33%, а нужно не меньше 40%.',tag:'Совет'},
+ {d:'Сегодня',t:'06:15',p:null,k:'sys',title:'Копия настроек сохранена',why:'Настройки и история сохранены на устройстве.',tag:'Автоматически'},
+ {d:'Вчера',t:'10:00',p:'lemon',k:'water',ml:200,title:'Полито 200 мл',why:'Земля подсохла, и лимон получил воду. Стало 47%.',tag:'Автоматически'},
+ {d:'Вчера',t:'09:32',p:'tomato',k:'water',ml:150,title:'Полито 150 мл',why:'Полив по расписанию «Утро». Земля стала влажнее: было 46%, стало 58%.',tag:'Автоматически'},
+ {d:'Вчера',t:'06:05',p:'tomato',k:'warn',title:'Похоже, у томата началось цветение',why:'Воды уходит на 28% больше, чем месяц назад. Предложение сменить стадию ждёт в разделе «Уход».',tag:'Совет'},
+ {d:'Вчера',t:'06:50',p:'monstera',k:'warn',title:'Монстере не хватает света',why:'За неделю света было в среднем 3 ч 10 мин вместо 5 ч. Попробуйте переставить ближе к окну.',tag:'Совет'},
+ {d:'Вчера',t:'02:04',p:null,k:'sys',title:'Пропадал Wi‑Fi',why:'Связи не было 4 минуты. Растения всё это время поливались по вашим настройкам.',tag:'Автоматически'},
+ {d:'13 октября',t:'14:40',p:null,k:'sys',title:'Вода в баке долита',why:'Воды 96%, всё работает как обычно.',tag:'Вы'},
+ {d:'13 октября',t:'14:02',p:null,k:'err',title:'Вода в баке почти закончилась',why:'Осталось 12%. Долейте воду, пока она не кончилась совсем.',tag:'Автоматически'},
+ {d:'12 октября',t:'18:05',p:'pepper',k:'water',ml:120,title:'Полито 120 мл',why:'Земля подсохла до 39% (нужно от 40%), поэтому полив включился сам.',tag:'Автоматически'},
+ {d:'12 октября',t:'10:20',p:'tomato',k:'sys',title:'Датчик настроен',why:'Теперь проценты считаются по вашим меткам «сухо» и «мокро». Точность около 4%.',tag:'Вы'},
+ {d:'12 октября',t:'09:30',p:'tomato',k:'water',ml:150,title:'Полито 150 мл',why:'Полив по расписанию «Утро».',tag:'Автоматически'},
+ {d:'12 октября',t:'09:10',p:'orchid',k:'water',ml:60,title:'Полито 60 мл',why:'Субстрат орхидеи подсох до 27%, пора было напоить.',tag:'Автоматически'},
+ {d:'11 октября',t:'09:30',p:'monstera',k:'water',ml:250,title:'Полито 250 мл',why:'Вы полили вручную после совета «Пора полить».',tag:'Вы'},
+ {d:'11 октября',t:'08:10',p:'pepper',k:'skip',title:'Полив пропущен',why:'В баке не хватало воды. Если это повторится, придёт уведомление.',tag:'Автоматически'},
+ {d:'8 октября',t:'10:00',p:'aloe',k:'water',ml:50,title:'Полито 50 мл',why:'Алоэ поливаем редко: земля подсохла до 16%.',tag:'Автоматически'}
+];
+const EVK={water:['drop','var(--water)','Полив'],skip:['check','var(--ok)','Пропуск'],warn:['eye','var(--warn)','Внимание'],err:['alert','var(--danger)','Важно'],sys:['chip','var(--mu)','Система']};
+const EVG={water:['water','skip'],attn:['warn','err'],sys:['sys']};
+
+const TYPES={
+ fruit:{label:'Плодоносное',d:'Томат, перец, лимон',sil:'tomato',prof:[45,65,9],need:8,ml:140,c:'var(--fruit)'},
+ flower:{label:'Цветущее',d:'Орхидея, герань',sil:'flower',prof:[40,60,7],need:6,ml:80,c:'var(--bloom)'},
+ leaf:{label:'Лиственное',d:'Монстера, фикус, базилик',sil:'monstera',prof:[35,60,4],need:5,ml:110,c:'var(--pri)'},
+ succ:{label:'Суккулент',d:'Алоэ, сансевиерия',sil:'succ',prof:[15,35,2],need:6,ml:40,c:'var(--water)'}};
+const STAGES={fruit:[['seed','Росток'],['grow','Рост'],['flower','Цветение'],['fruit','Плодоношение']],flower:[['grow','Рост'],['flower','Цветение'],['rest','Покой']],leaf:[['seed','Молодое'],['adult','Взрослое'],['rest','Зимний покой']],succ:[['grow','Рост'],['adult','Взрослое'],['rest','Зимний покой']]};
+const ADJ={
+ seed:{dm:10,ml:.5,rate:.8,txt:'Корни ещё слабые: земля должна быть равномерно влажной, воды даём понемногу.'},
+ grow:{dm:0,ml:1,rate:1,txt:'Обычный режим для вида.'},
+ adult:{dm:0,ml:1,rate:1,txt:'Взрослое растение, обычный режим для вида.'},
+ flower:{dm:5,ml:1.1,rate:1.1,txt:'Цветению нужна ровная влажность: не давайте земле сильно пересыхать.'},
+ fruit:{dm:8,ml:1.4,rate:1.3,txt:'Плоды забирают много воды: поливаем чаще и стабильнее, резкие перепады вредят.'},
+ rest:{dm:-12,ml:.6,rate:.5,txt:'В покое воды нужно заметно меньше: даём земле подсохнуть глубже.'}};
+
+/* рецепты ухода: нормы, которыми можно делиться */
+const MODEN={smart:'умный',manual:'вручную'};
+const RECIPES=[
+ {id:'r-tom-fruit',name:'Томат: плодоношение',type:'fruit',stage:'fruit',range:[50,70],ml:200,mode:'smart',note:'Ровная влажность без перепадов: плоды не трескаются.',by:'Smart Plant OS'},
+ {id:'r-seed',name:'Росток: бережный старт',type:'fruit',stage:'seed',range:[55,70],ml:60,mode:'smart',note:'Корни слабые: земля чуть влажнее, порции маленькие.',by:'Smart Plant OS'},
+ {id:'r-pepper',name:'Перец: тёплое окно',type:'fruit',stage:'grow',range:[40,60],ml:120,mode:'smart',note:'Подсыхает быстрее томата, поэтому поливаем чаще и меньше.',by:'Smart Plant OS'},
+ {id:'r-citrus',name:'Цитрус: зимняя прохлада',type:'fruit',stage:'',range:[30,45],ml:120,mode:'smart',note:'Зимой цитрусам нужен более редкий полив.',by:'Smart Plant OS'},
+ {id:'r-orchid',name:'Орхидея: подсушка',type:'flower',stage:'',range:[25,40],ml:60,mode:'smart',note:'Субстрат должен хорошо подсохнуть между поливами.',by:'Smart Plant OS'},
+ {id:'r-leaf',name:'Лиственные: мало света',type:'leaf',stage:'',range:[30,50],ml:150,mode:'smart',note:'При нехватке света растение пьёт меньше, не переливайте.',by:'Smart Plant OS'},
+ {id:'r-succ',name:'Суккулент: редко и мало',type:'succ',stage:'',range:[10,28],ml:40,mode:'smart',note:'Мясистые листья хранят воду. Переполив опаснее недолива.',by:'Smart Plant OS'}
+];
+const allRecipes=()=>RECIPES.concat(S.myRecipes||[]);
+const recFits=(r,p)=>r.type==='any'||r.type===p.type;
+const recSum=r=>`норма ${r.range[0]}–${r.range[1]}% · ${r.ml} мл · ${MODEN[r.mode]||r.mode}`;
+const recFile=r=>JSON.stringify({format:'smart-plant-recipe',version:1,name:r.name,type:r.type,stage:r.stage||'',range:r.range,ml:r.ml,mode:r.mode,note:r.note||'',author:r.by||''},null,2);
+function recParse(txt){let o;try{o=JSON.parse(txt)}catch(e){return {err:'Это не похоже на рецепт: не удалось прочитать файл.'}}
+ if(!o||o.format!=='smart-plant-recipe')return {err:'Это не рецепт Smart Plant OS.'};
+ const nm=String(o.name||'').trim().slice(0,60);if(!nm)return {err:'У рецепта нет названия.'};
+ const rg=Array.isArray(o.range)?o.range.map(Number):[];if(rg.length!==2||!(rg[0]>=5&&rg[1]<=95&&rg[1]-rg[0]>=10))return {err:'Норма влажности должна быть от 5 до 95%, и разница не меньше 10 пунктов.'};
+ const ml=Math.round(Number(o.ml));if(!(ml>=10&&ml<=500))return {err:'Порция должна быть от 10 до 500 мл.'};
+ if(!MODEN[o.mode])return {err:'Неизвестный режим ухода.'};
+ const ty=o.type==='any'||TYPES[o.type]?o.type:'any';
+ return {r:{id:'u'+Date.now(),name:nm,type:ty,stage:String(o.stage||'').slice(0,12),range:rg,ml,mode:o.mode,note:String(o.note||'').slice(0,200),by:String(o.author||'').slice(0,40)||'Импорт'}}}
+
+/* автоопределение стадии: оценка по возрасту, расходу воды, свету и сезону */
+const OBS={tomato:1.28,pepper:1.02,monstera:.95,lemon:1,orchid:1,aloe:.9};
+const CONF={high:'высокая',mid:'средняя',low:'низкая, подтвердите'};
+function guessStage(p){const o=OBS[p.id]??1,d=p.day,m=NOW.getMonth(),w=[];
+ const more=o>=1.15?`Воды уходит на ${Math.round((o-1)*100)}% больше, чем месяц назад`:o<=.85?`Воды уходит на ${Math.round((1-o)*100)}% меньше, чем месяц назад`:'Расход воды почти не изменился';
+ const lowL=p.lightH<p.lightNeed*.8;
+ if(p.type==='fruit'){
+  if(d!=null){w.push(`Растению ${d}-й день`,more);
+   if(d<14)return{st:'seed',conf:'high',why:w};
+   if(d<35)return{st:'grow',conf:'high',why:w};
+   if(d<60)return o>=1.15?{st:'flower',conf:'mid',why:w}:{st:'grow',conf:'mid',why:w};
+   return o>=1.2?{st:'fruit',conf:'mid',why:w}:{st:'flower',conf:'mid',why:w}}
+  w.push('Дата посадки неизвестна',more);return o>=1.2?{st:'fruit',conf:'low',why:w}:{st:p.st||'grow',conf:'low',why:w}}
+ if(p.type==='leaf'||p.type==='succ'){const win=m>=10||m<=1;w.push(win?'Сейчас осень или зима':'Сейчас тёплое время года',lowL?'Света заметно меньше нормы':'Света хватает',more);
+  return win&&lowL&&o<=.9?{st:'rest',conf:'mid',why:w}:{st:'adult',conf:'mid',why:w}}
+ w.push(more,lowL?'Света меньше нормы':'Света хватает');
+ return o<=.85&&lowL?{st:'rest',conf:'low',why:w}:{st:p.st||'grow',conf:'low',why:w}}
+const isAuto=p=>p.auto!==false;
+function syncStage(p){if(isAuto(p)){const g=guessStage(p);if(p.st!==g.st){p.st=g.st;p.recipe=null;applyStage(p)}}}
+function stageBlock(p){const stl=STAGES[p.type]||[],g=guessStage(p),au=isAuto(p);
+ return `<div class="seg" role="group" aria-label="Как определять стадию" style="margin:8px 0">${[['1','Автоматически'],['0','Вручную']].map(([k,l])=>`<button data-act="stauto" data-v="${k}" aria-pressed="${au===(k==='1')}">${l}</button>`).join('')}</div>`
+ +(!au&&stageSug(p)?(()=>{const g=stageSug(p),lb=((STAGES[p.type]||[]).find(x=>x[0]===g.st)||['',''])[1];return `<div class="why"><b>Система предлагает: ${lb}.</b> ${g.why.join('. ')}. <div class="chips" style="margin-top:8px"><button class="btn" data-act="stsug">Сменить</button><button class="btn quiet" data-act="stno">Не сейчас</button></div></div>`})():'')+(au?`<div class="why"><b>Похоже, это: ${stageLabel(p)}.</b> Уверенность: ${CONF[g.conf]}. ${g.why.join('. ')}.</div>`:'')
+ +`<div class="chips" style="margin:8px 0;${au?'opacity:.6':''}">${stl.map(([k,l])=>`<button class="chip" data-act="stage" data-v="${k}" aria-pressed="${k===p.st}">${l}</button>`).join('')}</div>`
+ +(au?`<p class="note">Нажмёте на стадию сами, и автоопределение для этого растения выключится. Тогда система будет только предлагать сменить стадию.</p>`:'')}
+const stageLabel=p=>((STAGES[p.type]||[]).find(x=>x[0]===p.st)||(STAGES[p.type]||[['','']])[0])[1];
+const defStage=t=>t==='fruit'||t==='flower'?'grow':'adult';
+function applyStage(p){const b=p.base,a=ADJ[p.st];p.range=[Math.max(5,Math.round(b.min+a.dm)),Math.min(95,Math.round(b.max+a.dm))];p.rate=Math.round(b.rate*a.rate*10)/10;p.nextMl=Math.max(20,Math.round(p.ml0*a.ml*(p.sens||1)/10)*10)}
+const RAW=[
+['tomato-cherry','Томат черри','Solanum lycopersicum','fruit','tomato',40,60,9,8,18,26,'50–70','Любит яркий свет и ровную влажность. Пересушка и перелив вызывают растрескивание плодов.'],
+['pepper-chili','Перец острый (чили)','Capsicum annuum','fruit','pepper',40,60,12,8,20,28,'50–65','Тёплое окно и стабильный полив. Подсыхает быстрее томата в небольшом горшке.'],
+['lemon','Лимон','Citrus limon','fruit','lemon',35,55,5,7,14,24,'50–65','Зимой нужна прохлада и более редкий полив.'],
+['orchid','Орхидея фаленопсис','Phalaenopsis','flower','orchid',25,45,3,4,18,26,'50–70','Поливайте, когда субстрат подсох. Вода не должна застаиваться в розетке.'],
+['pelargonium','Герань (пеларгония)','Pelargonium','flower','geranium',30,50,6,6,15,25,'40–60','Любит свет и умеренный полив, между поливами земля должна подсыхать.'],
+['monstera','Монстера','Monstera deliciosa','leaf','monstera',35,60,4,5,18,27,'50–70','Подсыхает медленно. Поливайте, когда верхний слой просох.'],
+['ficus-elastica','Фикус эластика','Ficus elastica','leaf','ficus',30,50,4,5,16,26,'40–60','Терпит небольшую пересушку лучше переувлажнения.'],
+['sansevieria','Сансевиерия','Dracaena trifasciata','leaf','snake',15,35,2,3,15,30,'30–50','Очень неприхотлива: переувлажнение опаснее пересушки.'],
+['basil','Базилик','Ocimum basilicum','leaf','herb',45,65,10,7,18,28,'45–60','Любит тепло и свет, поливайте регулярно.'],
+['aloe','Алоэ вера','Aloe vera','succ','aloe',15,35,2,6,12,30,'30–50','Запасает воду в листьях. Поливайте после полного просыхания.'],
+];
+const KB=RAW.map(a=>({id:a[0],name:a[1],latin:a[2],type:a[3],sil:a[4],min:a[5],max:a[6],rate:a[7],need:a[8],t:[a[9],a[10]],hum:a[11],tip:a[12]}));
+const kbOf=id=>KB.find(x=>x.id===id);
+const spName=p=>{const k=kbOf(p.kb);return k?k.name:p.species};
+const plural=(n,a,b,c)=>n%10===1&&n%100!==11?a:(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?b:c;
+const tc=v=>S.units==='C'?v:Math.round(v*9/5+32);
+[['tomato','tomato-cherry','flower',140],['pepper','pepper-chili','grow',120],['monstera','monstera','adult',250],['lemon','lemon','fruit',200],['orchid','orchid','flower',60],['aloe','aloe','adult',50]].forEach(([id,kb,st,ml])=>{const p=PLANTS.find(x=>x.id===id),e=kbOf(kb);Object.assign(p,{kb,st,ml0:ml,base:{min:e.min,max:e.max,rate:e.rate}});});
+const EXAMPLE='# Мой алгоритм полива\nevery 10 min:\n  if soil < 40 and tank > 10 and not night:\n    water 150 ml\n    cooldown 6 h\n  if light_h < 3 and hour == 14:\n    notify "Мало света, переставьте ближе к окну"\n';
+const S={mode:'simple',rooms:['Гостиная','Кухня'],setTab:'main',algoTab:'main',advOpen:false,_ck:'',evp:'all',kbq:'',kbt:'all',delId:null,cfg:{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,pumpOk:true,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,wifi:'HomeWiFi',devName:'Подоконник-1',localApi:true},screen:'home',pid:'tomato',tab:'now',period:7,care:{mode:'smart',when:'dry',amount:150,gap:6,night:true,limit:600,mt:'simple',mthr:40,mauto:true,code:EXAMPLE},evf:'all',units:'C',theme:'system',booting:true,flags:{offline:false,sensor:false,tank:false,emptyHist:false},why:false,notif:{weekly:true,needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true},motion:'auto',myRecipes:[],rid:null,rerr:'',codeOut:'',ai:{prov:'off',url:'',model:'',key:'',logs:true,sensors:true,photo:false},mods:{soil:true,light:true,air:true,pump:true,tank:true},weekDone:false,ob:null};
+const P=id=>PLANTS.find(p=>p.id===id);
+const fmtT=v=>S.units==='C'?`${v.toFixed(1).replace('.',',')}<span class="u">°C</span>`:`${(v*9/5+32).toFixed(1).replace('.',',')}<span class="u">°F</span>`;
+const dec=v=>String(v).replace('.',',');
+const lightStr=h=>`${Math.floor(h)} ч ${String(Math.round((h%1)*60)).padStart(2,'0')} мин`;
+function health(p){
+ if(S.flags.sensor)return 'help';
+ if(p.moisture<p.range[0])return 'action';
+ if(p.lightH<p.lightNeed*.7)return 'check';
+ return 'ok';
+}
+const SAY={ok:'Чувствует себя отлично',check:'Стоит присмотреться',action:'Пора полить',help:'Нужна помощь'};
+const PILL={ok:['check','В порядке'],check:['eye','Стоит проверить'],action:['drop','Нужна вода'],help:['alert','Нужна помощь']};
+const pill=h=>`<span class="pill ${h}">${ic(PILL[h][0],16)}${PILL[h][1]}</span>`;
+function reason(p){const h=health(p);
+ if(h==='help')return 'Датчик влажности не отвечает, поэтому состояние земли неизвестно. Автополив для этого растения на паузе.';
+ if(h==='action')return `Земля подсохла до ${p.moisture}%, это ниже вашей нормы ${p.range[0]}%.`;
+ if(h==='check')return `Света меньше обычного: ${lightStr(p.lightH)} в день при норме от ${p.lightNeed} ч.`;
+ return `Земля влажная в меру, света достаточно. ${p.id==='tomato'?'Цветение идёт хорошо.':''}`;}
+const daysLeft=p=>Math.max(0,(p.moisture-p.range[0])/p.rate);
+const dstr=d=>d<0.5?'уже скоро':d<1.2?'около суток':`примерно ${dec(Math.round(d*2)/2)} суток`;
+
+/* силуэты и горшок */
+const _w=(c,fn)=>(...a)=>`<g class="${c}">${fn(...a)}</g>`;
+const Lf=(x,y,len,w,rot,g='lf')=>`<g transform="translate(${x} ${y}) rotate(${rot})"><path d="M0 0C${w} ${-len*.2} ${w*1.1} ${-len*.7} 0 ${-len}C${-w*1.1} ${-len*.7} ${-w} ${-len*.2} 0 0Z" fill="url(#${g})"/><path d="M0 0C${w} ${-len*.2} ${w*1.1} ${-len*.7} 0 ${-len}C${w*.25} ${-len*.6} ${w*.15} ${-len*.25} 0 0Z" fill="var(--leaf-lo)" opacity=".3"/></g>`;
+const stem=(d,c='var(--leaf-lo)',w=3.4)=>`<path d="${d}" stroke="${c}" stroke-width="${w}" fill="none" stroke-linecap="round"/>`;
+const thin=d=>stem(d,'var(--leaf-lo)',1.7);
+const fruit0=(x,y,r,g)=>`${thin(`M${x} ${y-r+1}Q${(x+60)/2} ${y-r-10} 60 ${y-r-14}`)}<g transform="translate(${x} ${y})"><circle r="${r}" fill="url(#${g})"/><ellipse cx="${-r*.38}" cy="${-r*.42}" rx="${r*.3}" ry="${r*.18}" fill="#fff" opacity=".45" transform="rotate(-35 ${-r*.38} ${-r*.42})"/><g fill="var(--leaf-lo)"><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5"/><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5" transform="rotate(60 0 ${-r+1})"/><ellipse cy="${-r+1}" rx="${r*.5}" ry="1.5" transform="rotate(-60 0 ${-r+1})"/></g></g>`;
+const pep0=(x,y,rot,g)=>`${thin(`M${x} ${y} Q${(x+60)/2} ${y-12} 60 ${y-16}`)}<g transform="translate(${x} ${y}) rotate(${rot})"><path d="M0 0C6.5 .5 8.5 7 7.2 15C6 22 2.5 27 0 29C-2.5 27-6 22-7.2 15C-8.5 7-6.5 .5 0 0Z" fill="url(#${g})"/><ellipse cx="-3" cy="9" rx="1.6" ry="4.6" fill="#fff" opacity=".38"/><ellipse cy="1" rx="5.2" ry="2.6" fill="var(--leaf-lo)"/></g>`;
+const flo0=(x,y,sc)=>`<g transform="translate(${x} ${y}) scale(${sc})">${[0,1,2,3,4].map(i=>`<g transform="rotate(${i*72})"><path d="M0 0C-9-5-9-19 0-21C9-19 9-5 0 0Z" fill="url(#bl)"/></g>`).join('')}<circle r="4.6" fill="#E9B04A"/><circle cx="-1.3" cy="-1.4" r="1.6" fill="#fff" opacity=".45"/></g>`;
+const frond=a=>{let h=`<g transform="translate(60 129) rotate(${a})">${stem('M0 0Q-6 -35 4 -70','var(--leaf-lo)',1.6)}`;
+ for(let k=0;k<9;k++){const t=.14+k*.1,x=2*(1-t)*t*-6+t*t*4,y=2*(1-t)*t*-35+t*t*-70,L=11-k*.8;h+=`<ellipse cx="${x-L*.5}" cy="${y}" rx="${L}" ry="2.6" fill="url(#lf)" transform="rotate(-28 ${x} ${y})"/><ellipse cx="${x+L*.5}" cy="${y}" rx="${L}" ry="2.6" fill="url(#lf)" transform="rotate(28 ${x} ${y})"/>`}
+ return h+'</g>'};
+const sword=(x,r,sy)=>`<g transform="translate(${x} 129) rotate(${r}) scale(1 ${sy})"><path d="M0 0C-8-10-9-52-2-80C0-84 0-84 2-80C9-52 8-10 0 0Z" fill="url(#lf2)"/><path d="M0 0C8-10 9-52 2-80C0-84 0-84 -.5-80C2-52 2-10 0 0Z" fill="var(--leaf-lo)" opacity=".3"/><path d="M-6.5-14C-8-32-6-60-2-76" stroke="var(--leaf-hi)" stroke-width="1.4" fill="none" opacity=".55"/></g>`;
+const lm0=(x,y,r)=>`${thin(`M${x} ${y-4}Q${(x+60)/2} ${y-14} 60 ${y-18}`)}<g transform="translate(${x} ${y}) rotate(${r})"><path d="M-9 0C-9-6.5-4-8 0-8C4-8 9-6.5 9 0C9 6.5 4 8 0 8C-4 8-9 6.5-9 0Z" fill="url(#lem)"/><path d="M9 0q3.4-.4 3.6 0q-.2.4-3.6 0Z" fill="#B98A10"/><ellipse cx="-3.4" cy="-3.4" rx="3" ry="1.6" fill="#fff" opacity=".5" transform="rotate(-20 -3.4 -3.4)"/></g>`;
+const ob0=(x,y,s,r=0)=>`<g transform="translate(${x} ${y}) rotate(${r}) scale(${s})"><ellipse cx="-7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(-18 -7 -3)"/><ellipse cx="7" cy="-3" rx="8.5" ry="6.4" fill="url(#orc)" transform="rotate(18 7 -3)"/><ellipse cx="-4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(30 -4.6 5)"/><ellipse cx="4.6" cy="5" rx="5" ry="3.6" fill="url(#orc)" transform="rotate(-30 4.6 5)"/><ellipse cx="0" cy="3" rx="2.6" ry="3.2" fill="#B9467F"/><circle cx="0" cy="-.6" r="1.5" fill="#F2C14E"/></g>`;
+const gl=(x,y,r)=>`<g transform="translate(${x} ${y})"><circle r="${r}" fill="url(#lf)"/><circle r="${r*.62}" fill="none" stroke="var(--leaf-lo)" stroke-opacity=".35" stroke-width="2"/><path d="M0 0L${r*.2} ${-r}" stroke="var(--leaf-lo)" stroke-width="1.2" opacity=".5"/></g>`;
+const gum0=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s})">${[[0,-9],[8.5,-3],[5.4,7],[-5.4,7],[-8.5,-3],[0,0]].map(([a,b])=>`<circle cx="${a}" cy="${b}" r="4.6" fill="url(#gp)"/>`).join('')}<circle cx="-1.6" cy="-2.2" r="1.4" fill="#fff" opacity=".45"/></g>`;
+const aloeL=(r,L,w)=>`<g transform="translate(60 128) rotate(${r})"><path d="M0 0C${-w} ${-L*.3} ${-w*.8} ${-L*.8} 0 ${-L}C${w*.8} ${-L*.8} ${w} ${-L*.3} 0 0Z" fill="url(#lf2)"/><path d="M0 0C${w} ${-L*.3} ${w*.8} ${-L*.8} 0 ${-L}C${w*.2} ${-L*.6} ${w*.1} ${-L*.3} 0 0Z" fill="var(--leaf-lo)" opacity=".28"/>${[.25,.42,.6,.78].map(t=>`<circle cx="${-w*(1-t)*.8-.4}" cy="${-L*t}" r="1.1" fill="#F3EBC6"/><circle cx="${w*(1-t)*.8+.4}" cy="${-L*t}" r="1.1" fill="#F3EBC6"/>`).join('')}</g>`;
+const fruit=_w("fr",fruit0),pep=_w("fr",pep0),lm=_w("fr",lm0),flo=_w("fl",flo0),ob=_w("fl",ob0),gum=_w("fl",gum0);
+const SIL={
+ lemon:stem('M60 129C59 112 62 98 60 84S58 54 60 32','var(--dirt)',4.2)+thin('M60 100C50 92 43 84 40 74')+thin('M60 80C70 72 77 64 80 54')+[[60,110,-66],[60,106,68],[60,92,-58],[60,88,62],[41,76,-40],[41,76,22],[79,56,-20],[79,56,40],[60,66,-50],[60,60,48],[60,44,-26],[60,34,12],[60,46,32]].map(([x,y,r])=>Lf(x,y,23,9,r)).join('')+lm(42,104,-14)+lm(78,92,12)+lm(46,66,-8)+`<g fill="#fff"><circle cx="70" cy="40" r="2.6"/><circle cx="52" cy="50" r="2.2"/></g>`,
+ orchid:Lf(60,129,36,16,-74)+Lf(60,129,36,16,76)+Lf(60,129,30,14,-34)+Lf(60,129,30,13,36)+stem('M60 124C60 92 64 64 80 42','var(--leaf-lo)',2.2)+ob(65,86,.78,-8)+ob(71,66,.84,6)+ob(80,48,.9,12)+`<circle cx="85" cy="34" r="3.2" fill="url(#orc)"/><circle cx="88" cy="28" r="2.4" fill="url(#orc)"/>`,
+ geranium:thin('M60 129C60 112 60 100 60 90')+thin('M60 112C50 104 44 98 42 92')+thin('M60 108C70 100 76 94 78 88')+thin('M60 94C54 82 50 72 50 62')+thin('M60 92C68 80 72 66 74 54')+gl(60,110,14)+gl(40,102,12)+gl(80,98,12.5)+gl(46,86,10)+gl(74,82,10)+thin('M50 62C50 56 50 54 50 52')+gum(50,48,1)+gum(74,40,1.1),
+ aloe:aloeL(-78,34,11)+aloeL(78,34,11)+aloeL(-56,50,12)+aloeL(56,50,12)+aloeL(-32,66,13)+aloeL(32,66,13)+aloeL(-10,74,13)+aloeL(12,70,13)+aloeL(0,62,12),
+ tomato:stem('M60 129C57 112 63 98 60 80S57 46 61 24')+Lf(60,108,28,9,-62)+Lf(61,96,30,9.5,64)+Lf(60,80,28,9,-56)+Lf(61,66,27,9,60)+Lf(60,50,22,8,-40)+Lf(61,40,20,7.5,42)+Lf(61,26,20,7,6)+fruit(42,102,7.8,'frt')+fruit(79,90,7.2,'frt')+fruit(44,72,6.4,'lf'),
+ pepper:stem('M60 129C58 110 62 92 60 74S58 44 60 28')+Lf(60,106,26,7.5,-58)+Lf(60,94,26,7.5,60)+Lf(60,76,24,7,-52)+Lf(60,64,24,7,54)+Lf(60,48,20,6.5,-34)+Lf(60,38,18,6,36)+Lf(60,28,16,6,4)+pep(44,84,8,'pep')+pep(77,70,-8,'lf'),
+ monstera:`<g stroke="var(--leaf-lo)" stroke-width="3" fill="none" stroke-linecap="round"><path d="M60 129C58 110 48 99 40 90"/><path d="M60 129C60 106 70 86 80 72"/><path d="M60 129C61 100 58 76 57 56"/></g><use href="#mleaf" transform="translate(40 90) rotate(-28) scale(.95)"/><use href="#mleaf" transform="translate(80 72) rotate(28) scale(1)"/><use href="#mleaf" transform="translate(57 56) rotate(-4) scale(.8)"/>`,
+ flower:stem('M60 129C58 106 62 78 60 48')+thin('M60 100C68 88 76 76 82 66')+Lf(60,114,22,8,-64)+Lf(60,104,22,8,66)+Lf(60,92,18,7,-50)+Lf(60,86,18,7,52)+thin('M60 90C50 82 42 74 38 70')+`<circle cx="38" cy="66" r="4.8" fill="url(#bl)"/>`+flo(82,62,.62)+flo(60,34,1),
+ succ:[-72,-48,-24,0,24,48,72].map(r=>Lf(60,122,31,11,r,'lf2')).join('')+[-60,-30,0,30,60].map(r=>Lf(60,122,24,10,r,'lf')).join('')+[-36,-12,12,36].map(r=>Lf(60,122,17,8,r,'lf2')).join(''),
+ herb:stem('M60 129C59 112 61 96 60 80S59 52 60 40')+thin('M60 100C50 94 44 86 41 78')+thin('M60 84C70 78 76 70 79 62')+[116,104,92,80,68,56,46].map((y,i)=>Lf(60,y,15-i*.6,6.4,-62)+Lf(60,y,15-i*.6,6.4,62)).join('')+Lf(41,78,13,5.6,-30)+Lf(41,78,13,5.6,34)+Lf(79,62,13,5.6,-34)+Lf(79,62,13,5.6,30)+Lf(60,40,13,5.5,0),
+ ficus:stem('M58 129C59 108 57 88 60 66C61 56 61 50 60 40','var(--dirt)',4.6)+thin('M59 92C50 84 44 76 40 66')+thin('M60 72C69 64 75 56 80 46')+[[60,44,-8],[60,44,28],[60,56,-58],[60,60,60],[59,74,-48],[60,78,56],[59,92,-62],[60,98,60],[40,66,-30],[40,66,30],[80,46,-24],[80,46,34],[60,108,-66],[60,112,66],[60,50,-30]].map(([x,y,r])=>Lf(x,y,21,8.4,r)).join(''),
+ snake:sword(46,-26,.78)+sword(74,26,.8)+sword(53,-10,.95)+sword(67,10,.9)+sword(60,0,1.05),
+ fern:[-78,-56,-34,-12,12,34,56,78].map(frond).join(''),
+ cactus:`<path d="M44 128V90C44 82 38 82 36 80V64C36 59 44 59 44 64V74" fill="none"/><g><rect x="49" y="42" width="22" height="86" rx="11" fill="url(#lf2)"/><rect x="62" y="44" width="9" height="82" rx="4.5" fill="var(--leaf-lo)" opacity=".28"/><path d="M57 46C54 66 54 96 57 124M64 46C67 66 67 96 64 124" stroke="var(--leaf-hi)" stroke-width="1.2" fill="none" opacity=".5"/><path d="M49 98H40C36 98 34 94 34 90V76" stroke="url(#lf2)" stroke-width="9" fill="none" stroke-linecap="round"/><path d="M71 86H80C84 86 86 82 86 78V68" stroke="url(#lf2)" stroke-width="9" fill="none" stroke-linecap="round"/><circle cx="60" cy="40" r="6" fill="url(#bl)"/><circle cx="60" cy="40" r="2.2" fill="#E9B04A"/></g>`,
+ generic:stem('M60 129C58 108 62 84 60 52')+Lf(60,108,26,9,-60)+Lf(60,92,26,9,62)+Lf(60,72,22,8,-48)+Lf(60,60,20,7.5,46)+Lf(60,52,18,7,4)
+};
+let potN=0;
+function sceneSvg(o){const id='c'+(++potN),lv=Math.max(0,Math.min(100,o.level))/100,ty=r=>139-r*.28,vb=o.plant?'0 -10 120 160':'22 90 76 60';
+ return `<svg class="${o.plant?'scene st-'+(o.st||'adult')+' mood-'+(o.mood||'ok'):'pot'}" viewBox="${vb}" role="img" aria-label="${o.plant?'Растение в горшке. ':'Горшок. '}${o.level==null?'Нет данных':'Влажность земли '+Math.round(o.level)+'%'}"><defs><clipPath id="${id}"><rect x="50" y="111" width="20" height="28" rx="10"/></clipPath></defs>
+ <ellipse cx="60" cy="146" rx="42" ry="5" fill="url(#shd)"/>
+ <g class="potg"><path d="M30 104h60l-6 36a4.5 4.5 0 01-4.5 4h-39a4.5 4.5 0 01-4.5-4z" fill="var(--pot)"/><path d="M60 104h30l-6 36a4.5 4.5 0 01-4.5 4H60z" fill="#000" opacity=".15"/><path d="M33.5 107h9l-2.6 31h-4.6z" fill="#fff" opacity=".14"/><path d="M30 104h60l-.9 7c-14 3.2-44 3.2-58.2 0z" fill="#000" opacity=".2"/>
+ <rect x="25" y="96" width="70" height="11" rx="4.5" fill="var(--pot)"/><path d="M60 96h30.5a4.5 4.5 0 014.5 4.5v2a4.5 4.5 0 01-4.5 4.5H60z" fill="#000" opacity=".12"/><rect x="28" y="98" width="30" height="2.4" rx="1.2" fill="#fff" opacity=".25"/>
+ <ellipse cx="60" cy="96.6" rx="35" ry="4.2" fill="var(--pot)"/><ellipse cx="60" cy="96.6" rx="35" ry="4.2" fill="#fff" opacity=".16"/><ellipse cx="60" cy="97.4" rx="31" ry="3" fill="url(#sg)"/>
+ <rect x="50" y="111" width="20" height="28" rx="10" fill="var(--surface)" opacity=".9"/><g clip-path="url(#${id})"><rect class="lv" data-l="${lv}" x="50" y="111" width="20" height="28" fill="var(--water)" style="transform:scaleY(0);transform-origin:50% 100%;transform-box:fill-box"/></g><rect x="50" y="111" width="20" height="28" rx="10" fill="none" stroke="#000" stroke-opacity=".22"/><rect x="53.2" y="114" width="2.2" height="13" rx="1.1" fill="#fff" opacity=".55"/>
+ ${o.ticks?`<path d="M73 ${ty(o.range[0])}h5M73 ${ty(o.range[1])}h5" stroke="var(--tx)" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>`:''}</g>
+ ${o.plant?`<g transform="translate(60 97) scale(.95) translate(-60 -129)"><g class="pl">${SIL[o.kind]||SIL.generic}</g></g>`:''}${o.plant&&o.mood==='action'?'<path class="tdrop" d="M98 34c4 5 6.5 8 6.5 11a6.5 6.5 0 01-13 0c0-3 2.5-6 6.5-11z" fill="var(--water)" opacity=".9"/><path d="M95.6 43.5c0 1.6.9 3 2.4 3.4" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".7"/>':''}</svg>`;}
+const pot=(level,range,ticks)=>sceneSvg({plant:false,level,range,ticks});
+function arch(p,ticks){const unk=S.flags.sensor;
+ return `<div class="arch${unk?' unk':''}"><div class="glow"></div>${sceneSvg({plant:true,kind:p.kind,st:p.st,mood:health(p),level:unk?0:p.moisture,range:p.range,ticks})}<div class="sheen"></div></div>`;}
+function animatePots(root=document){requestAnimationFrame(()=>requestAnimationFrame(()=>root.querySelectorAll('.lv').forEach(el=>el.style.transform=`scaleY(${el.dataset.l})`)));}
+function rb(p){if(S.flags.sensor)return '';return `<div class="rb" role="img" aria-label="Влажность ${p.moisture}%, норма ${p.range[0]}–${p.range[1]}%"><div class="tz" style="left:${p.range[0]}%;width:${p.range[1]-p.range[0]}%"></div><div class="mk" style="left:${p.moisture}%"></div></div>`;}
+
+/* график */
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const SER={};
+function series(p,days,shift){const key=p.id+days+shift+p.range[0]+'-'+p.range[1];if(SER[key])return SER[key];
+ const rnd=mulberry(p.id.length*997+days*13+shift*7919+p.pot),per=8,n=days*per,pts=[],evs=[];
+ let m=p.range[1]-4+rnd()*4,last=-9;const r=p.rate/per;
+ for(let i=0;i<n;i++){m-=r*(.7+rnd()*.6);
+  if(m<p.range[0]-3+rnd()*5&&i-last>=5){m+=p.lastMl/(p.pot*5);evs.push({i,ml:p.lastMl});last=i}
+  pts.push(m+(rnd()-.5)*.8)}
+ if(shift===0){const d=p.moisture-pts[n-1];for(let k=0;k<10;k++)pts[n-10+k]+=d*(k+1)/10}
+ const out={pts:pts.map(v=>Math.max(4,Math.min(96,v))),evs,n,days,per};SER[key]=out;return out;}
+const tOf=(s,i)=>new Date(NOW.getTime()-(s.n-1-i)*3*3600e3);
+const avg=a=>a.reduce((x,y)=>x+y,0)/a.length;
+function smooth(a){let d=`M${a[0][0].toFixed(1)} ${a[0][1].toFixed(1)}`;
+ for(let i=0;i<a.length-1;i++){const p0=a[i-1]||a[i],p1=a[i],p2=a[i+1],p3=a[i+2]||p2;
+  d+=`C${(p1[0]+(p2[0]-p0[0])/6).toFixed(1)} ${(p1[1]+(p2[1]-p0[1])/6).toFixed(1)} ${(p2[0]-(p3[0]-p1[0])/6).toFixed(1)} ${(p2[1]-(p3[1]-p1[1])/6).toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`}
+ return d}
+function drawChart(){const host=$('#chart');if(!host)return;const p=P(S.pid),s=series(p,S.period,0);
+ const key=p.id+S.period,anim=S._ck!==key;S._ck=key;
+ const W=Math.max(280,host.clientWidth),H=240,l=34,r=14,t=18,b=30,iw=W-l-r,ih=H-t-b,id='g'+(++potN);
+ const X=i=>l+i/(s.n-1)*iw,Y=v=>t+(1-v/100)*ih,bot=t+ih;
+ let g='';[0,25,50,75,100].forEach(v=>{g+=`<line x1="${l}" x2="${W-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--border)" stroke-width="1" opacity="${v%50?'.5':'1'}"/><text x="${l-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--mu)">${v}</text>`});
+ const yb=Y(p.range[1]),yt=Y(p.range[0]);
+ const band=`<rect x="${l}" y="${yb}" width="${iw}" height="${yt-yb}" rx="6" fill="var(--pri)" opacity=".13"/><line x1="${l}" x2="${W-r}" y1="${yb}" y2="${yb}" stroke="var(--pri)" stroke-width="1" stroke-dasharray="4 4" opacity=".5"/><line x1="${l}" x2="${W-r}" y1="${yt}" y2="${yt}" stroke="var(--pri)" stroke-width="1" stroke-dasharray="4 4" opacity=".5"/><text x="${l+8}" y="${yb+14}" font-size="11" fill="var(--tx2)">норма ${p.range[0]}–${p.range[1]}%</text>`;
+ let xt='';s.pts.forEach((v,i)=>{const d=tOf(s,i);if(d.getHours()!==0)return;if(s.days>7&&d.getDate()%5)return;
+  xt+=`<line x1="${X(i)}" x2="${X(i)}" y1="${bot}" y2="${bot+4}" stroke="var(--mu)"/><text x="${X(i)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--mu)">${s.days<=7?WD[d.getDay()]+' '+d.getDate():d.getDate()+' '+MO[d.getMonth()]}</text>`});
+ const pts=s.pts.map((v,i)=>[X(i),Y(v)]),path=smooth(pts),area=path+`L${X(s.n-1)} ${bot}L${X(0)} ${bot}Z`;
+ const evd=s.evs.map((e,k)=>`<g class="${anim?'mkr':''}" style="animation-delay:${(.9+k*.08).toFixed(2)}s"><line x1="${X(e.i)}" x2="${X(e.i)}" y1="${Y(s.pts[e.i])+8}" y2="${bot}" stroke="var(--water)" stroke-width="1" stroke-dasharray="2 3" opacity=".45"/><circle cx="${X(e.i)}" cy="${Y(s.pts[e.i])}" r="8" fill="var(--water)" stroke="var(--surface)" stroke-width="2"/><path transform="translate(${X(e.i)} ${Y(s.pts[e.i])+.5}) scale(.85)" d="M0 -4.2c2 2.3 3.2 3.8 3.2 5.3a3.2 3.2 0 01-6.4 0c0-1.5 1.2-3 3.2-5.3z" fill="#fff"/></g>`).join('');
+ const lastv=s.pts[s.n-1],lx=X(s.n-1),ly=Y(lastv),low=lastv<p.range[0];
+ host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Влажность почвы за ${s.days} дней: сейчас ${p.moisture}%, поливов ${s.evs.length}"><defs><linearGradient id="${id}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--water)" stop-opacity=".32"/><stop offset="1" stop-color="var(--water)" stop-opacity="0"/></linearGradient><clipPath id="${id}b"><rect x="${l}" y="${yt}" width="${iw}" height="${bot-yt+2}"/></clipPath></defs>${g}${band}<path class="${anim?'fade':''}" d="${area}" fill="url(#${id}a)"/><path class="${anim?'draw':''}" pathLength="1" d="${path}" fill="none" stroke="var(--water)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/><path d="${path}" fill="none" stroke="var(--warn)" stroke-width="2.4" stroke-linejoin="round" clip-path="url(#${id}b)" class="${anim?'fade':''}"/>${xt}${evd}<circle cx="${lx}" cy="${ly}" r="6" fill="${low?'var(--warn)':'var(--water)'}" stroke="var(--surface)" stroke-width="2.5"/><text x="${lx-12}" y="${ly-12}" text-anchor="end" font-size="13" font-weight="600" fill="var(--tx)" stroke="var(--surface)" stroke-width="4" paint-order="stroke">${p.moisture}%</text><line id="xh" y1="${t}" y2="${bot}" stroke="var(--tx2)" stroke-dasharray="3 3" opacity="0"/><circle id="xd" r="5.5" fill="var(--water)" stroke="var(--surface)" stroke-width="2.5" opacity="0"/><rect id="ov" x="${l}" y="${t}" width="${iw}" height="${ih}" fill="transparent" style="touch-action:pan-y"/></svg><div class="tip" id="tip" hidden></div>`;
+ const ov=$('#ov',host),xh=$('#xh',host),xd=$('#xd',host),tip=$('#tip',host);
+ const move=e=>{const bx=ov.getBoundingClientRect(),f=Math.max(0,Math.min(1,(e.clientX-bx.left)/bx.width)),i=Math.round(f*(s.n-1)),d=tOf(s,i),ev=s.evs.find(x=>Math.abs(x.i-i)<=1),v=Math.round(s.pts[i]);
+  xh.setAttribute('x1',X(i));xh.setAttribute('x2',X(i));xh.setAttribute('opacity','1');xd.setAttribute('cx',X(i));xd.setAttribute('cy',Y(s.pts[i]));xd.setAttribute('opacity','1');
+  tip.hidden=false;tip.innerHTML=`${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]}, ${String(d.getHours()).padStart(2,'0')}:00<br><b>${v}%</b> · ${v<p.range[0]?'ниже нормы':v>p.range[1]?'выше нормы':'в норме'}${ev?`<br>Полив ${ev.ml} мл`:''}`;
+  tip.style.left=Math.max(70,Math.min(W-70,X(i)))+'px';tip.style.top=(Y(s.pts[i])-14)+'px'};
+ ov.addEventListener('pointermove',move);ov.addEventListener('pointerdown',move);
+ ov.addEventListener('pointerleave',()=>{xh.setAttribute('opacity','0');xd.setAttribute('opacity','0');tip.hidden=true});}
+let rt;addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(drawChart,120)});
+
+/* экраны */
+function summary(){const hs=PLANTS.map(health),a=hs.filter(h=>h==='action').length,c=hs.filter(h=>h==='check').length,hp=hs.filter(h=>h==='help').length;
+ if(hp)return 'Датчик влажности не отвечает. Проверьте подключение: пока автополив на паузе.';
+ if(!a&&!c)return 'Всё в порядке. Ближайший полив завтра в 09:30.';
+ const parts=[];if(a)parts.push(a===1?'Одному растению нужна вода':a+' растениям нужна вода');if(c)parts.push(c===1?'одному стоит присмотреться':c+' стоит присмотреться');
+ const s=parts.join(', ');return s.charAt(0).toUpperCase()+s.slice(1)+'.';}
+const ORDER={help:0,action:1,check:2,ok:3};
+function vHome(){
+ const list=[...PLANTS].sort((a,b)=>ORDER[health(a)]-ORDER[health(b)]);
+ if(S.booting)return `<header class="ph"><p class="eyebrow">Среда, 14 октября</p><h1 class="disp">Мои растения</h1><div class="sk" style="height:22px;width:70%;margin-top:8px"></div></header><div class="shelf">${[1,2,3].map(()=>`<div class="pcard" aria-hidden="true"><div class="sk" style="width:100%;aspect-ratio:3/4.1;border-radius:999px 999px 14px 14px"></div><div class="sk" style="height:22px;width:70%"></div><div class="sk" style="height:16px;width:50%"></div></div>`).join('')}</div><p class="sr">Подключаюсь к растениям…</p>`;
+ const banner=S.flags.offline?`<div class="banner" role="status">${ic('alert')}<div><b>Нет связи с устройством.</b> Показаны последние данные от 14:20. Устройство продолжает поливать по настройкам.</div></div>`:'';
+ const cards=list.map((p,ix)=>{const h=health(p);
+  const line=S.flags.sensor?'Влажность неизвестна':`Земля ${p.moisture}%${h==='action'?' · норма от '+p.range[0]+'%':''}`;
+  return `<button class="pcard" style="--i:${ix}" data-act="open" data-id="${p.id}" aria-label="${esc(p.name)}: ${SAY[h]}">${arch(p,false)}<div><h3 class="disp">${esc(p.name)}</h3></div>${pill(h)}<div class="meta"><span>${line}</span><span>${esc(p.place)}</span></div></button>`}).join('');
+ const nextList=[...PLANTS].map(p=>`<div class="row"><div><b>${esc(p.name)}</b><div class="sub">${p.next}</div></div><span class="t2">≈ ${p.nextMl} мл</span></div>`).join('');
+ const ins=`<div class="why"><b>Томат.</b> Земля держит влагу дольше обычного, поэтому система не поливала сегодня утром: ${P('tomato').moisture}% при пороге 35%.</div><div class="why"><b>Монстера.</b> Света меньше обычного. Попробуйте переставить ближе к окну.</div>`;
+ return `<header class="ph"><p class="eyebrow">Среда, 14 октября</p><h1 class="disp">Мои растения</h1><p class="lead">${summary()}</p></header>${banner}
+ <div class="shelf">${cards}<button class="addcard" style="--i:${list.length}" data-act="addplant">${ic('plus',26)}<span>Добавить растение</span></button></div>
+ <div class="cols"><section class="sec"><h2>Дальше</h2>${nextList}</section><section class="sec"><h2>Что заметили</h2>${ins}${PLANTS.filter(stageSug).map(q=>{const g=stageSug(q),lb=((STAGES[q.type]||[]).find(x=>x[0]===g.st)||['',''])[1];return `<div class="why"><b>${esc(q.name.split(' ')[0])}.</b> Похоже, началась стадия «${lb}»: ${g.why[g.why.length-1].toLowerCase()}. <button class="btn" data-act="stsug" data-id="${q.id}">Сменить</button></div>`}).join('')}</section></div>${remind()}`;}
+
+
+const MODS=[['soil','Датчики влажности земли','Для каждого растения'],['light','Датчик света','BH1750'],['air','Температура и влажность воздуха','SHT41'],['pump','Насос','Реле, порт P1'],['tank','Датчик уровня воды','Поплавок']];
+function autoLevel(){const m=S.mods;
+ if(!m.pump)return{c:'var(--warn)',t:'Подсказки без насоса',d:'Система скажет, когда пора полить, но поливаете вы.'};
+ if(!m.soil)return{c:'var(--warn)',t:'Полив по расписанию',d:'Без датчика земли система не знает, нужна ли вода, и поливает по расписанию.'};
+ if(!m.tank)return{c:'var(--ok)',t:'Автополив без контроля бака',d:'Уровень воды не измеряется, поэтому система напомнит долить по расчёту.'};
+ return{c:'var(--ok)',t:'Полный автоуход',d:'Система сама следит за землёй, светом и баком и поливает. От вас только долить воду и раз в неделю осмотреть растения.'}}
+function tankText(){const daily=PLANTS.reduce((s,p)=>s+p.nextMl,0)/2.5,days=Math.max(1,Math.floor(S.cfg.tankL*1000*.96/daily)),dt=new Date(NOW.getTime()+days*864e5),wd=['воскресенья','понедельника','вторника','среды','четверга','пятницы','субботы'][dt.getDay()];
+ return `Воды в баке хватит примерно на ${days} ${plural(days,'день','дня','дней')}. Долейте до ${wd}.`}
+function remind(){const L=autoLevel();
+ return `<section class="sec" style="margin-top:22px"><h2>От вас</h2><div class="why" style="border-left-color:${L.c}"><b>${L.t}.</b> ${L.d}</div>
+ <div class="row"><div><b>${S.mods.tank?'Вода в баке':'Вода в баке (по расчёту)'}</b><div class="sub">${tankText()}</div></div><button class="btn" data-act="tankfill">Долил</button></div>
+ <div class="row"><div><b>Раз в неделю: осмотрите растения</b><div class="sub">${S.weekDone?'Осмотр сделан. Напомню через неделю.':'Листья, земля, вредители. Прошлый осмотр был 7 дней назад.'}</div></div>${S.weekDone?`<span class="pill ok">${ic('check',16)}Готово</span>`:'<button class="btn" data-act="weekdone">Осмотрел</button>'}</div></section>`}
+
+/* первый запуск: найти плату, Wi-Fi, датчики, комнаты, первое растение */
+const newOb=()=>({step:0,scan:'idle',dev:false,net:'HomeWiFi',pw:'',conn:'idle'});
+const NETS=[['HomeWiFi','Хорошая'],['Keenetic-4F2A','Средняя'],['Guests','Слабая']];
+const ROOMS0=['Гостиная','Кухня','Спальня','Кабинет','Балкон'];
+function vOnb(){const o=S.ob,st=o.step,N=6;let h='',foot='';
+ const back=st>0?`<button class="back" data-act="obback">${ic('back',20)}Назад</button>`:'';
+ if(st===0){h=`<p class="eyebrow">Smart Plant OS</p><h1 class="disp">Давайте подключим устройство</h1><p class="lead">Это займёт пару минут. Всё работает у вас дома, без облака и подписок.</p>
+  <div class="card"><div class="row" style="padding-top:0"><span class="itile">${ic('chip',20)}</span><div><b>Найдём плату</b><div class="sub">По Wi‑Fi, прямо с телефона</div></div></div><div class="row"><span class="itile">${ic('thermo',20)}</span><div><b>Проверим датчики</b><div class="sub">И поймём, что система сможет делать сама</div></div></div><div class="row" style="padding-bottom:0"><span class="itile">${ic('leaf',20)}</span><div><b>Добавим первое растение</b><div class="sub">Остальное система подскажет сама</div></div></div></div>`;
+  foot=`<button class="btn pri big" data-act="obnext">Начать</button><button class="btn quiet" data-act="obdone" style="margin-top:8px">У меня всё уже настроено</button>`}
+ if(st===1){h=`<p class="eyebrow">Шаг 1 из 5</p><h1 class="disp">Найдите плату</h1><ol class="obl"><li>Подключите плату к питанию. Светодиод на ней начнёт мигать.</li><li>Плата откроет сеть <b>SmartPlant-A4F2</b>. Подключите к ней телефон, пароль написан в инструкции.</li><li>Вернитесь сюда и нажмите «Искать плату».</li></ol>`;
+  if(o.scan==='run')h+=`<div class="radar" role="status" aria-live="polite"><i></i><i></i><span>${ic('chip',26)}</span></div><p class="t2" style="text-align:center">Ищем плату рядом…</p>`;
+  if(o.scan==='done')h+=`<div class="card"><div class="row" style="padding:0"><span class="itile">${ic('chip',20)}</span><div style="flex:1"><b>Подоконник-1</b><div class="sub">ESP32-C3 · прошивка 0.1.0 · сигнал хороший</div></div><button class="btn pri" data-act="obdev">Подключить</button></div></div>`;
+  foot=o.scan==='idle'?`<button class="btn pri big" data-act="obscan">Искать плату</button>`:o.scan==='done'?`<button class="btn quiet" data-act="obscan">Искать заново</button>`:'';}
+ if(st===2){h=`<p class="eyebrow">Шаг 2 из 5</p><h1 class="disp">Домашний Wi‑Fi</h1><p class="lead">Плата подключится к вашей сети и дальше будет работать сама. Пароль хранится только на ней.</p>
+  <div class="lbl">Сеть</div><div class="chips" role="group" aria-label="Сеть" style="margin:8px 0 14px">${NETS.map(([n,s])=>`<button class="chip" data-act="obnet" data-v="${n}" aria-pressed="${o.net===n}">${n} · ${s}</button>`).join('')}</div>
+  <div class="fld" style="max-width:360px"><label for="obpw">Пароль</label><input class="inp" id="obpw" type="password" autocomplete="off" value="${esc(o.pw)}" data-act="obpw" placeholder="Не меньше 8 символов"></div>`;
+  if(o.conn==='run')h+=`<div class="prog" role="status"><i style="width:70%"></i></div><p class="t2">Подключаем плату к сети…</p>`;
+  if(o.conn==='ok')h+=`<div class="why"><b>Плата подключена.</b> Приложение найдёт её дома по сети. Вне дома всё продолжит работать по настройкам; удалённый доступ необязателен и настраивается отдельно.</div>`;
+  foot=o.conn==='ok'?`<button class="btn pri big" data-act="obnext">Дальше</button>`:`<button class="btn pri big" data-act="obconn" ${o.pw.length<8||o.conn==='run'?'disabled':''}>Подключить</button>`;}
+ if(st===3){const L=autoLevel();h=`<p class="eyebrow">Шаг 3 из 5</p><h1 class="disp">Что подключено</h1><p class="lead">Плата нашла эти модули. Чего-то нет — ничего страшного, система подстроится. В демо их можно отключить, чтобы посмотреть, что изменится.</p>
+  <div class="sgroup">${MODS.map(([k,t,d])=>`<div class="row"><div><b>${t}</b><div class="sub">${d}</div></div><input class="sw" type="checkbox" role="switch" data-act="obmod" data-v="${k}" ${S.mods[k]?'checked':''} aria-label="${t}"></div>`).join('')}</div>
+  <div class="why" style="margin-top:14px;border-left-color:${L.c}"><b>${L.t}.</b> ${L.d}</div>`;
+  foot=`<button class="btn pri big" data-act="obnext">Дальше</button>`}
+ if(st===4){h=`<p class="eyebrow">Шаг 4 из 5</p><h1 class="disp">Где стоят растения</h1><p class="lead">Комнаты нужны, чтобы вам было проще находить растения. Их можно поменять позже в настройках.</p>
+  <div class="chips" role="group" aria-label="Комнаты" style="margin:8px 0 14px">${[...new Set([...ROOMS0,...S.rooms])].map(r=>`<button class="chip" data-act="obroom" data-v="${esc(r)}" aria-pressed="${S.rooms.includes(r)}">${esc(r)}</button>`).join('')}</div>
+  <div class="fld" style="max-width:360px"><label for="obr">Другая комната</label><div style="display:flex;gap:8px"><input class="inp" id="obr" autocomplete="off" placeholder="Например, Лоджия" style="flex:1"><button class="btn" data-act="obaddroom">Добавить</button></div></div>`;
+  foot=`<button class="btn pri big" data-act="obnext" ${S.rooms.length?'':'disabled'}>Дальше</button>`}
+ if(st===5){h=`<p class="eyebrow">Шаг 5 из 5</p><h1 class="disp">Первое растение</h1><p class="lead">Назовите растение и выберите вид. Система сама подберёт норму полива и будет определять стадию: росток, рост, цветение.</p>
+  <div class="why"><b>Что будет дальше.</b> ${autoLevel().d} Мы напомним долить воду и раз в неделю осмотреть растения.</div>`;
+  foot=`<button class="btn pri big" data-act="obplant">Добавить растение</button><button class="btn quiet" data-act="obdone" style="margin-top:8px">Пропустить</button>`}
+ return `<div class="onb">${back}${stepsBar(N,st)}${h}<div class="obf">${foot}</div></div>`}
+
+/* программа ухода: простой псевдокод, разбор и прогон на истории */
+const CODEHELP=`<b>Когда проверять:</b> <code>every 10 min:</code> или <code>every 2 h:</code><br><b>Условия:</b> <code>if soil &lt; 40 and not night:</code><br><b>Данные:</b> soil (влажность земли, %), light_h (часов света), temp, hum, tank (%), hour (0–23), night, days_since_water, stage (seed, grow, flower, fruit, adult, rest)<br><b>Действия:</b> <code>water 150 ml</code>, <code>cooldown 6 h</code>, <code>notify "текст"</code>`;
+const STG=['seed','grow','flower','fruit','adult','rest'],VARS=['soil','light_h','temp','hum','tank','hour','night','days_since_water','stage'];
+function condJs(src,ln){const re=/\s*(\d+(?:\.\d+)?|[A-Za-z_]+|<=|>=|==|!=|<|>|\(|\))/y;let out='',m,pos=0;
+ while(pos<src.length){re.lastIndex=pos;m=re.exec(src);if(!m){if(!src.slice(pos).trim())break;return{err:`Строка ${ln}: непонятный символ «${src.slice(pos).trim()[0]}»`}}pos=re.lastIndex;const w=m[1];
+  if(w==='and')out+=' && ';else if(w==='or')out+=' || ';else if(w==='not')out+=' !';
+  else if(/^[A-Za-z_]+$/.test(w)){if(VARS.includes(w))out+=` v.${w} `;else if(STG.includes(w))out+=` "${w}" `;else return{err:`Строка ${ln}: незнакомое слово «${w}»`}}
+  else out+=` ${w} `}
+ if(!out.trim())return{err:`Строка ${ln}: пустое условие`};return{js:out}}
+function parseProg(src){const L=src.split('\n').map((s,i)=>({n:i+1,t:s.replace(/#.*$/,'').replace(/\t/g,'  ')})).filter(x=>x.t.trim());
+ if(!L.length)return{err:'Программа пустая.'};
+ let i=0;const ind=s=>s.match(/^ */)[0].length;
+ function block(minInd,deep){const arr=[];const base=L[i]&&ind(L[i].t);
+  while(i<L.length&&ind(L[i].t)>=minInd){const x=L[i],tx=x.t.trim();if(ind(x.t)!==base)return{err:`Строка ${x.n}: неровный отступ`};i++;
+   let m;
+   if((m=/^if (.+):$/.exec(tx))){if(deep>=3)return{err:`Строка ${x.n}: слишком много вложенных условий`};const c=condJs(m[1],x.n);if(c.err)return c;if(!(i<L.length&&ind(L[i].t)>base))return{err:`Строка ${x.n}: после условия нужны действия с отступом`};const b=block(base+1,deep+1);if(b.err)return b;arr.push({k:'if',js:c.js,body:b.arr})}
+   else if((m=/^water (\d+) ml$/.exec(tx))){const ml=+m[1];if(ml<10||ml>500)return{err:`Строка ${x.n}: порция от 10 до 500 мл`};arr.push({k:'water',ml})}
+   else if((m=/^cooldown (\d+) h$/.exec(tx))){const hh=+m[1];if(hh<1||hh>72)return{err:`Строка ${x.n}: пауза от 1 до 72 ч`};arr.push({k:'cool',h:hh})}
+   else if((m=/^notify "([^"]{1,80})"$/.exec(tx)))arr.push({k:'note',text:m[1]});
+   else return{err:`Строка ${x.n}: не понимаю «${tx.slice(0,40)}». Можно: if…:, water N ml, cooldown N h, notify "текст"`}}
+  return{arr}}
+ const rules=[];
+ while(i<L.length){const x=L[i],tx=x.t.trim();if(ind(x.t)!==0)return{err:`Строка ${x.n}: лишний отступ`};let m;
+  if((m=/^every (\d+) (min|h):$/.exec(tx))){i++;const mins=+m[1]*(m[2]==='h'?60:1);if(mins<1||mins>1440)return{err:`Строка ${x.n}: проверка от 1 минуты до 24 часов`};if(!(i<L.length&&ind(L[i].t)>0))return{err:`Строка ${x.n}: внутри every нужны строки с отступом`};const b=block(1,0);if(b.err)return b;rules.push({mins,body:b.arr})}
+  else{const b=block(0,0);if(b.err)return b;rules.push({mins:60,body:b.arr})}}
+ return{rules}}
+function progStats(rules){let c=0,a=0;const w=n=>n.forEach(s=>{if(s.k==='if'){c++;w(s.body)}else a++});rules.forEach(r=>w(r.body));return{c,a}}
+function simProg(rules,p){const H=168,per=p.rate/24,gain=ml=>ml/(p.pot*1000)*100*2.2,cap=S.cfg.maxWater,day=S.care.limit;
+ let m=(p.range[0]+p.range[1])/2,min=m,max=m,n=0,ml=0,notes=0,clip=0,last=-999;const cool=rules.map(()=>-1),dayMl={};
+ for(let t=0;t<H;t++){m=Math.max(0,m-per);const hour=t%24,v={soil:m,light_h:Math.min(p.lightH,Math.max(0,hour-7)),temp:p.air,hum:p.hum,tank:80,hour,night:hour<7||hour>=22,days_since_water:(t-last)/24,stage:p.st};
+  rules.forEach((r,ri)=>{if(t*60%r.mins>=60&&r.mins>=60&&t%Math.round(r.mins/60)!==0)return;if(r.mins<60||t%Math.max(1,Math.round(r.mins/60))===0){
+   const run=list=>{for(const s of list){if(s.k==='if'){let ok=false;try{ok=!!new Function('v','return ('+s.js+')')(v)}catch(e){}if(ok)run(s.body)}
+    else if(s.k==='water'){if(t<cool[ri])continue;const d=Math.floor(t/24);let q=Math.min(s.ml,cap);if(q<s.ml)clip++;if((dayMl[d]||0)+q>day){q=Math.max(0,day-(dayMl[d]||0));clip++}if(q<=0||t-last<1)continue;dayMl[d]=(dayMl[d]||0)+q;m=Math.min(100,m+gain(q));n++;ml+=q;last=t;v.soil=m}
+    else if(s.k==='cool')cool[ri]=t+s.h;else if(s.k==='note')notes++}};run(r.body)}});
+  min=Math.min(min,m);max=Math.max(max,m)}
+ return{n,ml,min:Math.round(min),max:Math.round(max),notes,clip}}
+function runCode(sim){const p=P(S.pid),r=parseProg(S.care.code);
+ if(r.err){S.codeOut=`<div class="err" role="alert"><b>Нужно поправить.</b> <span class="t2">${esc(r.err)}</span></div>`;return}
+ const st=progStats(r.rules);let o=`<div class="why"><b>Всё понятно.</b> Условий: ${st.c}, действий: ${st.a}. Лимиты воды устройство соблюдает само.</div>`;
+ if(sim){const x=simProg(r.rules,p);const w=[];if(x.min<p.range[0]-10)w.push('земля сильно пересыхала');if(x.max>p.range[1]+15)w.push('возможен перелив');if(x.clip)w.push('часть поливов обрезана лимитами');
+  o+=`<div class="card"><p class="eyebrow">Прогон на 7 дней (оценка)</p><p style="margin:6px 0 0"><b>${x.n} ${plural(x.n,'полив','полива','поливов')}, ${x.ml} мл.</b> Влажность держалась в пределах ${x.min}–${x.max}%${x.notes?`, уведомлений: ${x.notes}`:''}.</p>${w.length?`<p class="note">Обратите внимание: ${w.join(', ')}.</p>`:`<p class="note">Выглядит спокойно: в нормальных пределах.</p>`}<p class="note">Это расчёт по скорости подсыхания растения, а не реальные измерения.</p></div>`}
+ S.codeOut=o}
+function grpSoil(p){
+ if(S.flags.sensor)return `<section class="grp"><h2>Земля</h2><div class="err" role="alert"><b>Датчик влажности не отвечает</b><span class="t2">Проверьте, что провод надёжно вставлен и датчик воткнут в землю. Автополив для этого растения остановлен, пока датчик не ответит.</span><div><button class="btn" data-act="fixsensor">Проверить датчик</button></div>${S.mode==='developer'?`<div class="tech">${p.mod} timeout 3×  last_ok=14:02:11  err=E_SENSOR_TIMEOUT</div>`:''}</div></section>`;
+ return `<section class="grp"><h2>Земля</h2><div class="mrow"><div class="h"><span class="num" data-to="${p.moisture}">${p.moisture}<span class="u">%</span></span><span class="t2">норма ${p.range[0]}–${p.range[1]}%</span></div>${rb(p)}</div>
+ <p class="note">Последний полив: ${p.last}, ${p.lastMl} мл. До нижней границы нормы: ${dstr(daysLeft(p))}. Это расчёт по скорости высыхания.</p>
+ ${S.mode!=='simple'?`<p class="note">Калибровка: 12 октября, точность ±4 п.п. Значение относительное: «0%» это воздух, «100%» это стакан с водой.</p>`:''}
+ ${S.mode==='developer'?`<div class="tech">raw=${p.adc} ADC · ${p.mod} · GPIO ${p.gpio} · capacitive_soil v1.2 · опрос 60 с · обновлено 12:00:04</div>`:''}</section>`;}
+function vPlantNow(p){
+ const tank=S.flags.tank?0:72;
+ return `${grpSoil(p)}
+ <section class="grp"><h2>Воздух</h2><div class="pair"><div><span class="num m">${fmtT(p.air)}</span><div class="note">комфортно</div></div><div><span class="num m">${p.hum}<span class="u">%</span></span><div class="note">влажность воздуха</div></div></div>${S.mode!=='simple'?`<p class="note" style="margin-top:8px">Сегодня от ${S.units==='C'?'21,6':'70,9'} до ${S.units==='C'?'25,1':'77,2'} ${S.units==='C'?'°C':'°F'}.</p>`:''}${S.mode==='developer'?`<div class="tech">SHT41 · I2C 0x44 · опрос 60 с</div>`:''}</section>
+ <section class="grp"><h2>Свет</h2><div class="mrow"><div class="h"><span class="num m">${lightStr(p.lightH).replace(' мин','').replace(' ч ',' ч ')}<span class="u">мин</span></span><span class="t2">нужно от ${p.lightNeed} ч</span></div><div class="rb" role="img" aria-label="Света ${lightStr(p.lightH)} из ${p.lightNeed} часов"><div class="fill" style="width:${Math.min(100,p.lightH/p.lightNeed*100)}%"></div></div></div>${p.lightH<p.lightNeed*.7?`<p class="note">Света меньше, чем нужно. ${esc(p.note)}</p>`:''}${S.mode==='developer'?`<div class="tech">BH1750 · I2C 0x23 · 3204 lux сейчас</div>`:''}</section>
+ <section class="grp"><h2>Вода</h2><div class="pair"><div><span class="num m">${tank}<span class="u">%</span></span><div class="note">${tank?'в баке, хватит на 11 дней':'бак пуст'}</div></div><div><span class="num m">320<span class="u">мл</span></span><div class="note">сегодня</div></div></div>${S.mode==='developer'?`<div class="tech">level L2 · GPIO 6 · насос P1 · GPIO 5 · 10,2 мл/с</div>`:''}</section>
+ <section class="grp"><h2>Дальше</h2><div class="row" style="padding-top:0"><div><b>${p.next}</b><div class="sub">≈ ${p.nextMl} мл</div></div><button class="btn quiet" data-act="why" aria-expanded="${S.why}">Почему?</button></div>${S.why?`<div class="why">${esc(p.nextWhy)}</div>`:''}</section>`;}
+function vPlantHist(p){
+ if(S.flags.emptyHist)return `<div class="empty"><h3 class="disp" style="font-size:22px">Пока нет записей</h3><p class="t2">Полейте растение, и здесь появится первая отметка.</p><button class="btn pri" data-act="water">Полить</button></div>`;
+ const s=series(p,S.period,0),prev=series(p,S.period,1),cur=avg(s.pts),pv=avg(prev.pts),diff=Math.round(cur-pv);
+ const lo=Math.round(s.pts.filter(v=>v<p.range[0]).length/s.n*100),hi=Math.round(s.pts.filter(v=>v>p.range[1]).length/s.n*100),inN=100-lo-hi,tot=s.evs.reduce((a,e)=>a+e.ml,0);
+ const seg=`<div class="seg" role="group" aria-label="Период">${[7,30].map(d=>`<button data-act="period" data-v="${d}" aria-pressed="${S.period===d}">${d} дней</button>`).join('')}</div>`;
+ const w=series(p,7,0),days=[];
+ for(let k=6;k>=0;k--){const d=new Date(NOW.getTime()-k*864e5),sl=w.pts.slice(Math.max(0,w.n-(k+1)*8),w.n-k*8),a=sl.length?avg(sl):p.moisture;days.push({d,a,good:a>=p.range[0]-2,k})}
+ const gd=days.filter(x=>x.good).length;
+ const perDay=days.map((x,k)=>w.evs.filter(e=>e.i>=w.n-(7-k)*8&&e.i<w.n-(6-k)*8).reduce((a,e)=>a+e.ml,0)),mx=Math.max(1,...perDay);
+ const gain=e=>Math.round(e.ml/(p.pot*5));
+ return `<div class="tiles">
+  <div class="tile" style="--c:var(--water)"><span class="tic">${ic('drop',16)}</span><b>${p.moisture}%</b><span>влажность сейчас</span></div>
+  <div class="tile" style="--c:var(--ok)"><span class="tic">${ic('check',16)}</span><b>${inN}%</b><span>времени в норме</span></div>
+  <div class="tile" style="--c:var(--water)"><span class="tic">${ic('clock',16)}</span><b>${s.evs.length}</b><span>${plural(s.evs.length,'полив','полива','поливов')} за период</span></div>
+  <div class="tile" style="--c:var(--sun)"><span class="tic">${ic('tank',16)}</span><b>${tot} мл</b><span>воды за период</span></div></div>
+ <div class="card"><div class="hhead"><h2 class="disp">Влажность земли</h2>${seg}</div><div class="chartwrap" id="chart" style="min-height:240px"></div>
+  <div class="legend"><span><i class="lg l"></i>Влажность</span><span><i class="lg w"></i>Ниже нормы</span><span><i class="lg b"></i>Ваша норма</span><span><i class="lg d"></i>Полив</span></div></div>
+ <div class="card"><h2 class="cap2">Сколько времени земля была в норме</h2>
+  <div class="tir" role="img" aria-label="Ниже нормы ${lo}%, в норме ${inN}%, выше нормы ${hi}%"><i style="width:${lo}%;background:var(--warn)"></i><i style="width:${inN}%;background:var(--ok)"></i><i style="width:${hi}%;background:var(--water)"></i></div>
+  <div class="legend2"><span><i style="background:var(--warn)"></i>Ниже нормы ${lo}%</span><span><i style="background:var(--ok)"></i>В норме ${inN}%</span><span><i style="background:var(--water)"></i>Выше нормы ${hi}%</span></div>
+  <div class="why" style="margin-bottom:0">${diff<=-4?`Земля суше, чем в прошлом периоде (на ${Math.abs(diff)} п.п.): быстрее высыхает при ${p.air>24?'более тёплом':'обычном'} воздухе.`:diff>=4?`Земля влажнее, чем в прошлом периоде (на ${diff} п.п.).`:'Динамика близка к прошлому периоду.'} Линия это измерения датчика, выводы это расчёт, а не диагноз.</div></div>
+ <div class="two"><div class="card"><h2 class="cap2">Последняя неделя</h2><p class="t2">В норме ${gd} из 7 дней</p><div class="caps" role="img" aria-label="Состояние по дням">${days.map(x=>`<div class="cap${x.k===0?' today':''}"><i class="${x.good?'g':'w'}" style="--h:${Math.round(x.a)}%" title="${Math.round(x.a)}%">${ic(x.good?'check':'drop',16)}</i><span>${WD[x.d.getDay()]}</span></div>`).join('')}</div></div>
+  <div class="card"><h2 class="cap2">Вода по дням, мл</h2><div class="bars2" role="img" aria-label="Расход воды за 7 дней">${perDay.map((v,k)=>`<div>${v||''}<i style="height:${Math.round(v/mx*72)+(v?0:3)}px;animation-delay:${k*60}ms;${v?'':'opacity:.3'}"></i>${WD[days[k].d.getDay()]}</div>`).join('')}</div></div></div>
+ <div class="card" style="margin-top:12px"><h2 class="cap2">Последние поливы</h2>${s.evs.length?`<div class="tl">${s.evs.slice(-4).reverse().map(e=>{const d=tOf(s,e.i);return `<div><b>${e.ml} мл</b> <span class="t2">· влажность выросла примерно на ${gain(e)} п.п.</span><div class="note">${WD[d.getDay()]}, ${d.getDate()} ${MO[d.getMonth()]}, ${String(d.getHours()).padStart(2,'0')}:00</div></div>`}).join('')}</div>`:'<p class="note">Поливов за период не было.</p>'}</div>`;}
+function vPlantAbout(p){const T=TYPES[p.type]||TYPES.leaf,kb=kbOf(p.kb),stl=STAGES[p.type]||[],ci=stl.findIndex(x=>x[0]===p.st);
+ const temp=kb?`${tc(kb.t[0])}–${tc(kb.t[1])} °${S.units}`:`${tc(18)}–${tc(26)} °${S.units}`;
+ return `<div class="card"><p class="eyebrow">Профиль ухода</p><h2 class="disp" style="margin:2px 0 0">${esc(spName(p))}</h2><p class="note">${kb?`<i>${esc(kb.latin)}</i> · `:''}${T.label}</p><button class="btn quiet" data-act="chsp" style="margin-top:6px">Изменить вид</button>
+  <div class="lbl" style="margin-top:14px">Стадия растения</div>
+  <div class="stg" role="group" aria-label="Стадия">${stl.map(([k,l],i)=>`<button data-act="stage" data-v="${k}" aria-pressed="${k===p.st}" class="${i<ci?'past':''}"><i></i><span>${l}</span></button>`).join('')}</div>
+  <p class="note">${isAuto(p)?`Определено автоматически, уверенность ${CONF[guessStage(p).conf]}.`:'Выбрано вами.'}</p><div class="why" style="margin-bottom:0"><b>${stageLabel(p)}.</b> ${ADJ[p.st].txt} Порция полива около ${p.nextMl} мл.</div></div>
+ <div class="needs">
+  <div class="need" style="grid-column:1/-1"><span class="nl">${ic('drop',16)}Вода</span><b>${p.range[0]}–${p.range[1]}%</b><small>влажность земли, норма для стадии «${stageLabel(p)}»</small>${rb(p)}</div>
+  <div class="need"><span class="nl">${ic('sun',16)}Свет</span><b>от ${p.lightNeed} ч</b><small>яркого света в день</small></div>
+  <div class="need"><span class="nl">${ic('thermo',16)}Температура</span><b>${temp}</b><small>комфортный диапазон</small></div>
+  <div class="need" style="grid-column:1/-1"><span class="nl">${ic('window',16)}Воздух</span><b>${kb?kb.hum+'%':'50–65%'}</b><small>влажность воздуха</small></div></div>
+ ${kb?`<div class="card" style="margin-top:12px"><p class="eyebrow">Из базы знаний</p><p style="margin-top:4px">${esc(kb.tip)}</p><p class="note" style="margin-top:8px">Это ориентир для вида, а не диагноз. Сравнивайте с тем, что видите у своего растения.</p></div>`:''}
+ <div class="card" style="margin-top:12px"><h2 class="cap2">О вашем растении</h2><div class="row"><span>Комната</span><span class="t2">${esc(p.place)}</span></div><div class="row"><span>Горшок</span><span class="t2">${p.pot} л</span></div>${p.day?`<div class="row"><span>Возраст</span><span class="t2">${p.day} ${plural(p.day,'день','дня','дней')}</span></div>`:''}</div>
+ <details class="adv" data-k="adv" ${S.advOpen?'open':''}><summary>Продвинутые настройки</summary>
+ <div class="fld"><label for="r0">Поливать, когда ниже: <b id="r0v">${p.range[0]}%</b></label><input id="r0" type="range" min="5" max="${p.range[1]-5}" value="${p.range[0]}" data-act="r0"></div>
+ <div class="fld"><label for="r1">Не поливать, когда выше: <b id="r1v">${p.range[1]}%</b></label><input id="r1" type="range" min="${p.range[0]+5}" max="95" value="${p.range[1]}" data-act="r1"></div>
+ <div class="row"><div><b>Датчик почвы</b><div class="sub">${S.flags.sensor?'не отвечает':'отвечает, откалиброван 12 октября'}</div></div><button class="btn" data-act="calib">Калибровать</button></div>
+ <div class="row"><div><b>Вернуть рекомендации</b><div class="sub">Сбросить пороги к норме для вида и стадии</div></div><button class="btn" data-act="resetrange">Сбросить</button></div></details>`;}
+function vPlant(){const p=P(S.pid),h=health(p);
+ const tabs=[['now','Сейчас'],['hist','История'],['about','О растении']];
+ const body=S.tab==='now'?vPlantNow(p):S.tab==='hist'?vPlantHist(p):vPlantAbout(p);
+ const banner=S.flags.offline?`<div class="banner" role="status">${ic('alert')}<div><b>Нет связи.</b> Данные от 14:20.</div></div>`:'';
+ return `<button class="back" data-act="home">${ic('back',20)}Мои растения</button>
+ <div class="pl"><div class="hero">${arch(p,true)}<div><p class="eyebrow">${esc(p.place)}</p><h1 class="disp">${esc(p.name)}</h1><p class="note">${esc(spName(p))} · ${stageLabel(p)}${p.day?`, день ${p.day}`:''}</p></div>
+ <div>${pill(h)}<p class="state" style="margin-top:8px">${SAY[h]}</p><p class="t2" style="margin-top:4px">${reason(p)}</p></div>${ctaDesk(p)}</div>
+ <div>${banner}<div class="tabs" role="tablist">${tabs.map(([k,l])=>`<button role="tab" aria-selected="${S.tab===k}" data-act="tab" data-v="${k}">${l}</button>`).join('')}</div>${body}</div></div>`;}
+function ctaState(p){
+ if(S.flags.offline)return{dis:true,label:'Нет связи с устройством',hint:'Полив станет доступен, когда связь вернётся'};
+ if(S.flags.tank)return{dis:true,label:'В баке нет воды',hint:'Долейте воду, и кнопка включится'};
+ if(S.flags.sensor)return{dis:false,label:'Полить вручную',hint:'Автоматика на паузе: датчик не отвечает'};
+ const ok=p.moisture>=p.range[0]&&p.moisture<=p.range[1];
+ return{dis:false,label:'Полить',hint:ok?`Земля ещё влажная (${p.moisture}%)`:''};}
+function ctaDesk(p){const c=ctaState(p);return `<div class="cta"><div class="in"><button class="btn pri big" data-act="water" ${c.dis?'disabled':''}>${ic('drop',22)}${c.label}</button>${c.hint?`<small>${c.hint}</small>`:''}</div></div>`;}
+
+function sentence(){const c=S.care,p=P(S.pid);
+ const sel=(id,opts,cur)=>`<select id="${id}" data-act="care" data-k="${id}" aria-label="${id}">${opts.map(([v,l])=>`<option value="${v}" ${String(v)===String(cur)?'selected':''}>${l}</option>`).join('')}</select>`;
+ return `<p class="sent">Когда ${sel('when',[['dry','земля подсохнет'],['hot','станет жарко'],['morning','наступит утро']],c.when)} полить ${sel('amount',[[80,'немного, 80 мл'],[150,'средне, 150 мл'],[250,'много, 250 мл']],c.amount)}.</p>`;}
+function preview(){const p=P(S.pid),c=S.care,gain=c.amount/(p.pot*5),n=Math.max(0,Math.round(7*p.rate/gain*(c.when==='hot'?.5:1)));return `За прошлые 7 дней по этому правилу было бы около ${n} ${n===1?'полива':n<5?'полива':'поливов'}, примерно ${n*c.amount} мл. Это оценка по вашей истории.`;}
+const SEAS=m=>m>=11||m<=1?'зима: светового дня мало, воды нужно меньше':m<=4?'весна: растения набирают рост, воды нужно больше':m<=7?'лето: тепло и много света, воды нужно больше':'осень: светового дня меньше, воды нужно меньше';
+function smartBody(p){const c=S.care,g=guessStage(p),dl=daysLeft(p),m=NOW.getMonth();
+ const R=(k,v,s)=>`<div class="row fct"><div><b>${k}</b><div class="sub">${s}</div></div><span class="t2">${v}</span></div>`;
+ const soil=S.flags.sensor?R('Земля','нет данных','датчик не отвечает, полив на паузе'):R('Земля',`${p.moisture}%`,p.moisture<p.range[0]?'ниже нормы, пора поливать':p.moisture<p.range[0]+8?'близко к нижней границе':`в норме ${p.range[0]}–${p.range[1]}%`);
+ const f=[soil,
+  R('Прогноз',S.flags.sensor?'—':dstr(dl),'через сколько земля дойдёт до нижней границы'),
+  R('Свет',`${lightStr(p.lightH)}`,p.lightH<p.lightNeed*.8?'света мало, земля подсыхает медленнее':'света хватает'),
+  R('Температура',fmtT(p.air),p.air>=24?'тепло, земля подсыхает быстрее':p.air<20?'прохладно, земля подсыхает медленнее':'комфортно'),
+  R('Стадия',stageLabel(p),`${ADJ[p.st].txt}`),
+  R('Сезон',['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'][m],SEAS(m)),
+  R('Статистика',`${p.rate}% в сутки`,'так земля подсыхала у этого растения за последние 14 дней'),
+  R('Бак',S.mods.tank?'96%':'по расчёту',S.mods.tank?'воды достаточно':'датчика уровня нет, напомним долить по расчёту')].join('');
+ const mods=MODS.map(([k,t])=>`<span class="tag ${S.mods[k]?'c':''}" style="${S.mods[k]?'':'opacity:.6'}">${S.mods[k]?'✓':'—'} ${t}</span>`).join(' ');
+ const L=autoLevel(),ai=S.ai.prov==='off';
+ return `<div class="why" style="border-left-color:${L.c}"><b>${L.t}.</b> ${L.d}</div>
+ <div class="card" style="margin:14px 0"><p class="eyebrow">Что система решит дальше</p><p style="margin:6px 0 0"><b>Следующий полив: ${p.next}, около ${p.nextMl} мл.</b></p><p class="t2" style="margin:6px 0 0">${p.nextWhy}</p></div>
+ <section class="grp"><h2>Что учитывает умный режим</h2>${f}</section>
+ <section class="grp"><h2>Датчики</h2><div class="chips" style="gap:6px">${mods}</div><p class="note">Подключили датчики по инструкции и включили умный режим, больше ничего настраивать не нужно. Отключённый датчик можно вернуть в мастере подключения.</p></section>
+ <details class="more" style="margin-top:12px"><summary>Тонкая настройка (необязательно)</summary><div class="lbl" style="margin-top:10px">Сколько воды давать</div><div class="seg" role="group" aria-label="Порция" style="margin:8px 0">${[[.8,'Бережнее'],[1,'Обычно'],[1.2,'Щедрее']].map(([k,l])=>`<button data-act="sens" data-v="${k}" aria-pressed="${(p.sens||1)===k}">${l}</button>`).join('')}</div><p class="note">Меняет порции примерно на 20%. Норма влажности и лимиты безопасности остаются прежними.</p></details>
+ <div class="row" style="margin-top:12px"><div><b>ИИ-помощник</b><div class="sub">${ai?'Выключен. Это необязательно: умный режим работает без него.':'Подключён: даёт советы по журналу, решения принимает устройство.'}</div></div><button class="btn quiet" data-act="ai">Настроить</button></div>`}
+function manualBody(p){const c=S.care,t=c.mt;
+ const seg=`<div class="seg" role="group" aria-label="Вид ручного режима" style="margin:0 0 14px">${[['simple','Простое правило'],['code','Программа']].map(([k,l])=>`<button data-act="mt" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join('')}</div>`;
+ if(t==='simple')return seg+`<div class="fld" style="max-width:340px"><label for="mthr">Поливать, когда влажность ниже</label><select class="inp" id="mthr" data-act="care" data-k="mthr">${[25,30,35,40,45,50,55].map(v=>`<option value="${v}" ${v===c.mthr?'selected':''}>${v}%</option>`).join('')}</select></div>
+ <div class="fld" style="max-width:340px"><label for="amount">Сколько воды за раз</label><select class="inp" id="amount" data-act="care" data-k="amount">${[[80,'Немного, 80 мл'],[150,'Средне, 150 мл'],[250,'Много, 250 мл']].concat([80,150,250].includes(c.amount)?[]:[[c.amount,'Своя порция, '+c.amount+' мл']]).map(([v,l])=>`<option value="${v}" ${v===c.amount?'selected':''}>${l}</option>`).join('')}</select></div>
+ <div class="fld" style="max-width:340px"><label for="gap">Не чаще, чем раз в</label><select class="inp" id="gap" data-act="care" data-k="gap">${[6,12,24,48].map(v=>`<option value="${v}" ${v===c.gap?'selected':''}>${v} ч</option>`).join('')}</select></div>
+ <div class="row"><div><b>Включать насос самой</b><div class="sub">${c.mauto?'Система поливает по этому правилу.':'Только подсказки: поливаете вы.'}</div></div><input class="sw" type="checkbox" role="switch" data-act="mauto" ${c.mauto?'checked':''} aria-label="Включать насос самой"></div>
+ <div class="why">${preview()}</div>`;
+ return seg+`<p class="t2">Напишите свою программу полива. Сейчас язык один, псевдокод: он читается как обычный текст. Позже добавим C++ для тех, кому нужна полная свобода.</p>
+ <div class="seg" role="group" aria-label="Язык" style="margin:10px 0"><button aria-pressed="true">Псевдокод</button><button disabled aria-pressed="false" title="В планах">C++ (в планах)</button></div>
+ <label class="sr" for="code">Программа</label><textarea class="inp code" id="code" rows="13" spellcheck="false" data-act="code" autocapitalize="off" autocomplete="off">${esc(c.code)}</textarea>
+ <div class="chips" style="margin:10px 0"><button class="btn" data-act="codecheck">Проверить</button><button class="btn quiet" data-act="codesim">Прогнать на истории</button><button class="btn quiet" data-act="codeex">Вернуть пример</button></div>
+ <div id="codeout" role="status" aria-live="polite">${S.codeOut||''}</div>
+ <details class="more"><summary>Что можно писать</summary><div class="t2" style="margin-top:8px">${CODEHELP}</div></details>
+ <p class="note">Программа не может обойти защиту: лимиты воды и защита насоса работают на устройстве.</p>`}
+function stageSug(p){if(isAuto(p))return null;const g=guessStage(p);return g.st!==p.st&&g.conf!=='low'&&p.dis!==g.st?g:null}
+function vCare(){const c=S.care,cp=P(S.pid),M=[['smart','Умный','Система сама решает, когда и сколько поливать. Подходит почти всем.'],['manual','Вручную','Вы управляете сами: простое правило или своя программа.']];
+ const body=c.mode==='smart'?smartBody(cp):manualBody(cp);
+ const prof=`<div class="card" style="margin:18px 0"><p class="eyebrow">Стадия растения</p>${stageBlock(cp)}<p class="t2">${ADJ[cp.st].txt}</p><div class="row" style="padding-bottom:0"><div><b>Порция для этой стадии: около ${cp.nextMl} мл</b><div class="sub">Норма влажности ${cp.range[0]}–${cp.range[1]}%</div></div></div></div>`;
+ return `<header class="ph"><p class="eyebrow">Уход · ${esc(cp.name)}</p><h1 class="disp">Как ухаживать</h1><p class="lead">Включите умный режим, и система сама поливает, учитывая датчики, стадию и сезон. Объяснит каждое решение.</p></header>
+ <div class="chips" style="margin-bottom:14px">${PLANTS.map(q=>`<button class="chip" data-act="careplant" data-id="${q.id}" aria-pressed="${q.id===S.pid}">${esc(q.name.split(' ')[0])}</button>`).join('')}</div>
+ <div class="modes" role="group" aria-label="Режим ухода">${M.map(([k,t,d])=>`<button class="mode" data-act="cmode" data-v="${k}" aria-pressed="${c.mode===k}"><b>${t}</b><span>${d}</span></button>`).join('')}</div>
+ <div style="margin-top:22px">${body}</div>
+ ${prof}
+ <section class="grp" style="margin-top:26px"><h2>Рецепты ухода</h2>${cp.recipe?`<div class="why" style="margin-bottom:10px">Сейчас применён рецепт «${esc(cp.recipe)}». <button class="btn quiet" data-act="resetrange">Вернуть рекомендации</button></div>`:''}<p class="t2" style="margin:0 0 6px">Готовый набор: норма влажности, порция и режим. Рецептом можно поделиться файлом.</p>${allRecipes().filter(r=>recFits(r,cp)).map(r=>`<button class="row" data-act="recipe" data-id="${r.id}"><div style="text-align:left"><b>${esc(r.name)}</b><div class="sub">${recSum(r)}</div></div>${ic('chev',18)}</button>`).join('')}<div class="chips" style="margin-top:12px"><button class="btn quiet" data-act="rimport">${ic('plus',18)}Импортировать рецепт</button><button class="btn quiet" data-act="rsave">Сохранить мои настройки</button></div></section>`;}
+function vAlgo(){const c=S.care,p=P(S.pid),thr=p.range[0],t=S.algoTab;
+ const seg=`<div class="seg full" role="group" aria-label="Раздел" style="max-width:420px;margin:12px 0 18px">${[['main','Основные'],['adv','Продвинутые']].map(([k,l])=>`<button data-act="algotab" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join('')}</div>`;
+ const main=`${sentence()}<div class="why">${preview()}</div><p class="note">Алгоритм работает вместе с правилами безопасности: например, насос не включится при пустом баке.</p>`;
+ const adv=`<div class="fld" style="max-width:340px"><label for="gap">Не чаще, чем раз в</label><select class="inp" id="gap" data-act="care" data-k="gap">${[3,6,12,24].map(v=>`<option value="${v}" ${v===c.gap?'selected':''}>${v} ч</option>`).join('')}</select></div>
+ <div class="row" style="max-width:480px"><div><b>Не поливать ночью</b><div class="sub">С 22:00 до 07:00, чтобы не шумел насос</div></div><input class="sw" type="checkbox" role="switch" data-act="night" ${c.night?'checked':''} aria-label="Не поливать ночью"></div>
+ <section class="grp"><h2>Правило подробно</h2><div class="rule"><b>ЕСЛИ</b>   влажность земли  &lt;  ${thr} %  в течение 10 мин\n<b>И</b>      время  между 07:00 и 22:00 ${c.night?'':'(ограничение выключено)'}\n<b>И</b>      с прошлого полива прошло  ≥  ${c.gap} ч\n<b>ТО</b>     полить ${c.amount} мл\n<b>ЛИМИТЫ</b> не более ${c.limit} мл в сутки · не при пустом баке</div></section>
+ <section class="grp"><h2>Правила безопасности</h2><div class="fld" style="max-width:340px"><label for="limit">Максимум воды в сутки, мл</label><input class="inp" id="limit" type="number" min="50" max="2000" step="50" value="${c.limit}" data-act="care" data-k="limit"></div><div class="row" style="max-width:480px"><div><b>Не поливать при пустом баке</b><div class="sub">Нельзя отключить: насос не должен работать всухую</div></div><input class="sw" type="checkbox" checked disabled aria-label="Не поливать при пустом баке"></div></section>
+ <details class="more"><summary>Запись правила (JSON)</summary><div class="rule">${esc(JSON.stringify({id:'rule-1',plant:S.pid,trigger:{type:'sensor',ref:'soil.'+p.mod,op:'<',value:thr,forSec:600},conditions:[{type:'time_window',from:'07:00',to:'22:00',enabled:c.night},{type:'min_gap',hours:c.gap}],actions:[{type:'water',volumeMl:c.amount}],limits:{dailyMl:c.limit}},null,2))}</div></details>`;
+ return `<button class="back" data-act="backcare">${ic('back',20)}Уход</button><header class="ph"><p class="eyebrow">${esc(p.name)}</p><h1 class="disp">Свой алгоритм</h1><p class="lead">Соберите правило полива из простых условий.</p></header>${seg}${t==='main'?main:adv}`;}
+
+function vLog(){
+ const base=EVENTS.filter(e=>S.evp==='all'||e.p===S.evp),inG=g=>e=>EVG[g].includes(e.k);
+ const list=S.evf==='all'?base:base.filter(inG(S.evf));
+ const tiles=[['all','Все события',base.length,'var(--pri)'],['water','Поливы',base.filter(inG('water')).length,'var(--water)'],['attn','Внимание',base.filter(inG('attn')).length,'var(--warn)'],['sys','Устройство',base.filter(inG('sys')).length,'var(--mu)']];
+ let day='',h='',n=0;
+ const days=[...new Set(list.map(e=>e.d))];
+ days.forEach(d=>{const items=list.filter(e=>e.d===d);
+  h+=`<div class="evday">${d}<em>${items.length} ${plural(items.length,'событие','события','событий')}</em></div>`;
+  items.forEach(e=>{const K=EVK[e.k],pl=e.p&&P(e.p),act=e.k==='warn'&&pl&&e.d==='Сегодня'&&health(pl)==='action';
+   h+=`<article class="evc" style="--c:${K[1]};--i:${n++}"><div class="evi">${ic(K[0],22)}</div><div style="min-width:0"><div class="evh"><h3>${e.title}</h3><time>${e.t}</time></div><p>${e.why}</p><div class="evm">${e.ml?`<span class="tag c">${e.ml} мл</span>`:''}${pl?`<span class="tag">${esc(pl.name)}</span>`:''}<span class="tag">${e.tag}</span></div>${act?`<button class="btn pri" data-act="evwater" data-id="${pl.id}">${ic('drop',18)}Полить</button>`:''}</div></article>`})});
+ return `<header class="ph"><p class="eyebrow">Что происходило</p><h1 class="disp">События</h1><p class="lead">Что сделала система и почему, простыми словами.</p></header>
+ <div class="evsum" role="group" aria-label="Тип событий">${tiles.map(([k,l,c,col])=>`<button class="evs" style="--c:${col}" data-act="evf" data-v="${k}" aria-pressed="${S.evf===k}"><b>${c}</b><span>${l}</span></button>`).join('')}</div>
+ <div class="chips" role="group" aria-label="Растение">${[['all','Все растения'],...PLANTS.map(q=>[q.id,q.name.split(' ')[0]])].map(([k,l])=>`<button class="chip" data-act="evp" data-v="${k}" aria-pressed="${S.evp===k}">${esc(l)}</button>`).join('')}</div>
+ ${h||'<div class="empty"><h3 class="disp" style="font-size:20px">Здесь пока тихо</h3><p class="t2">Для выбранных фильтров событий нет.</p></div>'}`;}
+
+function item(a,t,s,extra=''){return `<button class="row" data-act="${a}"><div><b>${t}</b>${s?`<div class="sub">${s}</div>`:''}</div>${extra||ic('chev',18)}</button>`}
+const sitem=(a,i,t,sub)=>`<button class="row it" data-act="${a}"><span class="itile">${ic(i,20)}</span><div><b>${t}</b><div class="sub">${sub}</div></div>${ic('chev',18)}</button>`;
+const sgrp=(t,items)=>`<h2 class="sgh">${t}</h2><div class="sgroup">${items.join('')}</div>`;
+function vMore(){const t=S.setTab,c=S.cfg,th={system:'как в системе',light:'светлая',dark:'тёмная'}[S.theme];
+ const seg=`<div class="seg full" role="group" aria-label="Раздел настроек" style="max-width:420px;margin:12px 0 4px">${[['main','Основные'],['adv','Продвинутые']].map(([k,l])=>`<button data-act="settab" data-v="${k}" aria-pressed="${t===k}">${l}</button>`).join('')}</div>`;
+ const main=sgrp('Мой дом',[sitem('onb','chip','Подключить устройство','Найти плату по Wi‑Fi, датчики, комнаты'),sitem('rooms','window','Комнаты',S.rooms.length?esc(S.rooms.join(', ')):'Пока не добавлены'),sitem('addplant','plus','Добавить растение','Имя, вид, стадия, комната'),sitem('kb','leaf','База растений',`${KB.length} ${plural(KB.length,'вид','вида','видов')}: вода, свет, температура`)])
+  +sgrp('Уход и уведомления',[sitem('defaults','care','Полив по умолчанию',`${S.care.amount} мл · ночью ${S.care.night?'не поливаем':'можно'} · до ${S.care.limit} мл в сутки`),sitem('notif','alert','Уведомления',c.quiet?`Тишина с ${c.qFrom} до ${c.qTo}`:'Без тихих часов')])
+  +sgrp('Приложение',[sitem('appear','sun','Внешний вид',`Тема: ${th} · °${S.units} · анимации: ${S.motion==='off'?'выключены':'авто'}`)]);
+ const adv=sgrp('Устройство',[sitem('device','chip','Устройство и сеть',`${esc(c.devName)} · Wi-Fi ${esc(c.wifi)}`),sitem('sensors','thermo','Датчики и калибровка','Список, калибровка, добавление'),sitem('tankpump','tank','Бак и насос',`Бак ${c.tankL} л · до ${c.maxWater} мл за один полив`)])
+  +sgrp('Интеграции и данные',[sitem('ha','list','Home Assistant',c.ha?'Подключено (демо)':'Необязательная интеграция, сейчас выключена'),sitem('ai','eye','ИИ-помощник',S.ai.prov==='off'?'Необязательно, сейчас выключен':'Подключён'),sitem('backup','clock','Резервные копии',c.autoBackup?(c.bkFreq==='daily'?'Каждый день':'Раз в неделю'):'Автокопии выключены')])
+  +sgrp('Для разработчиков',[sitem('diag','chip','Диагностика и журналы','Модули, интерфейсы, трасса событий'),sitem('sim','eye','Проверка состояний','Нет связи, ошибка датчика, пустой бак')])
+  +sgrp('Опасная зона',[sitem('reset','alert','Сбросить настройки','Вернуть значения по умолчанию, растения останутся')]);
+ return `<header class="ph"><h1 class="disp">Настройки</h1></header>${seg}<div style="max-width:680px">${t==='main'?main:adv}</div>
+ <p class="note" style="margin-top:32px">Это прототип интерфейса. Данные демонстрационные, подключения к устройству нет.</p>`;}
+const KBI=t=>`<span class="kbi" style="--c:${TYPES[t].c}">${ic(({fruit:'tfruit',flower:'tflower',leaf:'leaf',succ:'tsucc'})[t]||'leaf',22)}</span>`;
+const kbRow=(k,act,extra='')=>`<button class="kbrow" data-act="${act}" data-id="${k.id}" data-t="${k.type}" data-s="${esc((k.name+' '+k.latin).toLowerCase())}" ${extra}>${KBI(k.type)}<span class="kbt"><b>${esc(k.name)}</b><i>${esc(k.latin)}</i></span><span class="t2">${k.min}–${k.max}%</span></button>`;
+function vKb(){const kq=S.kbq.trim().toLowerCase(),kbl=KB.filter(k=>(S.kbt==='all'||k.type===S.kbt)&&(!kq||(k.name+' '+k.latin).toLowerCase().includes(kq)));return `<button class="back" data-act="backset">${ic('back',20)}Настройки</button><header class="ph"><p class="eyebrow">Справочник</p><h1 class="disp">База растений</h1><p class="lead">${KB.length} ${plural(KB.length,'вид','вида','видов')} с рекомендациями по поливу, свету и температуре. Это стартовые ориентиры: сверяйте их со своим растением.</p></header>
+ <div class="fld kbsearch"><label class="sr" for="kbq">Поиск</label><input class="inp" id="kbq" type="search" placeholder="Найти растение" value="${esc(S.kbq)}" data-act="kbq" autocomplete="off"></div>
+ <div class="chips" role="group" aria-label="Тип" style="margin-bottom:8px">${[['all','Все'],...Object.entries(TYPES).map(([k,T])=>[k,T.label])].map(([k,l])=>`<button class="chip" data-act="kbt" data-v="${k}" aria-pressed="${S.kbt===k}">${l}</button>`).join('')}</div>
+ <div class="sgroup" id="kblist">${kbl.map(k=>kbRow(k,'kbopen')).join('')}</div><p class="note" id="kbempty" ${kbl.length?'hidden':''} style="margin-top:12px">Ничего не нашли. Попробуйте другое название.</p>`;}
+function kbFilter(){const q=S.kbq.trim().toLowerCase();let n=0;document.querySelectorAll('#kblist .kbrow').forEach(b=>{const ok=(S.kbt==='all'||b.dataset.t===S.kbt)&&(!q||b.dataset.s.includes(q));b.hidden=!ok;if(ok)n++});const e=$('#kbempty');if(e)e.hidden=n>0}
+function kbSheet(id){const k=kbOf(id),T=TYPES[k.type],tmp=`${tc(k.t[0])}–${tc(k.t[1])} °${S.units}`;
+ openSheet(shHead(esc(k.name))+`<p class="note"><i>${esc(k.latin)}</i> · ${T.label}</p><div class="needs"><div class="need" style="grid-column:1/-1"><span class="nl">${ic('drop',16)}Вода</span><b>${k.min}–${k.max}%</b><small>влажность земли для взрослого растения</small><div class="rb"><div class="tz" style="left:${k.min}%;width:${k.max-k.min}%"></div></div></div><div class="need"><span class="nl">${ic('sun',16)}Свет</span><b>от ${k.need} ч</b><small>в день</small></div><div class="need"><span class="nl">${ic('thermo',16)}Температура</span><b>${tmp}</b><small>комфортно</small></div><div class="need" style="grid-column:1/-1"><span class="nl">${ic('window',16)}Воздух</span><b>${k.hum}%</b><small>влажность воздуха</small></div></div><div class="why">${esc(k.tip)}</div><p class="note">Для росткa, цветения или покоя система скорректирует норму. Это ориентир, а не диагноз.</p><button class="btn pri big" style="margin-top:14px" data-act="kbadd" data-id="${k.id}">${ic('plus',20)}Добавить такое растение</button>`);}
+function vDiag(){return `<button class="back" data-act="more">${ic('back',20)}Настройки</button><header class="ph"><p class="eyebrow">Для разработчиков</p><h1 class="disp">Диагностика</h1><p class="lead">Значения демонстрационные.</p></header>
+ <section class="sec" style="margin-top:14px"><h2>Модули</h2><div class="mods">${[['S1','Датчик почвы','ёмкостный · GPIO 34 · ok'],['S2','Датчик почвы','ёмкостный · GPIO 35 · ok'],['S3','Датчик почвы','ёмкостный · GPIO 36 · ok'],['C1','Воздух','SHT41 · I2C 0x44 · ok'],['L1','Свет','BH1750 · I2C 0x23 · ok'],['P1','Насос','реле · GPIO 5 · ok'],['W1','Уровень воды','поплавок · GPIO 6 · ok']].map(([i,n,d])=>`<div class="mod"><b>${i} · ${n}</b><span class="tech">${d}</span></div>`).join('')}</div></section>
+ <div class="cols"><section class="sec"><h2>Система</h2><div class="scroll"><table class="t"><tr><td>Плата</td><td>ESP32-C3, 160 МГц</td></tr><tr><td>Прошивка</td><td>0.1.0 · сборка 2026-10-12</td></tr><tr><td>Свободная память</td><td>142 КБ</td></tr><tr><td>Wi-Fi</td><td>−58 дБм · 192.168.1.42</td></tr><tr><td>Работает</td><td>6 д 4 ч · сброс: питание</td></tr></table></div></section>
+ <section class="sec"><h2>Интерфейсы</h2><div class="scroll"><table class="t"><tr><td>REST</td><td class="tech">/api/v1/plants</td></tr><tr><td>События</td><td class="tech">/api/v1/ws</td></tr><tr><td>MQTT</td><td>выключен</td></tr><tr><td>Home Assistant</td><td>не подключён</td></tr></table></div></section></div>
+ <section class="sec" style="margin-top:22px"><h2>Трасса событий</h2><div class="rule">12:00:04 sensor.moisture.changed  S1=58.0\n12:00:04 rule.evaluated  rule-1 SKIP\n11:59:04 sensor.moisture.changed  S2=33.0\n11:59:04 plant.threshold.reached  pepper &lt; 40\n11:58:02 module.heartbeat  P1 ok</div></section>`;}
+
+/* сборка экрана */
+function nav(){const items=[['home','leaf','Растения'],['care','care','Уход'],['log','list','События'],['more','gear','Настройки']];
+ const cur=S.screen==='plant'?'home':(S.screen==='diag'||S.screen==='kb')?'more':S.screen==='algo'?'care':S.screen;
+ const html=items.map(([k,i,l])=>`<button data-act="nav" data-v="${k}" ${cur===k?'aria-current="page"':''}>${ic(i,24)}<span>${l}</span></button>`).join('');
+ $('#tabbar').innerHTML=html;$('#rail').innerHTML=`<div class="logo brand"><i></i></div>`+html;}
+function render(keepScroll){
+ const v=$('#view'),y=scrollY;
+ const map={home:vHome,plant:vPlant,care:vCare,algo:vAlgo,log:vLog,more:vMore,diag:vDiag,kb:vKb,onb:vOnb};
+ document.body.dataset.screen=S.screen;v.innerHTML=map[S.screen]();
+ nav();
+ // липкая кнопка полива на мобильном
+ const host=$('#ctaHost');host.innerHTML='';
+ if(S.screen==='plant'&&matchMedia('(max-width:999px)').matches){const p=P(S.pid),c=ctaState(p);host.innerHTML=`<div class="cta"><div class="in"><button class="btn pri big" data-act="water" ${c.dis?'disabled':''}>${ic('drop',22)}${c.label}</button>${c.hint?`<small>${c.hint}</small>`:''}</div></div>`;const d=v.querySelector('.hero .cta');if(d)d.remove();}
+ animatePots(v);if(S.screen==='plant'&&S.tab==='hist')drawChart();if(S.screen==='kb')kbFilter();
+ if(keepScroll)scrollTo(0,y);}
+function countUp(root){root.querySelectorAll('[data-to]').forEach(el=>{const to=+el.dataset.to,n=el.firstChild;if(!n||n.nodeType!==3||matchMedia('(prefers-reduced-motion:reduce)').matches)return;const t0=performance.now();(function f(t){const k=Math.min(1,(t-t0)/700),e=1-Math.pow(1-k,3);n.nodeValue=Math.round(to*e);if(k<1)requestAnimationFrame(f)})(t0)})}
+function enter(){const v=$('#view');v.classList.remove('vin');void v.offsetWidth;v.classList.add('vin');countUp(v)}
+function go(screen,extra={}){Object.assign(S,extra,{screen});S.why=false;S._ck='';render();enter();scrollTo(0,0);$('#view').focus({preventScroll:true})}
+function toast(m){const e=document.createElement('div');e.className='toast';e.textContent=m;e.setAttribute('role','status');$('#toastHost').append(e);setTimeout(()=>e.remove(),2600)}
+function say(m){$('#live').textContent=m}
+
+/* лист */
+const sheet=$('#sheet');
+function openSheet(html){sheet.innerHTML=`<div class="grab"></div><div class="sheet">${html}</div>`;if(!sheet.open)sheet.showModal()}
+function closeSheet(){if(sheet.open)sheet.close()}
+sheet.addEventListener('click',e=>{if(e.target===sheet)closeSheet()});
+sheet.addEventListener('close',()=>{clearInterval(W.timer);W.state='idle'});
+const shHead=t=>`<div class="sh-h"><h2 class="disp" id="shT">${t}</h2><button class="iconbtn" data-act="closesheet" aria-label="Закрыть">${ic('close')}</button></div>`;
+
+/* полив */
+const W={state:'idle',ml:150,custom:false,done:0,total:0,timer:null};
+function openWater(){const p=P(S.pid);W.state='choose';W.ml=p.nextMl>=250?250:p.nextMl>=150?150:120;W.custom=false;renderWater()}
+function renderWater(){const p=P(S.pid);let h='';
+ if(W.state==='choose'){const wet=p.moisture>=p.range[1]-5&&!S.flags.sensor,opts=[[80,'Немного'],[150,'Средне'],[250,'Много']];
+  h=shHead('Полить: '+esc(p.name))+`<p class="t2">Сколько воды?</p><div class="opts">${opts.map(([v,l])=>`<button class="opt" data-act="wml" data-v="${v}" aria-pressed="${!W.custom&&W.ml===v}"><b>${l}</b><span>${v} мл</span></button>`).join('')}<button class="opt" data-act="wcustom" aria-pressed="${W.custom}"><b>Своё</b><span>${W.custom?W.ml+' мл':'ввести мл'}</span></button></div>
+  ${W.custom?`<div class="fld"><label for="cm">Объём, мл</label><input class="inp" id="cm" type="number" min="20" max="500" step="10" value="${W.ml}" data-act="cm"></div>`:''}
+  ${wet?`<div class="banner">${ic('alert')}<div>Земля уже влажная (${p.moisture}%). Полить всё равно?</div></div>`:''}
+  <button class="btn pri big" data-act="wstart">${ic('drop',22)}Запустить</button>`;}
+ else if(W.state==='starting'){h=shHead('Полить: '+esc(p.name))+`<div class="wsheet">${pot(p.moisture,p.range,true)}<p class="t2"><span class="spin" style="display:inline-block;width:14px;height:14px;border:2px solid var(--water);border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:8px"></span>Запускаю насос…</p></div>`;}
+ else if(W.state==='run'){h=shHead('Поливаю…')+`<div class="wsheet"><div class="drops" aria-hidden="true"><i></i><i></i><i></i></div>${pot(p.moisture,p.range,true)}<div class="num" id="wml">${W.done}<span class="u"> / ${W.total} мл</span></div><div class="prog" role="progressbar" aria-valuemin="0" aria-valuemax="${W.total}" aria-valuenow="${W.done}" id="wpb"><i id="wbar" style="width:0"></i></div><p class="t2" id="wt"></p></div><button class="btn danger big" data-act="wstop">Остановить</button>`;}
+ else{const m=p.moisture,d=daysLeft(p);h=shHead(W.state==='stopped'?'Полив остановлен':'Полито')+`<div class="wsheet">${pot(m,p.range,true)}<div class="num">${W.done}<span class="u"> мл</span></div><p class="t2">Влажность земли сейчас ${m}%. ${d<0.5?'Следующий полив скоро.':'Следующий полив '+dstr(d)+'.'} Это оценка.</p></div><button class="btn pri big" data-act="closesheet" style="margin-top:14px">Готово</button>`;}
+ sheet.innerHTML=`<div class="grab"></div><div class="sheet">${h}</div>`;if(!sheet.open)sheet.showModal();animatePots(sheet);}
+function startWater(){const p=P(S.pid);W.state='starting';renderWater();
+ setTimeout(()=>{if(W.state!=='starting')return;W.state='run';W.done=0;W.total=W.ml;W.start=p.moisture;renderWater();say('Полив начался');
+  const rate=10,gainPer=1/(p.pot*5);let last=Date.now();
+  W.timer=setInterval(()=>{W.done=Math.min(W.total,W.done+rate);const m=Math.min(100,Math.round(W.start+W.done*gainPer));
+   const bar=$('#wbar');if(bar)bar.style.width=(W.done/W.total*100)+'%';const wm=$('#wml');if(wm)wm.innerHTML=`${W.done}<span class="u"> / ${W.total} мл</span>`;const wt=$('#wt');if(wt)wt.textContent=`Осталось ${Math.max(0,Math.ceil((W.total-W.done)/rate))} с`;
+   const lv=sheet.querySelector('.lv');if(lv)lv.style.transform=`scaleY(${m/100})`;p.moisture=m;
+   if(W.done>=W.total){clearInterval(W.timer);p.last='только что, '+W.total+' мл';p.lastMl=W.total;W.state='done';say(`Полито ${W.total} миллилитров`);renderWater();render(true)}},1000);},1200);}
+function stopWater(){clearInterval(W.timer);W.state='stopped';say('Полив остановлен');renderWater();render(true)}
+
+/* мастера */
+const WZ={step:0,type:null,finding:false,found:false,cal:{air:false,water:false,busy:null},name:'Датчик влажности',plant:'tomato'};
+const AP={step:0,name:'',type:null,kb:null,st:'grow',room:null,adding:false,newRoom:'',kq:''};
+function stepsBar(n,i){return `<div class="steps" aria-label="Шаг ${i+1} из ${n}">${Array.from({length:n},(_,k)=>`<i class="${k<=i?'on':''}"></i>`).join('')}</div>`}
+function renderSensor(){const st=WZ.step,N=6;let h=shHead('Добавить датчик')+stepsBar(N,st);
+ if(st===0)h+=`<p class="t2">Что подключаем?</p><div class="opts">${[['soil','Влажность земли','в горшке'],['air','Воздух','температура и влажность'],['light','Свет','на окне'],['tank','Уровень воды','в баке']].map(([k,l,d])=>`<button class="opt" data-act="stype" data-v="${k}" aria-pressed="${WZ.type===k}"><b>${l}</b><span>${d}</span></button>`).join('')}</div><button class="btn pri big" data-act="snext" ${WZ.type?'':'disabled'}>Дальше</button>`;
+ if(st===1)h+=`<p class="t2">Подключите датчик к порту <b>S4</b> на плате. Порт подписан на корпусе. Воткните датчик в землю до отметки.</p><div class="note">${S.mode!=='simple'?'Порт S4 использует GPIO 4 (ADC1). Другие пины для этого типа недоступны.':''}</div><button class="btn pri big" style="margin-top:14px" data-act="snext">Подключил</button>`;
+ if(st===2)h+=`<p class="t2">Нажмите, чтобы найти датчик.</p>${WZ.found?`<div class="mod" style="margin:10px 0"><b>Нашли датчик влажности земли</b><span class="t2">сейчас показывает 61%</span>${S.mode!=='simple'?`<span class="tech">GPIO 4 · ADC1_CH4 · сырое 2012</span>`:''}${S.mode==='developer'?`<span class="tech">driver=capacitive_soil v1.2 · cap: soil.moisture</span>`:''}</div>`:''}<button class="btn ${WZ.found?'':'pri'} big" data-act="sfind" ${WZ.finding?'disabled':''}>${WZ.finding?'<span class="spin"></span>Ищу датчик…':WZ.found?'Найти заново':'Найти датчик'}</button>${WZ.found?`<button class="btn pri big" style="margin-top:10px" data-act="snext">Дальше</button>`:''}`;
+ if(st===3){const c=WZ.cal;h+=`<p class="t2">Калибровка нужна, чтобы проценты значили «сухо» и «мокро» для вашей земли. Два шага по 10 секунд.</p><div class="row"><div><b>1. Датчик на воздухе</b><div class="sub">Держите, не касаясь</div></div>${c.air?`<span class="pill ok">${ic('check',16)}Готово</span>`:`<button class="btn" data-act="scal" data-v="air" ${c.busy?'disabled':''}>${c.busy==='air'?'<span class="spin"></span>Измеряю…':'Измерить'}</button>`}</div><div class="row"><div><b>2. Датчик в стакане с водой</b><div class="sub">До отметки</div></div>${c.water?`<span class="pill ok">${ic('check',16)}Готово</span>`:`<button class="btn" data-act="scal" data-v="water" ${c.busy||!c.air?'disabled':''}>${c.busy==='water'?'<span class="spin"></span>Измеряю…':'Измерить'}</button>`}</div>${c.air&&c.water&&S.mode!=='simple'?`<p class="tech">air=3120  water=1210  fit=linear  точность ±4 п.п.</p>`:''}<button class="btn pri big" style="margin-top:14px" data-act="snext" ${c.air&&c.water?'':'disabled'}>Дальше</button>`;}
+ if(st===4)h+=`<div class="fld"><label for="sn">Название</label><input class="inp" id="sn" value="${esc(WZ.name)}" data-act="sname"></div><div class="lbl">Для какого растения</div><div class="chips" style="margin:8px 0 14px">${PLANTS.map(q=>`<button class="chip" data-act="splant" data-id="${q.id}" aria-pressed="${WZ.plant===q.id}">${esc(q.name.split(' ')[0])}</button>`).join('')}</div><button class="btn pri big" data-act="snext">Сохранить</button>`;
+ if(st===5)h+=`<div class="wsheet" style="padding:10px 0">${ic('check',44)}<h3 class="disp" style="font-size:22px">Датчик добавлен</h3><p class="t2">«${esc(WZ.name)}» следит за растением «${esc(P(WZ.plant).name)}». Это демонстрация: настоящее устройство не подключено.</p></div><button class="btn pri big" data-act="closesheet">Готово</button>`;
+ sheet.innerHTML=`<div class="grab"></div><div class="sheet">${h}</div>`;if(!sheet.open)sheet.showModal();}
+function openSensor(step=0){Object.assign(WZ,{step,type:step?'soil':null,finding:false,found:step>0,cal:{air:false,water:false,busy:null}});renderSensor()}
+function renderAddPlant(){const st=AP.step,N=5;let h=shHead('Новое растение')+stepsBar(N,st);
+ if(st===0)h+=`<p class="t2">Как зовут растение?</p><div class="fld"><label for="an">Имя</label><input class="inp" id="an" placeholder="Например, Томат на кухне" value="${esc(AP.name)}" data-act="aname" autocomplete="off"></div><button class="btn pri big" data-act="anext" ${AP.name.trim()?'':'disabled'}>Дальше</button>`;
+ if(st===1)h+=`<p class="t2">Что это за растение? Найдите вид в базе: мы подберём норму полива, света и температуры.</p><div class="fld"><label class="sr" for="kq">Поиск вида</label><input class="inp" id="kq" type="search" placeholder="Например, монстера или томат" value="${esc(AP.kq)}" data-act="kq" autocomplete="off"></div><div class="pick" id="pick">${KB.map(k=>kbRow(k,'akb',`aria-pressed="${AP.kb===k.id}"`)).join('')}</div><div class="lbl">Нет в списке? Выберите тип</div><div class="opts">${Object.entries(TYPES).map(([k,T])=>`<button class="opt" data-act="atype" data-v="${k}" aria-pressed="${AP.type===k&&!AP.kb}"><b>${T.label}</b><span>${T.d}</span></button>`).join('')}</div><button class="btn pri big" style="margin-top:8px" data-act="anext" ${AP.type?'':'disabled'}>Дальше</button>`;
+ if(st===2){const sl=STAGES[AP.type]||[];h+=`<p class="t2">Какая сейчас стадия? От неё зависит, как часто и сколько поливать.</p><div class="opts">${sl.map(([k,l])=>`<button class="opt" data-act="astage" data-v="${k}" aria-pressed="${AP.st===k}"><b>${l}</b><span>${ADJ[k].txt.split(':')[0].split('.')[0]}</span></button>`).join('')}</div><div class="why">${ADJ[AP.st].txt}</div><button class="btn pri big" style="margin-top:8px" data-act="anext">Дальше</button>`;}
+ if(st===3){const none=!S.rooms.length,add=none||AP.adding;
+  h+=`<p class="t2">${none?'Где будет стоять растение? Комнат пока нет, добавьте первую. Потом их можно менять в настройках.':'В какой комнате оно стоит?'}</p>`;
+  if(!none)h+=`<div class="chips" style="margin:8px 0 14px">${S.rooms.map(r=>`<button class="chip" data-act="aroom" data-v="${esc(r)}" aria-pressed="${AP.room===r}">${esc(r)}</button>`).join('')}${AP.adding?'':`<button class="chip" data-act="aaddroom">+ Новая комната</button>`}</div>`;
+  if(add)h+=`<div class="fld"><label for="nr">Название комнаты</label><input class="inp" id="nr" placeholder="Например, Гостиная" value="${esc(AP.newRoom)}" data-act="nroom" autocomplete="off"></div><button class="btn big" data-act="aroomadd" ${AP.newRoom.trim()?'':'disabled'}>Добавить комнату</button>`;
+  h+=`<button class="btn pri big" style="margin-top:12px" data-act="anext" ${AP.room?'':'disabled'}>Дальше</button>`;}
+ if(st===4){const k=AP.kb&&kbOf(AP.kb);h+=`<div class="wsheet" style="padding:10px 0">${ic('check',44)}<h3 class="disp" style="font-size:22px">${esc(AP.name)}: ${esc(AP.room)}</h3><p class="t2">${k?esc(k.name):TYPES[AP.type].label}, стадия «${(STAGES[AP.type].find(x=>x[0]===AP.st)||['',''])[1]}». Норму полива мы подобрали из базы, её можно поправить в разделе «О растении». Свет и воздух определит ваш датчик.</p></div><button class="btn pri big" data-act="afinish">Готово</button>`;}
+ sheet.innerHTML=`<div class="grab"></div><div class="sheet">${h}</div>`;if(!sheet.open)sheet.showModal();if(st===1)kqFilter();}
+function kqFilter(){const q=AP.kq.trim().toLowerCase();document.querySelectorAll('#pick .kbrow').forEach(b=>{b.hidden=!!q&&!b.dataset.s.includes(q)})}
+
+const swr=(t,k,sub='',dis='')=>`<div class="row"><div><b>${t}</b>${sub?`<div class="sub">${sub}</div>`:''}</div><input class="sw" type="checkbox" role="switch" data-act="cfg" data-k="${k}" ${S.cfg[k]?'checked':''} ${dis} aria-label="${t}"></div>`;
+const sel=(id,k,opts,cur)=>`<select class="inp" id="${id}" data-act="cfgv" data-k="${k}">${opts.map(([v,l])=>`<option value="${v}" ${String(v)===String(cur)?'selected':''}>${l}</option>`).join('')}</select>`;
+function panel(kind){let h='',c=S.cfg;
+ if(kind==='rooms')h=shHead('Комнаты')+(S.rooms.length?S.rooms.map((r,i)=>`<div class="row"><span>${esc(r)}</span><button class="btn quiet" data-act="delroom" data-v="${i}" aria-label="Удалить ${esc(r)}">Удалить</button></div>`).join(''):`<p class="t2">Комнат пока нет. Добавьте первую, и она появится при добавлении растения.</p>`)+`<div class="fld"><label for="rn">Новая комната</label><input class="inp" id="rn" placeholder="Например, Спальня" autocomplete="off"></div><button class="btn pri big" data-act="addroom">Добавить комнату</button>`;
+ if(kind==='appear')h=shHead('Внешний вид')+`<div class="lbl">Тема</div><div class="seg full" style="margin:8px 0 16px">${[['system','Системная'],['light','Светлая'],['dark','Тёмная']].map(([k,l])=>`<button data-act="thsel" data-v="${k}" aria-pressed="${S.theme===k}">${l}</button>`).join('')}</div><div class="lbl">Температура</div><div class="seg full" style="margin:8px 0 16px">${[['C','°C'],['F','°F']].map(([k,l])=>`<button data-act="units" data-v="${k}" aria-pressed="${S.units===k}">${l}</button>`).join('')}</div><div class="lbl">Анимации</div><div class="seg full" style="margin:8px 0">${[['auto','Как в системе'],['off','Выключить']].map(([k,l])=>`<button data-act="motion" data-v="${k}" aria-pressed="${S.motion===k}">${l}</button>`).join('')}</div><p class="note">Если в системе включено «уменьшить движение», анимации отключатся сами.</p>`;
+ if(kind==='notif')h=shHead('Уведомления')+[['needs','Растению скоро нужна вода'],['skipped','Полив пропущен, и почему'],['tank','Вода в баке заканчивается'],['weekly','Раз в неделю: осмотреть растения'],['sensor','Датчик не отвечает'],['offline','Устройство пропало из сети'],['low','Каждое решение системы']].map(([k,l])=>`<div class="row"><span>${l}</span><input class="sw" type="checkbox" role="switch" data-act="nt" data-k="${k}" ${S.notif[k]?'checked':''} aria-label="${l}"></div>`).join('')+`<h3 class="sgh" style="margin-top:18px">Тихие часы</h3>${swr('Не беспокоить ночью','quiet','Срочные уведомления (пустой бак, сбой датчика) всё равно придут')}<div class="row" style="gap:10px"><div class="fld" style="flex:1;margin:0"><label for="qf">С</label><input class="inp" id="qf" type="time" value="${c.qFrom}" data-act="cfgv" data-k="qFrom"></div><div class="fld" style="flex:1;margin:0"><label for="qt">До</label><input class="inp" id="qt" type="time" value="${c.qTo}" data-act="cfgv" data-k="qTo"></div></div><p class="note">Каждое уведомление объясняет, что произошло и почему.</p>`;
+ if(kind==='defaults')h=shHead('Полив по умолчанию')+`<p class="t2">Эти значения подставляются для всех растений. Для каждого растения их можно поменять в разделе «Уход».</p><div class="fld"><label for="amount">Порция за один полив</label>${sel('amount','amount',[[80,'Немного, 80 мл'],[150,'Средне, 150 мл'],[250,'Много, 250 мл']],S.care.amount).replace('data-act="cfgv" data-k="amount"','data-act="care" data-k="amount"')}</div><div class="row"><div><b>Не поливать ночью</b><div class="sub">С 22:00 до 07:00, чтобы не шумел насос</div></div><input class="sw" type="checkbox" role="switch" data-act="night" ${S.care.night?'checked':''} aria-label="Не поливать ночью"></div><div class="fld"><label for="limit">Максимум воды в сутки на растение, мл</label><input class="inp" id="limit" type="number" min="50" max="2000" step="50" value="${S.care.limit}" data-act="care" data-k="limit"></div><div class="fld"><label for="vac">Режим «Отпуск» по умолчанию</label>${sel('vac','vac',[[7,'7 дней'],[14,'14 дней'],[21,'21 день'],[30,'30 дней']],S.care.vac).replace('data-act="cfgv" data-k="vac"','data-act="care" data-k="vac"')}</div>`;
+ if(kind==='device')h=shHead('Устройство и сеть')+`<div class="fld"><label for="dn">Название устройства</label><input class="inp" id="dn" value="${esc(c.devName)}" data-act="cfgv" data-k="devName" autocomplete="off"></div><div class="row"><div><b>Wi-Fi</b><div class="sub">${esc(c.wifi)} · сигнал хороший</div></div><button class="btn" data-act="demo">Сменить</button></div>${swr('Обновлять прошивку автоматически','autoUpd','Устанавливаем ночью, только после вашего подтверждения в журнале')}${swr('Локальный доступ по сети','localApi','Приложение и Home Assistant подключаются напрямую, без облака')}<div class="acts"><button class="btn" data-act="demo">Проверить обновления</button><button class="btn" data-act="demo">Перезапустить устройство</button></div><p class="note">Прошивка 0.1.0. Устройство работает и без интернета.</p>`;
+ if(kind==='tankpump')h=shHead('Бак и насос')+`<div class="fld"><label for="tl">Объём бака</label>${sel('tl','tankL',[[1,'1 л'],[2,'2 л'],[3,'3 л'],[5,'5 л'],[10,'10 л']],c.tankL)}</div><div class="fld"><label for="mw">Максимум за один полив</label>${sel('mw','maxWater',[[100,'100 мл'],[150,'150 мл'],[250,'250 мл'],[350,'350 мл'],[500,'500 мл']],c.maxWater)}</div>${swr('Остановка при пустом баке','pumpOk','Защита от работы насоса всухую нельзя отключить','checked disabled')}<div class="acts"><button class="btn" data-act="demo">Проверить насос</button></div><p class="note">Эти лимиты проверяет само устройство, даже если приложение отключено.</p>`;
+ if(kind==='sensors')h=shHead('Датчики')+PLANTS.map(p=>`<div class="row"><div><b>Датчик почвы · ${esc(p.name.split(' ')[0])}</b><div class="sub">${S.flags.sensor?'не отвечает':'отвечает · откалиброван 12 окт'}</div></div><button class="btn" data-act="calibp" data-id="${p.id}">Калибровать</button></div>`).join('')+`<button class="btn pri big" style="margin-top:14px" data-act="addsensor">${ic('plus',20)}Добавить датчик</button>`;
+ if(kind==='ha')h=shHead('Home Assistant')+`<p class="t2">Необязательно. Устройство работает без Home Assistant. Растения и датчики появятся в нём автоматически через MQTT.</p>${swr('Подключить Home Assistant','ha')}${c.ha?`<div class="fld"><label for="br">Адрес брокера</label><input class="inp" id="br" placeholder="192.168.1.10" value="${esc(c.haHost)}" data-act="cfgv" data-k="haHost"></div>${swr('Автоматически создавать сущности','haDisc','Растения и датчики появятся в Home Assistant сами')}<button class="btn big" data-act="demo">Проверить подключение</button>`:''}`;
+ if(kind==='backup')h=shHead('Резервные копии')+`${swr('Делать копии автоматически','autoBackup','Настройки и история сохраняются на устройстве')}${c.autoBackup?`<div class="fld"><label for="bf">Как часто</label>${sel('bf','bkFreq',[['daily','Каждый день'],['weekly','Раз в неделю']],c.bkFreq)}</div>`:''}<p class="note">История: сырые данные 3 дня, по часам 30 дней, по суткам 365 дней. Последняя копия сегодня в 06:15.</p><div class="acts"><button class="btn" data-act="demo">Скачать копию</button><button class="btn" data-act="demo">Восстановить из копии</button></div>`;
+ if(kind==='sim')h=shHead('Проверка состояний')+`<p class="t2">Включите состояние и посмотрите, как выглядит интерфейс.</p>`+[['offline','Нет связи с устройством'],['sensor','Датчик влажности не отвечает'],['tank','Бак пуст'],['emptyHist','Пустая история']].map(([k,l])=>`<div class="row"><span>${l}</span><input class="sw" type="checkbox" role="switch" data-act="flag" data-k="${k}" ${S.flags[k]?'checked':''} aria-label="${l}"></div>`).join('');
+ if(kind==='reset')h=shHead('Сбросить настройки')+`<p class="t2">Вернём значения по умолчанию: порции, лимиты, уведомления, тему и интеграции. Растения, история и калибровка датчиков останутся.</p><button class="btn danger big" data-act="doreset">Сбросить настройки</button><button class="btn big" style="margin-top:10px" data-act="closesheet">Отмена</button>`;
+ if(kind==='recipe'){const r=allRecipes().find(x=>x.id===S.rid),p=P(S.pid);if(!r)return;const cap=Math.min(r.ml,S.cfg.maxWater),cc=S.care;
+  h=shHead(esc(r.name))+`<p class="t2">${esc(r.note||'')}</p><p class="sub" style="margin:2px 0 12px">Автор: ${esc(r.by||'неизвестен')}${r.stage?'':''}</p>`+`<div class="card" style="margin-bottom:14px"><p class="eyebrow">Для «${esc(p.name)}» изменится</p>${[['Норма влажности',`${p.range[0]}–${p.range[1]}%`,`${r.range[0]}–${r.range[1]}%`],['Порция',`${p.nextMl} мл`,`${cap} мл`],['Режим',MODEN[cc.mode],MODEN[r.mode]]].map(([k,a,b])=>`<div class="row"><span>${k}</span><span class="t2">${a} → <b>${b}</b></span></div>`).join('')}</div>`+(!recFits(r,p)?`<div class="banner" role="status">${ic('alert')}<div>Рецепт написан для другого типа растений. Проверьте норму.</div></div>`:'')+(r.ml>S.cfg.maxWater?`<p class="note">Порция уменьшена до вашего лимита ${S.cfg.maxWater} мл. Лимиты воды и защита насоса работают на устройстве и рецептом не меняются.</p>`:`<p class="note">Лимиты воды и защита насоса работают на устройстве и рецептом не меняются.</p>`)+`<div class="chips" style="margin-top:14px"><button class="btn" data-act="rapply" data-id="${r.id}">Применить</button><button class="btn quiet" data-act="rshare" data-id="${r.id}">Поделиться</button></div>`}
+ if(kind==='rshare'){const r=allRecipes().find(x=>x.id===S.rid);if(!r)return;h=shHead('Поделиться рецептом')+`<p class="t2">Отправьте этот текст или файл. Получатель добавит его через «Импортировать рецепт».</p><textarea class="inp" id="rtx" readonly rows="11" style="font:13px/1.5 var(--mono);width:100%">${esc(recFile(r))}</textarea><div class="chips" style="margin-top:12px"><button class="btn" data-act="rcopy">Скопировать</button><button class="btn quiet" data-act="rdl" data-id="${r.id}">Скачать файл</button></div>`}
+ if(kind==='rimport')h=shHead('Импортировать рецепт')+`<p class="t2">Вставьте текст рецепта. Мы проверим его, прежде чем добавить. Применять его или нет, решаете вы.</p><textarea class="inp" id="rtx" rows="9" placeholder="{ &quot;format&quot;: &quot;smart-plant-recipe&quot;, … }" style="font:13px/1.5 var(--mono);width:100%"></textarea>${S.rerr?`<p class="note" role="alert" style="color:var(--danger)">${esc(S.rerr)}</p>`:''}<div class="chips" style="margin-top:12px"><button class="btn" data-act="rdoimp">Проверить и добавить</button></div>`
+ if(kind==='rsave'){const p=P(S.pid);h=shHead('Сохранить как рецепт')+`<p class="t2">Сохраним текущую норму ${p.range[0]}–${p.range[1]}%, порцию ${S.care.amount} мл и режим «${MODEN[S.care.mode]}».</p><div class="fld"><label for="rnm">Название</label><input class="inp" id="rnm" value="${esc('Мой рецепт: '+p.name.split(' ')[0])}" maxlength="60" autocomplete="off"></div><div class="chips"><button class="btn" data-act="rdosave">Сохранить</button></div>`}
+ if(kind==='chsp'){const p=P(S.pid);h=shHead('Какой это вид?')+`<p class="t2">Выберите вид: рисунок, норма полива, света и температуры обновятся. Название растения останется вашим.</p><div class="pick" style="max-height:340px">${KB.map(k=>kbRow(k,'dosp',`aria-pressed="${p.kb===k.id}"`)).join('')}</div>`}
+ if(kind==='ai'){const a=S.ai,P2=[['off','Выключен'],['api','Свой API'],['local','Локальная модель'],['cloud','Облако Smart Plant OS']];
+  h=shHead('ИИ-помощник')+`<p class="t2">Необязательно. Умный режим работает полностью без ИИ. ИИ только анализирует журнал и советует; решения о поливе принимает устройство по правилам безопасности.</p><div class="lbl">Откуда брать ИИ</div><div class="chips" role="group" aria-label="Источник ИИ" style="margin:8px 0 12px">${P2.map(([k,l])=>`<button class="chip" data-act="aiprov" data-v="${k}" aria-pressed="${a.prov===k}" ${k==='cloud'?'disabled title="В планах"':''}>${l}${k==='cloud'?' (в планах)':''}</button>`).join('')}</div>`
+  +(a.prov==='api'||a.prov==='local'?`<div class="fld"><label for="aiu">Адрес API</label><input class="inp" id="aiu" data-act="aif" data-k="url" value="${esc(a.url)}" placeholder="${a.prov==='local'?'http://192.168.1.10:11434':'https://api.example.com/v1'}" autocomplete="off"></div><div class="fld"><label for="aim">Модель</label><input class="inp" id="aim" data-act="aif" data-k="model" value="${esc(a.model)}" autocomplete="off"></div>${a.prov==='api'?`<div class="fld"><label for="aik">Ключ</label><input class="inp" id="aik" type="password" data-act="aif" data-k="key" value="${esc(a.key)}" autocomplete="off"></div>`:''}<p class="note">Запросы к ИИ отправляет приложение на телефоне. Плата про ИИ ничего не знает и работает как обычно.</p>`:'')
+  +`<h3 class="sgh" style="margin-top:16px">Что можно отправлять</h3>`+[['logs','События и журнал поливов',false],['sensors','Суточные сводки датчиков',false],['photo','Фото растения раз в сутки (в планах)',true]].map(([k,l,d])=>`<div class="row"><span>${l}</span><input class="sw" type="checkbox" role="switch" data-act="aitog" data-k="${k}" ${a[k]?'checked':''} ${d?'disabled':''} aria-label="${l}"></div>`).join('')
+  +`<h3 class="sgh" style="margin-top:16px">Плагины для популярных ИИ (в планах)</h3><p class="t2">Плагин готовит данные в нужном формате и разбирает ответ, чтобы советы были точнее. Планируем: Claude, ChatGPT, Gemini и локальные модели через Ollama.</p>
+  <details class="more"><summary>Как ИИ получает данные и отвечает</summary><div class="t2" style="margin-top:8px">ИИ получает сводку, а отвечает советами и предложениями. Предложение вы подтверждаете сами, потом устройство проверяет лимиты.</div><div class="rule" style="margin-top:8px">{ "plant": "Томат", "stage": "grow",\n  "soil_7d": [58, 52, 47, 41, 63, 57, 51],\n  "water_ml_7d": 450, "light_h": 6.7, "events": ["…"] }</div><div class="rule" style="margin-top:8px">{ "advice": [{ "title": "Пора на цветение",\n    "why": "Воды уходит на 28% больше" }],\n  "proposals": [{ "type": "stage", "value": "flower" }] }</div></details>`}
+ openSheet(h)}
+
+/* события */
+document.addEventListener('click',e=>{
+ const t=e.target.closest('[data-act]');if(!t||t.tagName==='SELECT'||(t.tagName==='INPUT'&&t.type!=='checkbox'))return;const a=t.dataset.act,v=t.dataset.v,id=t.dataset.id;
+ switch(a){
+ case 'nav':go(v);break;
+ case 'recipe':S.rid=t.dataset.id;panel('recipe');break;
+ case 'rapply':{const r=allRecipes().find(x=>x.id===t.dataset.id),p=P(S.pid);if(!r)break;const ml=Math.min(r.ml,S.cfg.maxWater);p.range=[r.range[0],r.range[1]];p.nextMl=ml;p.recipe=r.name;S.care.mode=r.mode;S.care.amount=ml;closeSheet();render(true);toast('Рецепт «'+r.name+'» применён');break}
+ case 'rshare':S.rid=t.dataset.id;panel('rshare');break;
+ case 'rcopy':{const x=document.getElementById('rtx');try{navigator.clipboard.writeText(x.value).then(()=>toast('Скопировано'),()=>{x.select();toast('Выделено: нажмите «Копировать» в системе')})}catch(e){x.select()}break}
+ case 'rdl':{const r=allRecipes().find(x=>x.id===t.dataset.id);if(!r)break;const a2=document.createElement('a');a2.href=URL.createObjectURL(new Blob([recFile(r)],{type:'application/json'}));a2.download=r.id+'.recipe.json';document.body.append(a2);a2.click();a2.remove();break}
+ case 'rimport':S.rerr='';panel('rimport');break;
+ case 'rdoimp':{const x=recParse(document.getElementById('rtx').value);if(x.err){S.rerr=x.err;panel('rimport');break}S.rerr='';S.myRecipes.push(x.r);S.rid=x.r.id;render(true);panel('recipe');toast('Рецепт добавлен');break}
+ case 'rsave':panel('rsave');break;
+ case 'rdosave':{const p=P(S.pid),n=(document.getElementById('rnm').value||'').trim().slice(0,60)||'Мой рецепт';S.myRecipes.push({id:'u'+Date.now(),name:n,type:p.type,stage:p.st||'',range:[p.range[0],p.range[1]],ml:S.care.amount,mode:S.care.mode,note:'Сохранено из ваших настроек.',by:'Вы'});closeSheet();render(true);toast('Рецепт сохранён');break}
+ case 'chsp':panel('chsp');break;
+ case 'dosp':{const k=kbOf(id),p=P(S.pid);if(!k)break;p.kb=k.id;p.kind=k.sil;p.type=k.type;p.species=k.latin;p.base={min:k.min,max:k.max,rate:k.rate};p.lightNeed=k.need;p.ml0=TYPES[k.type].ml;p.recipe=null;if(!(STAGES[k.type]||[]).some(x=>x[0]===p.st))p.st=defStage(k.type);applyStage(p);closeSheet();render(true);toast('Вид: '+k.name+'. Норма обновлена');break}
+ case 'stauto':{const p=P(S.pid);p.auto=v==='1';if(p.auto)syncStage(p);render(true);toast(p.auto?'Стадия определяется автоматически':'Стадию выбираете вы');break}
+ case 'onb':S.ob=newOb();go('onb');break;
+ case 'obnext':S.ob.step++;render();scrollTo(0,0);break;
+ case 'obback':S.ob.step=Math.max(0,S.ob.step-1);render();scrollTo(0,0);break;
+ case 'obscan':S.ob.scan='run';render(true);setTimeout(()=>{if(S.screen==='onb'&&S.ob.step===1&&S.ob.scan==='run'){S.ob.scan='done';render(true)}},2200);break;
+ case 'obdev':S.ob.dev=true;S.ob.step=2;render();scrollTo(0,0);break;
+ case 'obnet':S.ob.net=v;render(true);break;
+ case 'obconn':S.ob.conn='run';render(true);setTimeout(()=>{if(S.screen==='onb'&&S.ob.conn==='run'){S.ob.conn='ok';S.cfg.wifi=S.ob.net;render(true)}},1800);break;
+ case 'obroom':S.rooms=S.rooms.includes(v)?S.rooms.filter(x=>x!==v):[...S.rooms,v];render(true);break;
+ case 'obaddroom':{const x=document.getElementById('obr'),n=(x.value||'').trim().slice(0,30);if(n&&!S.rooms.includes(n))S.rooms.push(n);render(true);break}
+ case 'obplant':Object.assign(AP,{step:0,name:'',type:null,kb:null,st:'grow',room:S.rooms[0]||null,adding:false,newRoom:'',kq:''});renderAddPlant();break;
+ case 'obdone':go('home');toast('Готово');break;
+ case 'tankfill':toast('Отметили: бак полон');break;
+ case 'weekdone':S.weekDone=true;render(true);toast('Спасибо, напомню через неделю');break;
+ case 'sens':{const p=P(S.pid);p.sens=+v;applyStage(p);render(true);toast('Порции обновлены');break}
+ case 'mt':S.care.mt=v;render(true);break;
+ case 'code-':break;
+ case 'codecheck':runCode(false);render(true);break;
+ case 'codesim':runCode(true);render(true);break;
+ case 'codeex':S.care.code=EXAMPLE;S.codeOut='';render(true);break;
+ case 'stsug':{const p=P(t.dataset.id||S.pid),g=guessStage(p);p.st=g.st;p.recipe=null;applyStage(p);render(true);toast('Стадия: '+stageLabel(p));break}
+ case 'stno':{const p=P(t.dataset.id||S.pid);p.dis=guessStage(p).st;render(true);toast('Хорошо, пока не меняем');break}
+ case 'ai':panel('ai');break;
+ case 'aiprov':S.ai.prov=v;panel('ai');break;
+ case 'open':go('plant',{pid:id,tab:'now'});break;
+ case 'home':go('home');break;
+ case 'more':go('more',{setTab:'adv'});break;
+ case 'algo':go('algo',{algoTab:'main'});break;
+ case 'backcare':go('care');break;
+ case 'algotab':S.algoTab=v;render(true);break;
+ case 'settab':S.setTab=v;render(true);break;
+ case 'tab':S.tab=v;S.why=false;render(true);break;
+ case 'period':S.period=+v;render(true);break;
+ case 'why':S.why=!S.why;render(true);break;
+ case 'water':openWater();break;
+ case 'wml':W.ml=+v;W.custom=false;renderWater();break;
+ case 'wcustom':W.custom=true;renderWater();setTimeout(()=>$('#cm')&&$('#cm').focus(),30);break;
+ case 'wstart':startWater();break;
+ case 'wstop':stopWater();break;
+ case 'closesheet':closeSheet();break;
+ case 'fixsensor':toast('Проверяю датчик…');setTimeout(()=>{S.flags.sensor=false;render(true);toast('Датчик отвечает. Автополив снова включён')},1400);break;
+ case 'care':go('care');break;
+ case 'careplant':S.pid=id;render(true);break;
+ case 'cmode':S.care.mode=v;render(true);break;
+ case 'day':S.care.days[+v]=S.care.days[+v]?0:1;render(true);break;
+ case 'night':S.care.night=t.checked;render(true);break;
+ case 'evf':S.evf=v;render(true);break;
+ case 'evp':S.evp=v;render(true);break;
+ case 'evwater':S.pid=id;openWater();break;
+ case 'kb':go('kb');break;
+ case 'backset':go('more',{setTab:'main'});break;
+ case 'kbt':S.kbt=v;render(true);break;
+ case 'kbopen':kbSheet(id);break;
+ case 'kbadd':{const k=kbOf(id);Object.assign(AP,{step:0,name:k.name,type:k.type,kb:k.id,st:defStage(k.type),room:S.rooms[0]||null,adding:false,newRoom:'',kq:''});renderAddPlant();break}
+ case 'stage':{const p=P(S.pid);p.st=v;p.recipe=null;p.auto=false;applyStage(p);render(true);toast('Стадия: '+stageLabel(p)+'. Норма обновлена');break}
+ case 'applyml':S.care.amount=+v;render(true);toast('Порция '+v+' мл применена');break;
+ case 'resetrange':{const p=P(S.pid);p.recipe=null;applyStage(p);render(true);toast('Рекомендации восстановлены');break}
+ case 'motion':S.motion=v;document.documentElement.dataset.motion=v==='off'?'off':'';panel('appear');render(true);break;
+ case 'doreset':Object.assign(S.cfg,{quiet:true,qFrom:'22:00',qTo:'07:00',tankL:2,maxWater:250,ha:false,haHost:'',haDisc:true,autoBackup:true,bkFreq:'daily',autoUpd:true,localApi:true});Object.assign(S.care,{amount:150,night:true,limit:600,vac:14});S.notif={needs:true,skipped:true,tank:true,low:false,sensor:true,offline:true};closeSheet();render(true);toast('Настройки сброшены');break;
+ case 'calib':case 'calibp':if(id)S.pid=id;openSensor(3);break;
+ case 'addsensor':openSensor(0);break;
+ case 'stype':WZ.type=v;renderSensor();break;
+ case 'snext':WZ.step++;renderSensor();break;
+ case 'sfind':WZ.finding=true;renderSensor();setTimeout(()=>{WZ.finding=false;WZ.found=true;renderSensor()},1300);break;
+ case 'scal':WZ.cal.busy=v;renderSensor();setTimeout(()=>{WZ.cal[v]=true;WZ.cal.busy=null;renderSensor()},1400);break;
+ case 'splant':WZ.plant=id;renderSensor();break;
+ case 'addplant':Object.assign(AP,{step:0,name:'',type:null,kb:null,st:'grow',room:S.rooms[0]||null,adding:false,newRoom:'',kq:''});renderAddPlant();break;
+ case 'atype':AP.type=v;AP.kb=null;if(!(STAGES[v]||[]).some(x=>x[0]===AP.st))AP.st=defStage(v);renderAddPlant();break;
+ case 'akb':{const k=kbOf(id);AP.kb=k.id;AP.type=k.type;if(!(STAGES[k.type]||[]).some(x=>x[0]===AP.st))AP.st=defStage(k.type);renderAddPlant();break}
+ case 'astage':AP.st=v;renderAddPlant();break;
+ case 'aroom':AP.room=v;renderAddPlant();break;
+ case 'aaddroom':AP.adding=true;renderAddPlant();setTimeout(()=>$('#nr')&&$('#nr').focus(),30);break;
+ case 'aroomadd':{const n=AP.newRoom.trim();if(n){if(!S.rooms.includes(n))S.rooms.push(n);AP.room=n;AP.adding=false;AP.newRoom='';renderAddPlant()}break}
+ case 'anext':AP.step++;renderAddPlant();break;
+ case 'afinish':{const T=TYPES[AP.type],k=AP.kb&&kbOf(AP.kb),base=k?{min:k.min,max:k.max,rate:k.rate}:{min:T.prof[0],max:T.prof[1],rate:T.prof[2]};
+   const np={id:'p'+Date.now(),kind:k?k.sil:T.sil,type:AP.type,kb:k?k.id:null,st:AP.st,base,ml0:T.ml,name:AP.name.trim(),species:k?k.latin:T.label,place:AP.room,day:1,pot:2,moisture:50,range:[0,0],rate:base.rate,air:23.0,hum:57,lightH:k?k.need:T.need,lightNeed:k?k.need:T.need,last:'ещё не поливали',lastMl:100,next:'нужен датчик',nextMl:100,adc:2000,gpio:0,mod:'—',nextWhy:'Добавьте датчик влажности, и система начнёт подсказывать время полива.',note:''};
+   np.auto=false;applyStage(np);PLANTS.push(np);closeSheet();go('home');toast('Растение добавлено');break}
+ case 'addroom':{const n=($('#rn').value||'').trim();if(!n){toast('Введите название комнаты');break}if(!S.rooms.includes(n))S.rooms.push(n);panel('rooms');render(true);setTimeout(()=>$('#rn')&&$('#rn').focus(),30);break}
+ case 'delroom':S.rooms.splice(+v,1);panel('rooms');render(true);break;
+ case 'rooms':case 'notif':case 'appear':case 'sensors':case 'ha':case 'backup':case 'sim':case 'defaults':case 'device':case 'tankpump':case 'reset':panel(a);break;
+ case 'diag':go('diag');break;
+ case 'thsel':{S.theme=v;const r=document.documentElement;if(v==='system')delete r.dataset.theme;else r.dataset.theme=v;panel('appear');render(true);break}
+ case 'units':S.units=v;panel('appear');render(true);break;
+ case 'demo':toast('В прототипе не подключено');break;
+ }});
+document.addEventListener('input',e=>{const t=e.target,a=t.dataset.act;if(!a)return;
+ if(a==='code'){S.care.code=t.value;return}
+ if(a==='aif'){S.ai[t.dataset.k]=t.value;return}
+ if(a==='obpw'){S.ob.pw=t.value;const b=document.querySelector('[data-act=obconn]');if(b)b.disabled=t.value.length<8;return}
+ if(a==='cm'){W.ml=Math.max(20,Math.min(500,+t.value||20))}
+ if(a==='aname'){AP.name=t.value;const b=sheet.querySelector('[data-act=anext]');if(b)b.disabled=!AP.name.trim()}
+ if(a==='kbq'){S.kbq=t.value;kbFilter()}
+ if(a==='kq'){AP.kq=t.value;kqFilter()}
+ if(a==='nroom'){AP.newRoom=t.value;const b=sheet.querySelector('[data-act=aroomadd]');if(b)b.disabled=!t.value.trim()}
+ if(a==='sname')WZ.name=t.value;
+ if(a==='r0'||a==='r1'){const p=P(S.pid);p.range[a==='r0'?0:1]=+t.value;$('#'+a+'v').textContent=t.value+'%'}});
+document.addEventListener('change',e=>{const t=e.target,a=t.dataset.act;if(!a)return;
+ if(a==='care'){const k=t.dataset.k;S.care[k]=['amount','gap','limit','mthr'].includes(k)?+t.value:t.value;render(true)}
+ if(a==='aplace')AP.place=t.value;
+ if(a==='nt')S.notif[t.dataset.k]=t.checked;
+ if(a==='cfg'){S.cfg[t.dataset.k]=t.checked;if(t.dataset.k==='ha')panel('ha');render(true)}
+ if(a==='cfgv'){const k=t.dataset.k;S.cfg[k]=['tankL','maxWater'].includes(k)?+t.value:t.value;render(true)}
+ if(a==='mauto'){S.care.mauto=t.checked;render(true)}
+ if(a==='aitog'){S.ai[t.dataset.k]=t.checked;panel('ai')}
+ if(a==='obmod'){S.mods[t.dataset.v]=t.checked;render(true)}
+ if(a==='flag'){S.flags[t.dataset.k]=t.checked;render(true)}
+ if(a==='r0'||a==='r1'){render(true)}});
+function setThemeIcon(){}
+document.addEventListener('toggle',e=>{if(e.target.dataset&&e.target.dataset.k==='adv')S.advOpen=e.target.open},true);
+
+(function(){
+/* лента растений: мышью зажать и тянуть (с инерцией); пальцем работает нативный свайп */
+const sh=e=>e.target.closest&&e.target.closest('.shelf');
+let d=null,vel=0,raf=0;
+const clamp=(s,v)=>Math.max(0,Math.min(s.scrollWidth-s.clientWidth,v));
+function glide(s){cancelAnimationFrame(raf);const step=()=>{if(Math.abs(vel)<.02||d)return;s.scrollLeft=clamp(s,s.scrollLeft+vel*16);vel*=.94;raf=requestAnimationFrame(step)};raf=requestAnimationFrame(step)}
+document.addEventListener('pointerdown',e=>{if(e.pointerType!=='mouse'||e.button)return;const s=sh(e);if(!s)return;cancelAnimationFrame(raf);vel=0;d={s,x:e.clientX,l:s.scrollLeft,m:false,lx:e.clientX,lt:performance.now()}});
+document.addEventListener('pointermove',e=>{if(!d)return;const dx=e.clientX-d.x;if(!d.m&&Math.abs(dx)>5){d.m=true;d.s.classList.add('drag')}if(d.m){d.s.scrollLeft=clamp(d.s,d.l-dx);const t=performance.now(),dt=Math.max(1,t-d.lt);vel=.7*vel+.3*((d.lx-e.clientX)/dt);d.lx=e.clientX;d.lt=t}});
+const end=()=>{if(!d)return;const s=d.s,m=d.m;d=null;s.classList.remove('drag');if(m){const k=ev=>{ev.stopPropagation();ev.preventDefault()};s.addEventListener('click',k,{capture:true,once:true});setTimeout(()=>s.removeEventListener('click',k,true),60);glide(s)}};
+document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
+})();
+P('tomato').auto=false;P('tomato').st='grow';PLANTS.forEach(applyStage);PLANTS.forEach(syncStage);setThemeIcon();render();
+setTimeout(()=>{S.booting=false;render(true);enter()},700);
+</script>

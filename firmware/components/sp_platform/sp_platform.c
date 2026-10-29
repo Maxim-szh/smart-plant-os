@@ -419,6 +419,7 @@ void sp_platform_run(bool hub) {
     unsigned periodic_peer = 0;
     for (;;) {
         uint64_t now = now_ms();
+        sp_radio_process();
         if (api) {
             sp_api_tick(api, now, utc_ms(now));
             if (web_request && sp_web_take(web_request))

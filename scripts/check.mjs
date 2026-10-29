@@ -1,4 +1,4 @@
-// Лёгкая проверка без зависимостей: JSON базы растений и синтаксис скрипта прототипа.
+// Лёгкая проверка без зависимостей: JSON базы растений и синтаксис скрипта дизайн-прототипа.
 import { readFileSync } from 'node:fs';
 import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -26,9 +26,9 @@ for (const p of kb.plants) {
 if (!failed) ok(`база растений: ${kb.plants.length} записей`);
 
 // 2. Синтаксис скрипта прототипа
-const html = readFileSync('web/index.html', 'utf8');
+const html = readFileSync('web/prototype.html', 'utf8');
 const m = html.match(/<script>([\s\S]*)<\/script>/);
-if (!m) fail('в web/index.html не найден <script>');
+if (!m) fail('в web/prototype.html не найден <script>');
 else {
   const dir = mkdtempSync(join(tmpdir(), 'spo-'));
   const f = join(dir, 'app.js');
@@ -37,12 +37,12 @@ else {
   catch (e) { fail('ошибка синтаксиса: ' + String(e.stderr).split('\n').slice(0, 4).join(' ')); }
 }
 
-// 3. Прототип не должен тянуть внешние сервисы, кроме шрифтов
+// 3. Дизайн-прототип не должен тянуть внешние сервисы, кроме шрифтов
 // Примеры адресов в подсказках полей (placeholder) не считаются зависимостями
 const htmlNoHints = html.replace(/placeholder="[^"]*"|placeholder="\$\{[^}]*\}"/g, '').replace(/placeholder="\$\{.*?\}"/g, '');
 const ext = [...htmlNoHints.matchAll(/https?:\/\/[^\s"'`)<]+/g)].map((x) => new URL(x[0]).host)
   .filter((h) => !['fonts.googleapis.com', 'fonts.gstatic.com'].includes(h));
-if (ext.length) fail('внешние адреса в прототипе: ' + [...new Set(ext)].join(', '));
-else ok('внешних зависимостей кроме шрифтов нет');
+if (ext.length) fail('внешние адреса в дизайн-прототипе: ' + [...new Set(ext)].join(', '));
+else ok('внешних зависимостей в дизайн-прототипе, кроме шрифтов, нет');
 
 process.exit(failed ? 1 : 0);
