@@ -60,7 +60,7 @@ def main():
                         help="USB port for an ESP32-C3 Node; repeat for more Nodes (up to 10)")
     parser.add_argument("--hub-profile", choices=("n16r8", "n8r2"), required=True,
                         help="S3 flash/PSRAM profile matching the board marking")
-    parser.add_argument("--channel", type=int, default=6, help="shared Wi-Fi/ESP-NOW channel (default: 6)")
+    parser.add_argument("--channel", type=int, default=6, help="fallback channel for standalone mode (default: 6); home Wi-Fi channel is detected")
     parser.add_argument("--country", default="01", help="ESP-IDF 5.3.4 country code (default: 01)")
     parser.add_argument("--wifi-ssid", help="home 2.4 GHz Wi-Fi name; router channel must match --channel")
     parser.add_argument("--wifi-password", help="avoid this option because it may be stored in shell history")
@@ -129,7 +129,7 @@ def main():
     print(f"Первый вход: Wi-Fi SmartPlantOS → https://192.168.4.1; пароль и ключ входа: {output / 'access.json'}")
     if wifi_ssid:
         print(f"Hub также подключается к домашней сети {wifi_ssid!r}; IP-адрес появится в serial monitor/списке клиентов роутера.")
-        print(f"Важно: канал роутера 2,4 ГГц должен быть закреплён на канале {args.channel}, иначе ESP-NOW Nodes не свяжутся с Hub.")
+        print("Канал домашнего Wi-Fi определяется автоматически; --channel задаёт резерв для автономного режима.")
     print("Сохраните каталог secrets: повторная генерация ключей не эквивалентна восстановлению установки.")
 
 

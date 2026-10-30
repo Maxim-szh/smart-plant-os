@@ -414,7 +414,7 @@ void sp_platform_run(bool hub) {
     if (flags >= 0)
         (void)fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
-    uint64_t periodic_at = 0, last_command_at = 0, sensor_at = 0;
+    uint64_t periodic_at = 0, last_command_at = 0, sensor_at = 0, discovery_at = 0;
     unsigned sensor_slot = 0;
     unsigned periodic_peer = 0;
     for (;;) {
@@ -457,6 +457,12 @@ void sp_platform_run(bool hub) {
             }
         }
         poll_console();
+        if (hub && now >= discovery_at) {
+            for (unsigned i = 0; i < identity.count; i++)
+                if (!sp_registry_online(&registry[i], now))
+                    hello(i);
+            discovery_at = now + 500;
+        }
         if (!hub && sensors.count && now >= sensor_at) {
             sp_message_t m;
             sp_sensor_message(&sensors.drivers[sensor_slot], now, &m);
