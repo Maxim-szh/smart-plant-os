@@ -102,13 +102,13 @@ def generate(args):
             if not role and args.pins:
                 for key, value in zip(("soil_pin", "tank_pin", "pump_pin"), args.pins[index - 1]):
                     data(key, "i32", value)
+            if role and wifi_ssid:
+                data("home_ssid", "string", wifi_ssid)
+                data("home_pass", "string", wifi_password)
             if role and web:
                 rows.append(["web", "namespace", "", ""])
                 for key, value in web.items():
                     data(key, "string", value)
-            if role and wifi_ssid:
-                data("home_ssid", "string", wifi_ssid)
-                data("home_pass", "string", wifi_password)
             with (args.output / f"{name}.csv").open("x", newline="") as output:
                 csv.writer(output).writerows(rows)
             manifest["devices"].append({"name": name, "mac": address.hex(":"), "device_id": "spo-" + devices[index].hex(),

@@ -30,6 +30,18 @@ static volatile bool home_wifi_enabled;
 static uint64_t node_last_hub_rx_ms, node_scan_due_ms;
 static uint8_t node_scan_channel;
 
+static const char *wifi_disconnect_reason(uint8_t reason) {
+    switch (reason) {
+    case WIFI_REASON_NO_AP_FOUND: return "AP_NOT_FOUND";
+    case WIFI_REASON_AUTH_FAIL: return "AUTH_FAIL";
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT: return "HANDSHAKE_TIMEOUT";
+    case WIFI_REASON_ASSOC_FAIL: return "ASSOC_FAIL";
+    case WIFI_REASON_BEACON_TIMEOUT: return "BEACON_TIMEOUT";
+    case WIFI_REASON_AUTH_EXPIRE: return "AUTH_EXPIRED";
+    default: return "OTHER";
+    }
+}
+
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
     (void)arg;
     if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
@@ -51,8 +63,14 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
             xEventGroupSetBits(wifi_events, WIFI_CONNECTED_BIT);
         }
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED && home_wifi_enabled) {
+        wifi_event_sta_disconnected_t *event = data;
+        if (event)
+            printf("Home Wi-Fi disconnected reason=%u (%s) ssid=%s rssi=%d; retrying\n",
+                   event->reason, wifi_disconnect_reason(event->reason), event->ssid, event->rssi);
         xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT);
-        (void)esp_wifi_connect();
+        esp_err_t err = esp_wifi_connect();
+        if (err != ESP_OK)
+            printf("Home Wi-Fi reconnect request failed error=%s\n", esp_err_to_name(err));
     }
 }
 
@@ -160,19 +178,28 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
 
     char ssid[33] = {0}, password[64] = {0};
     nvs_handle_t provision;
-    if (id->hub && nvs_open("provision", NVS_READONLY, &provision) == ESP_OK) {
+    esp_err_t provision_err = id->hub ? nvs_open("provision", NVS_READONLY, &provision) : ESP_ERR_INVALID_STATE;
+    if (id->hub && provision_err == ESP_OK) {
         size_t ssid_size = sizeof(ssid), password_size = sizeof(password);
-        bool has_home_wifi = nvs_get_str(provision, "home_ssid", ssid, &ssid_size) == ESP_OK && ssid[0];
-        if (has_home_wifi && nvs_get_str(provision, "home_pass", password, &password_size) == ESP_OK && password[0]) {
+        esp_err_t ssid_err = nvs_get_str(provision, "home_ssid", ssid, &ssid_size);
+        esp_err_t pass_err = nvs_get_str(provision, "home_pass", password, &password_size);
+        printf("Wi-Fi NVS read: namespace=provision open=%s ssid=%s pass=%s\n",
+               esp_err_to_name(provision_err), esp_err_to_name(ssid_err), esp_err_to_name(pass_err));
+        bool has_home_wifi = ssid_err == ESP_OK && ssid[0];
+        if (has_home_wifi && pass_err == ESP_OK && password[0]) {
+            printf("Connecting to home Wi-Fi ssid=%s\n", ssid);
             wifi_config_t sta = {0};
             memcpy(sta.sta.ssid, ssid, strlen(ssid));
             memcpy(sta.sta.password, password, strlen(password));
             TRY(esp_wifi_set_config(WIFI_IF_STA, &sta));
             home_wifi_enabled = true;
-        } else if (has_home_wifi) {
-            puts("Home Wi-Fi credentials are incomplete; using SmartPlantOS setup Wi-Fi only");
+        } else {
+            printf("Home Wi-Fi credentials unavailable; SSID status=%s password status=%s\n",
+                   esp_err_to_name(ssid_err), esp_err_to_name(pass_err));
         }
         nvs_close(provision);
+    } else if (id->hub) {
+        printf("Wi-Fi NVS open failed namespace=provision error=%s\n", esp_err_to_name(provision_err));
     }
     wifi_events = xEventGroupCreate();
     if (!wifi_events)
