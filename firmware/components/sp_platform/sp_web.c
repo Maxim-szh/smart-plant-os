@@ -12,8 +12,8 @@
 #include "nvs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
-extern const uint8_t page_start[] asm("_binary_live_html_start");
-extern const uint8_t page_end[] asm("_binary_live_html_end");
+extern const uint8_t page_start[] asm("_binary_index_html_start");
+extern const uint8_t page_end[] asm("_binary_index_html_end");
 extern const uint8_t script_start[] asm("_binary_live_js_start");
 extern const uint8_t script_end[] asm("_binary_live_js_end");
 static QueueHandle_t incoming, outgoing;
@@ -43,7 +43,9 @@ bool sp_web_ap(unsigned channel) {
         return false;
     char *ap = setting(h, "ap_pass"), *admin = setting(h, "admin");
     nvs_close(h);
-    bool valid = ap && admin && strlen(ap) >= 12 && strlen(ap) <= 63 && strlen(admin) == 64;
+    size_t admin_len = admin ? strlen(admin) : 0;
+    bool valid = ap && admin && strlen(ap) >= 12 && strlen(ap) <= 63 &&
+                 (admin_len == 32 || admin_len == 64);
     if (valid) {
         wifi_config_t c = {0};
         snprintf((char *)c.ap.ssid, sizeof(c.ap.ssid), "SmartPlantOS");
@@ -63,10 +65,11 @@ bool sp_web_ap(unsigned channel) {
     return valid;
 }
 static bool equal(const char *a, const char *b) {
-    if (strlen(a) != 64 || strlen(b) != 64)
+    size_t len = strlen(a);
+    if (len != strlen(b) || (len != 32 && len != 64))
         return false;
     unsigned diff = 0;
-    for (unsigned i = 0; i < 64; i++)
+    for (size_t i = 0; i < len; i++)
         diff |= (unsigned char)a[i] ^ (unsigned char)b[i];
     return !diff;
 }

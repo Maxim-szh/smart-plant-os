@@ -24,6 +24,7 @@ typedef struct {
 } sp_received_t;
 /* Single application task owns identity, transport send/receive and the core. */
 esp_err_t sp_radio_start(sp_identity_t *);
+void sp_radio_process(void);
 bool sp_radio_send(unsigned peer, const sp_message_t *);
 bool sp_radio_receive(sp_received_t *);
 bool sp_identity_load(sp_identity_t *, bool hub);

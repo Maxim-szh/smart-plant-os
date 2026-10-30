@@ -44,6 +44,15 @@ def generate(args):
     # Restrict this engineering profile to channels 1..11; local RF rules still apply.
     if not 1 <= args.channel <= 11:
         raise ValueError("engineering profile supports channels 1..11")
+    wifi_ssid = getattr(args, "wifi_ssid", "") or ""
+    wifi_password = getattr(args, "wifi_password", "") or ""
+    password_bytes = wifi_password.encode("utf-8")
+    if len(wifi_ssid.encode("utf-8")) > 32 or len(password_bytes) > 63:
+        raise ValueError("Wi-Fi SSID must be <=32 bytes and password <=63 bytes")
+    if wifi_ssid and (len(password_bytes) < 8 or any(byte < 0x20 or byte > 0x7e for byte in password_bytes)):
+        raise ValueError("home Wi-Fi password must be 8..63 printable ASCII bytes")
+    if not wifi_ssid and wifi_password:
+        raise ValueError("home Wi-Fi password supplied without SSID")
     previous_umask = os.umask(0o077)
     try:
         args.output.mkdir(parents=True, exist_ok=False)
@@ -54,13 +63,14 @@ def generate(args):
                 "-pkeyopt", "ec_param_enc:named_curve",
                 "-nodes", "-days", "3650", "-subj", "/CN=Smart Plant OS", "-addext", "subjectAltName=IP:192.168.4.1",
                 "-keyout", str(key), "-out", str(cert)], check=True, capture_output=True)
-            web = {"admin": secrets.token_hex(32), "ap_pass": secrets.token_urlsafe(18),
+            web = {"admin": secrets.token_urlsafe(24), "ap_pass": secrets.token_urlsafe(18),
                    "cert": cert.read_text(), "key": key.read_text()}
             fingerprint = subprocess.run(["openssl", "x509", "-in", str(cert), "-noout", "-fingerprint", "-sha256"],
                                          check=True, capture_output=True, text=True).stdout.strip()
             with (args.output / "access.json").open("x") as access:
-                json.dump({"ssid": "SmartPlantOS", "url": "https://192.168.4.1", "wifi_password": web["ap_pass"],
-                           "admin_password": web["admin"], "certificate_sha256": fingerprint}, access, indent=2)
+                json.dump({"setup_wifi": "SmartPlantOS", "url": "https://192.168.4.1",
+                           "setup_wifi_password": web["ap_pass"], "admin_password": web["admin"],
+                           "home_wifi_ssid": wifi_ssid or None, "certificate_sha256": fingerprint}, access, indent=2)
         pmk = secrets.token_bytes(16)
         devices = [secrets.token_bytes(6) for _ in range(len(args.node_mac) + 1)]
         plants = [uuid.uuid4().bytes for _ in devices]
@@ -96,6 +106,9 @@ def generate(args):
                 rows.append(["web", "namespace", "", ""])
                 for key, value in web.items():
                     data(key, "string", value)
+            if role and wifi_ssid:
+                data("home_ssid", "string", wifi_ssid)
+                data("home_pass", "string", wifi_password)
             with (args.output / f"{name}.csv").open("x", newline="") as output:
                 csv.writer(output).writerows(rows)
             manifest["devices"].append({"name": name, "mac": address.hex(":"), "device_id": "spo-" + devices[index].hex(),
@@ -115,6 +128,8 @@ def main():
     parser.add_argument("--pins", type=pins, action="append", help="verified soil,tank,pump GPIOs, once per Node; omitted => all disabled")
     parser.add_argument("--country", required=True)
     parser.add_argument("--channel", type=int, required=True)
+    parser.add_argument("--wifi-ssid", default="", help="optional 2.4 GHz home Wi-Fi SSID; configure the router to use --channel")
+    parser.add_argument("--wifi-password", default="", help="home Wi-Fi password (avoid shell history; prefer the installer prompt)")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:

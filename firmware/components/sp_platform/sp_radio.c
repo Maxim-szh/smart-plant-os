@@ -5,10 +5,12 @@
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_now.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
+#include "freertos/event_groups.h"
 #include "sp_crypto.h"
 
 typedef struct {
@@ -17,8 +19,42 @@ typedef struct {
 } rx_packet_t;
 static QueueHandle_t rx_queue;
 static SemaphoreHandle_t tx_done;
+static EventGroupHandle_t wifi_events;
 static sp_identity_t *identity;
 static bool radio_ok;
+static volatile bool home_wifi_enabled;
+#define WIFI_CONNECTED_BIT BIT0
+#define WIFI_CHANNEL_UNSUPPORTED_BIT BIT1
+#define NODE_CHANNEL_SCAN_MS 600u
+#define NODE_HUB_TIMEOUT_MS 5000u
+static uint64_t node_last_hub_rx_ms, node_scan_due_ms;
+static uint8_t node_scan_channel;
+
+static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
+    (void)arg;
+    if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
+        ip_event_got_ip_t *event = data;
+        wifi_ap_record_t ap = {0};
+        uint8_t primary = 0;
+        wifi_second_chan_t secondary;
+        if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK && esp_wifi_get_channel(&primary, &secondary) == ESP_OK) {
+            if (primary < 1 || primary > 11) {
+                printf("Home Wi-Fi channel %u is outside this profile's Node scan range 1-11; using standalone AP\n",
+                       primary);
+                home_wifi_enabled = false;
+                xEventGroupSetBits(wifi_events, WIFI_CHANNEL_UNSUPPORTED_BIT);
+                return;
+            }
+            identity->channel = primary;
+            printf("Home Wi-Fi connected ip=" IPSTR " channel=%u ssid=%s\n", IP2STR(&event->ip_info.ip),
+                   primary, (const char *)ap.ssid);
+            xEventGroupSetBits(wifi_events, WIFI_CONNECTED_BIT);
+        }
+    } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED && home_wifi_enabled) {
+        xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT);
+        (void)esp_wifi_connect();
+    }
+}
 
 static bool blob(nvs_handle_t nvs, const char *key, void *data, size_t expected) {
     size_t len = expected;
@@ -117,25 +153,99 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     TRY(esp_wifi_set_mode(WIFI_MODE_STA));
     if (id->hub)
         (void)sp_web_ap(id->channel);
-    wifi_country_t country = {.schan = 1, .nchan = 11, .policy = WIFI_COUNTRY_POLICY_MANUAL};
+    /* Follow the connected router's regulatory domain; without it, use the provisioned safe fallback. */
+    wifi_country_t country = {.schan = 1, .nchan = 11, .policy = WIFI_COUNTRY_POLICY_AUTO};
     memcpy(country.cc, id->country, 3);
     TRY(esp_wifi_set_country(&country));
+
+    char ssid[33] = {0}, password[64] = {0};
+    nvs_handle_t provision;
+    if (id->hub && nvs_open("provision", NVS_READONLY, &provision) == ESP_OK) {
+        size_t ssid_size = sizeof(ssid), password_size = sizeof(password);
+        bool has_home_wifi = nvs_get_str(provision, "home_ssid", ssid, &ssid_size) == ESP_OK && ssid[0];
+        if (has_home_wifi && nvs_get_str(provision, "home_pass", password, &password_size) == ESP_OK && password[0]) {
+            wifi_config_t sta = {0};
+            memcpy(sta.sta.ssid, ssid, strlen(ssid));
+            memcpy(sta.sta.password, password, strlen(password));
+            TRY(esp_wifi_set_config(WIFI_IF_STA, &sta));
+            home_wifi_enabled = true;
+        } else if (has_home_wifi) {
+            puts("Home Wi-Fi credentials are incomplete; using SmartPlantOS setup Wi-Fi only");
+        }
+        nvs_close(provision);
+    }
+    wifi_events = xEventGroupCreate();
+    if (!wifi_events)
+        return ESP_ERR_NO_MEM;
+    TRY(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_event, NULL));
+    TRY(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event, NULL));
     TRY(esp_wifi_start());
     TRY(esp_wifi_set_ps(WIFI_PS_NONE));
-    TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
+    if (home_wifi_enabled) {
+        TRY(esp_wifi_connect());
+        EventBits_t bits = xEventGroupWaitBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT,
+                                               pdFALSE, pdFALSE,
+                                               pdMS_TO_TICKS(20000));
+        if (!(bits & WIFI_CONNECTED_BIT)) {
+            printf("Home Wi-Fi unavailable or unsupported; continuing in setup mode on fallback channel=%u\n",
+                   id->channel);
+            home_wifi_enabled = false;
+            xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
+            (void)esp_wifi_disconnect();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            TRY(esp_wifi_set_mode(WIFI_MODE_AP));
+            TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
+        }
+    } else {
+        TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
+    }
     TRY(esp_now_init());
     TRY(esp_now_set_pmk(id->pmk));
     for (unsigned i = 0; i < id->count; i++) {
-        esp_now_peer_info_t peer = {.channel = id->channel, .ifidx = WIFI_IF_STA, .encrypt = true};
+        /* Channel 0 means the peer uses the current radio channel; this allows discovery after router changes. */
+        esp_now_peer_info_t peer = {.channel = 0, .ifidx = WIFI_IF_STA, .encrypt = true};
         memcpy(peer.peer_addr, id->peers[i].mac, 6);
         memcpy(peer.lmk, id->peers[i].lmk, 16);
         TRY(esp_now_add_peer(&peer));
     }
     TRY(esp_now_register_recv_cb(on_receive));
     TRY(esp_now_register_send_cb(on_sent));
+    if (!id->hub) {
+        node_scan_channel = id->channel;
+        node_last_hub_rx_ms = 0;
+        node_scan_due_ms = 0;
+    }
     radio_ok = true;
     return ESP_OK;
 #undef TRY
+}
+void sp_radio_process(void) {
+    if (!radio_ok || !identity)
+        return;
+    if (identity->hub) {
+        if (!wifi_events || !(xEventGroupGetBits(wifi_events) & WIFI_CHANNEL_UNSUPPORTED_BIT))
+            return;
+        xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
+        (void)esp_wifi_disconnect();
+        vTaskDelay(pdMS_TO_TICKS(100));
+        if (esp_wifi_set_mode(WIFI_MODE_AP) != ESP_OK ||
+            esp_wifi_set_channel(identity->channel, WIFI_SECOND_CHAN_NONE) != ESP_OK)
+            puts("Could not restore standalone channel; reboot required");
+        else
+            printf("Home Wi-Fi disabled; standalone AP and ESP-NOW restored on channel=%u\n", identity->channel);
+        return;
+    }
+    uint64_t now = (uint64_t)esp_timer_get_time() / 1000;
+    if (node_last_hub_rx_ms && now - node_last_hub_rx_ms < NODE_HUB_TIMEOUT_MS)
+        return;
+    if (now < node_scan_due_ms)
+        return;
+    node_scan_channel = node_scan_channel >= 11 ? 1 : (uint8_t)(node_scan_channel + 1);
+    if (esp_wifi_set_channel(node_scan_channel, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+        node_scan_due_ms = now + NODE_CHANNEL_SCAN_MS;
+        return;
+    }
+    node_scan_due_ms = now + NODE_CHANNEL_SCAN_MS;
 }
 bool sp_radio_send(unsigned peer, const sp_message_t *m) {
     if (!radio_ok || peer >= identity->count || identity->tx_sequence == UINT32_MAX)
@@ -193,6 +303,16 @@ bool sp_radio_receive(sp_received_t *out) {
         p->boot = h.boot;
     }
     p->rx_sequence = h.sequence;
+    if (!identity->hub) {
+        uint8_t current = 0;
+        wifi_second_chan_t secondary;
+        if (esp_wifi_get_channel(&current, &secondary) == ESP_OK) {
+            identity->channel = current;
+            node_scan_channel = current;
+            node_last_hub_rx_ms = (uint64_t)esp_timer_get_time() / 1000;
+            node_scan_due_ms = node_last_hub_rx_ms + NODE_HUB_TIMEOUT_MS;
+        }
+    }
     out->peer = i;
     return true;
 }
