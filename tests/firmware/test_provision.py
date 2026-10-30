@@ -34,6 +34,15 @@ class ProvisionTests(unittest.TestCase):
             self.assertEqual(rows["admin"], access["admin_password"])
             self.assertEqual(rows["home_ssid"], "Plant-WiFi")
             self.assertEqual(rows["home_pass"], "example-pass")
+            namespace = ""
+            namespaces = {}
+            with (args.output / "hub.csv").open() as source:
+                for row in csv.DictReader(source):
+                    if row["type"] == "namespace":
+                        namespace = row["key"]
+                    elif row["key"].startswith("home_"):
+                        namespaces[row["key"]] = namespace
+            self.assertEqual(namespaces, {"home_ssid": "provision", "home_pass": "provision"})
             self.assertIn("BEGIN CERTIFICATE", rows["cert"])
             # LibreSSL otherwise emits explicit EC parameters rejected by ESP-IDF mbedTLS.
             public = subprocess.run(["openssl", "x509", "-in", str(args.output / "hub-cert.pem"),
