@@ -21,6 +21,23 @@ static char password[65], token[65];
 static int64_t expires, attempt_window;
 static unsigned attempts;
 static uint32_t serial;
+
+static bool origin_allowed(httpd_req_t *r) {
+    size_t origin_len = httpd_req_get_hdr_value_len(r, "Origin");
+    if (!origin_len)
+        return true;
+    char origin[96], host[64], expected[80];
+    if (origin_len >= sizeof(origin) ||
+        httpd_req_get_hdr_value_str(r, "Origin", origin, sizeof(origin)) != ESP_OK ||
+        httpd_req_get_hdr_value_str(r, "Host", host, sizeof(host)) != ESP_OK)
+        return false;
+    size_t host_len = strlen(host);
+    if (host_len > 4 && !strcmp(host + host_len - 4, ":443"))
+        host[host_len - 4] = 0;
+    if (snprintf(expected, sizeof(expected), "https://%s", host) >= (int)sizeof(expected))
+        return false;
+    return !strcmp(origin, expected);
+}
 typedef struct {
     uint32_t id;
     int status;
@@ -115,10 +132,7 @@ static esp_err_t handle(httpd_req_t *r) {
         httpd_resp_set_type(r, "application/javascript");
         return httpd_resp_send(r, (const char *)script_start, script_end - script_start);
     }
-    char origin[80];
-    if (httpd_req_get_hdr_value_len(r, "Origin") &&
-        (httpd_req_get_hdr_value_str(r, "Origin", origin, sizeof(origin)) != ESP_OK ||
-         strcmp(origin, "https://192.168.4.1")))
+    if (!origin_allowed(r))
         return fail(r, 403, "origin_rejected");
     if (r->method != HTTP_GET && r->method != HTTP_DELETE) {
         char type[48];
