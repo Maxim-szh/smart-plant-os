@@ -1,4 +1,7 @@
 <title>Smart Plant OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400..600&family=Onest:wght@300..700&display=swap">
 <style>
 /* Концепт: подоконник. Растение живёт в арке-окне, горшок показывает влажность. Остальное тихое: воздух, линии, текст. */
 :root{
@@ -385,7 +388,7 @@ button.row.it{justify-content:flex-start;gap:14px}button.row.it>div{flex:1}
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const WD=['вс','пн','вт','ср','чт','пт','сб'],MO=['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
-const NOW=new Date();
+const NOW=new Date(2026,9,14,12,0);
 const IC={
  window:'M5 21V10a7 7 0 0114 0v11M5 21h14M12 3v18M5 11h14',
  care:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4',
