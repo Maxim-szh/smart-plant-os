@@ -14,6 +14,8 @@
 #include "freertos/queue.h"
 extern const uint8_t page_start[] asm("_binary_index_html_start");
 extern const uint8_t page_end[] asm("_binary_index_html_end");
+extern const uint8_t app_start[] asm("_binary_app_js_start");
+extern const uint8_t app_end[] asm("_binary_app_js_end");
 extern const uint8_t script_start[] asm("_binary_live_js_start");
 extern const uint8_t script_end[] asm("_binary_live_js_end");
 static QueueHandle_t incoming, outgoing;
@@ -131,6 +133,10 @@ static esp_err_t handle(httpd_req_t *r) {
     if (r->method == HTTP_GET && !strcmp(r->uri, "/live.js")) {
         httpd_resp_set_type(r, "application/javascript");
         return httpd_resp_send(r, (const char *)script_start, script_end - script_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/app.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)app_start, app_end - app_start);
     }
     if (!origin_allowed(r))
         return fail(r, 403, "origin_rejected");
