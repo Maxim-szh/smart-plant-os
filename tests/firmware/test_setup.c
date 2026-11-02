@@ -12,7 +12,7 @@ esp_err_t sp_pairing_open(void) {
 esp_err_t sp_pairing_retry(void) {
     return ESP_OK;
 }
-esp_err_t sp_pairing_begin(const uint8_t *device) {
+esp_err_t sp_pairing_begin(const uint8_t device[6]) {
     (void)device;
     return ESP_OK;
 }

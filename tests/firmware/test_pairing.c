@@ -30,7 +30,7 @@ int esp_read_mac(uint8_t *out, int kind) {
     memcpy(out, active->hub ? hub_mac : node_mac, 6);
     return 0;
 }
-void sp_api_device_id(const uint8_t *id, char *out) {
+void sp_api_device_id(const uint8_t id[6], char out[17]) {
     snprintf(out, 17, "spo-%02x%02x%02x%02x%02x%02x", id[0], id[1], id[2], id[3], id[4], id[5]);
 }
 esp_err_t nvs_open(const char *name, int mode, nvs_handle_t *h) {
