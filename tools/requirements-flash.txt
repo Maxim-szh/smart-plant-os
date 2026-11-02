@@ -1,0 +1,4 @@
+esptool==4.10.0
+pyserial>=3.5
+cryptography>=43
+esp-idf-nvs-partition-gen==0.1.9

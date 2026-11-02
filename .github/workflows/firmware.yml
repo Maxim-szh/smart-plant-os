@@ -15,10 +15,12 @@ jobs:
         shell: bash
         run: |
           . /opt/esp/idf/export.sh
+          python -m pip install -r tools/requirements-flash.txt
           cmake -S tests/firmware -B tests/build -DSP_MBEDTLS_SOURCE="$IDF_PATH/components/mbedtls/mbedtls"
           cmake --build tests/build -j 2
           ctest --test-dir tests/build --output-on-failure
           python tests/firmware/test_provision.py
+          python tests/firmware/test_flash.py
           python tools/spp_inspect.py --check-vectors spec/spp/v1/vectors.json
       - uses: actions/setup-node@v4
         with:
@@ -38,24 +40,45 @@ jobs:
         include:
           - project: node
             chip: esp32c3
+            profile: c3
           - project: hub
             chip: esp32s3
+            profile: n16r8
+          - project: hub
+            chip: esp32s3
+            profile: n8r2
     steps:
       - uses: actions/checkout@v4
       - name: Build pinned target
         shell: bash
-        working-directory: firmware/${{ matrix.project }}
         run: |
           . /opt/esp/idf/export.sh
-          idf.py set-target ${{ matrix.chip }}
-          idf.py build
-          idf.py size
+          python - <<'PYCODE'
+          from tools.install import build
+          from tools.package_firmware import package
+          profile = "${{ matrix.profile }}"
+          _, path = build("${{ matrix.project }}", "${{ matrix.chip }}", None if profile == "c3" else profile)
+          package(path, "firmware/${{ matrix.project }}/build/usb-package-${{ matrix.profile }}", profile)
+          PYCODE
       - uses: actions/upload-artifact@v4
         with:
-          name: engineering-${{ matrix.chip }}
-          path: |
-            firmware/${{ matrix.project }}/build/*.bin
-            firmware/${{ matrix.project }}/build/bootloader/bootloader.bin
-            firmware/${{ matrix.project }}/build/partition_table/partition-table.bin
-            firmware/${{ matrix.project }}/build/flash_args
+          name: usb-package-${{ matrix.profile }}
+          path: firmware/${{ matrix.project }}/build/usb-package-${{ matrix.profile }}/
+          retention-days: 14
+
+  setup-browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:setup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: setup-mobile
+          path: /tmp/smartplant-setup-mobile.png
           retention-days: 14

@@ -2,6 +2,7 @@
 #include "sp_internal.h"
 #include "sp_service.h"
 #include "sp_web.h"
+#include "sp_setup.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -414,7 +415,7 @@ void sp_platform_run(bool hub) {
     if (flags >= 0)
         (void)fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
-    uint64_t periodic_at = 0, last_command_at = 0, sensor_at = 0;
+    uint64_t periodic_at = 0, last_command_at = 0, sensor_at = 0, discovery_at = 0;
     unsigned sensor_slot = 0;
     unsigned periodic_peer = 0;
     for (;;) {
@@ -422,7 +423,7 @@ void sp_platform_run(bool hub) {
         sp_radio_process();
         if (api) {
             sp_api_tick(api, now, utc_ms(now));
-            if (web_request && sp_web_take(web_request))
+            if (web_request && sp_web_take(web_request) && !sp_setup_handle(&identity, api, web_request))
                 sp_api_handle(api, web_request);
         }
         if (!hub) {
@@ -457,6 +458,12 @@ void sp_platform_run(bool hub) {
             }
         }
         poll_console();
+        if (hub && now >= discovery_at) {
+            for (unsigned i = 0; i < identity.count; i++)
+                if (!sp_registry_online(&registry[i], now))
+                    hello(i);
+            discovery_at = now + 500;
+        }
         if (!hub && sensors.count && now >= sensor_at) {
             sp_message_t m;
             sp_sensor_message(&sensors.drivers[sensor_slot], now, &m);
@@ -464,7 +471,7 @@ void sp_platform_run(bool hub) {
             sensor_slot = (sensor_slot + 1) % sensors.count;
             sensor_at = now + 500;
         }
-        if (now >= periodic_at) {
+        if (identity.count && now >= periodic_at) {
             unsigned i = periodic_peer;
             hello(i);
             sp_message_t m;

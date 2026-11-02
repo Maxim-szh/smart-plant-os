@@ -1,11 +1,13 @@
 #include "sp_internal.h"
 #include "sp_web.h"
+#include "sp_setup.h"
 #include <stdio.h>
 #include <string.h>
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_now.h"
 #include "esp_timer.h"
+#include "esp_mac.h"
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -29,16 +31,39 @@ static volatile bool home_wifi_enabled;
 #define NODE_HUB_TIMEOUT_MS 5000u
 static uint64_t node_last_hub_rx_ms, node_scan_due_ms;
 static uint8_t node_scan_channel;
+typedef struct {
+    uint8_t mac[6], device[6], lmk[16], app_key[16];
+} link_v1_t;
+typedef struct {
+    uint32_t version, count;
+    uint8_t owner[6];
+    link_v1_t peers[SP_PEER_MAX];
+} links_v1_t;
+typedef struct {
+    char ssid[33], password[64];
+} network_v1_t;
+static network_v1_t trial_network;
+static wifi_config_t previous_network;
+static bool network_trial, previous_enabled;
+static uint64_t network_deadline;
+static const char *network_phase = "idle";
 
 static const char *wifi_disconnect_reason(uint8_t reason) {
     switch (reason) {
-    case WIFI_REASON_NO_AP_FOUND: return "AP_NOT_FOUND";
-    case WIFI_REASON_AUTH_FAIL: return "AUTH_FAIL";
-    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT: return "HANDSHAKE_TIMEOUT";
-    case WIFI_REASON_ASSOC_FAIL: return "ASSOC_FAIL";
-    case WIFI_REASON_BEACON_TIMEOUT: return "BEACON_TIMEOUT";
-    case WIFI_REASON_AUTH_EXPIRE: return "AUTH_EXPIRED";
-    default: return "OTHER";
+    case WIFI_REASON_NO_AP_FOUND:
+        return "AP_NOT_FOUND";
+    case WIFI_REASON_AUTH_FAIL:
+        return "AUTH_FAIL";
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+        return "HANDSHAKE_TIMEOUT";
+    case WIFI_REASON_ASSOC_FAIL:
+        return "ASSOC_FAIL";
+    case WIFI_REASON_BEACON_TIMEOUT:
+        return "BEACON_TIMEOUT";
+    case WIFI_REASON_AUTH_EXPIRE:
+        return "AUTH_EXPIRED";
+    default:
+        return "OTHER";
     }
 }
 
@@ -51,7 +76,8 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         wifi_second_chan_t secondary;
         if (esp_wifi_sta_get_ap_info(&ap) == ESP_OK && esp_wifi_get_channel(&primary, &secondary) == ESP_OK) {
             if (primary < 1 || primary > 11) {
-                printf("Home Wi-Fi channel %u is outside this profile's Node scan range 1-11; using standalone AP\n",
+                printf("Home Wi-Fi channel %u is outside this profile's Node scan range 1-11; using "
+                       "standalone AP\n",
                        primary);
                 home_wifi_enabled = false;
                 xEventGroupSetBits(wifi_events, WIFI_CHANNEL_UNSUPPORTED_BIT);
@@ -65,8 +91,8 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED && home_wifi_enabled) {
         wifi_event_sta_disconnected_t *event = data;
         if (event)
-            printf("Home Wi-Fi disconnected reason=%u (%s) ssid=%s rssi=%d; retrying\n",
-                   event->reason, wifi_disconnect_reason(event->reason), event->ssid, event->rssi);
+            printf("Home Wi-Fi disconnected reason=%u (%s) ssid=%s rssi=%d; retrying\n", event->reason,
+                   wifi_disconnect_reason(event->reason), event->ssid, event->rssi);
         xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT);
         esp_err_t err = esp_wifi_connect();
         if (err != ESP_OK)
@@ -93,23 +119,49 @@ bool sp_identity_load(sp_identity_t *id, bool hub) {
     uint8_t role = 255;
     size_t country_len = sizeof(id->country);
     bool ok = nvs_get_u8(nvs, "role", &role) == ESP_OK && role == (hub ? 1 : 0) &&
-              nvs_get_u8(nvs, "count", &id->count) == ESP_OK && id->count >= 1 && id->count <= SP_PEER_MAX &&
-              (hub || id->count == 1) && nvs_get_u8(nvs, "channel", &id->channel) == ESP_OK &&
-              id->channel >= 1 && id->channel <= 11 &&
+              nvs_get_u8(nvs, "count", &id->count) == ESP_OK && (hub || id->count >= 1) &&
+              id->count <= SP_PEER_MAX && (hub || id->count == 1) &&
+              nvs_get_u8(nvs, "channel", &id->channel) == ESP_OK && id->channel >= 1 && id->channel <= 11 &&
               nvs_get_str(nvs, "country", id->country, &country_len) == ESP_OK && country_len == 3 &&
               blob(nvs, "device", id->self, 6) && nonzero(id->self, 6) && blob(nvs, "plant", id->plant, 16) &&
               blob(nvs, "pmk", id->pmk, 16) && nonzero(id->pmk, 16);
+    links_v1_t links = {0};
+    nvs_handle_t link_store;
+    bool overlay = false;
+    if (hub && nvs_open("links", NVS_READONLY, &link_store) == ESP_OK) {
+        size_t length = sizeof(links);
+        esp_err_t e = nvs_get_blob(link_store, "registry_v1", &links, &length);
+        if (e == ESP_OK) {
+            overlay = length == sizeof(links) && links.version == 1 && links.count <= SP_PEER_MAX &&
+                      !memcmp(links.owner, id->self, 6);
+            if (!overlay)
+                ok = false;
+            else
+                id->count = links.count;
+        } else if (e != ESP_ERR_NVS_NOT_FOUND)
+            ok = false;
+        nvs_close(link_store);
+    }
     for (unsigned i = 0; ok && i < id->count; i++) {
         sp_peer_t *p = &id->peers[i];
         char key[16];
-        snprintf(key, sizeof(key), "p%umac", i);
-        ok = blob(nvs, key, p->mac, 6) && !(p->mac[0] & 1) && nonzero(p->mac, 6);
-        snprintf(key, sizeof(key), "p%uid", i);
-        ok = ok && blob(nvs, key, p->device, 6) && nonzero(p->device, 6);
-        snprintf(key, sizeof(key), "p%ulmk", i);
-        ok = ok && blob(nvs, key, p->lmk, 16) && nonzero(p->lmk, 16);
-        snprintf(key, sizeof(key), "p%uapp", i);
-        ok = ok && blob(nvs, key, p->app_key, 16) && nonzero(p->app_key, 16);
+        if (overlay) {
+            memcpy(p->mac, links.peers[i].mac, 6);
+            memcpy(p->device, links.peers[i].device, 6);
+            memcpy(p->lmk, links.peers[i].lmk, 16);
+            memcpy(p->app_key, links.peers[i].app_key, 16);
+            ok = !(p->mac[0] & 1) && nonzero(p->mac, 6) && nonzero(p->device, 6) && nonzero(p->lmk, 16) &&
+                 nonzero(p->app_key, 16);
+        } else {
+            snprintf(key, sizeof(key), "p%umac", i);
+            ok = blob(nvs, key, p->mac, 6) && !(p->mac[0] & 1) && nonzero(p->mac, 6);
+            snprintf(key, sizeof(key), "p%uid", i);
+            ok = ok && blob(nvs, key, p->device, 6) && nonzero(p->device, 6);
+            snprintf(key, sizeof(key), "p%ulmk", i);
+            ok = ok && blob(nvs, key, p->lmk, 16) && nonzero(p->lmk, 16);
+            snprintf(key, sizeof(key), "p%uapp", i);
+            ok = ok && blob(nvs, key, p->app_key, 16) && nonzero(p->app_key, 16);
+        }
         for (unsigned j = 0; j < i; j++)
             if (!memcmp(p->mac, id->peers[j].mac, 6) || !memcmp(p->device, id->peers[j].device, 6))
                 ok = false;
@@ -178,13 +230,27 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
 
     char ssid[33] = {0}, password[64] = {0};
     nvs_handle_t provision;
-    esp_err_t provision_err = id->hub ? nvs_open("provision", NVS_READONLY, &provision) : ESP_ERR_INVALID_STATE;
+    esp_err_t provision_err =
+        id->hub ? nvs_open("provision", NVS_READONLY, &provision) : ESP_ERR_INVALID_STATE;
     if (id->hub && provision_err == ESP_OK) {
         size_t ssid_size = sizeof(ssid), password_size = sizeof(password);
         esp_err_t ssid_err = nvs_get_str(provision, "home_ssid", ssid, &ssid_size);
         esp_err_t pass_err = nvs_get_str(provision, "home_pass", password, &password_size);
         printf("Wi-Fi NVS read: namespace=provision open=%s ssid=%s pass=%s\n",
                esp_err_to_name(provision_err), esp_err_to_name(ssid_err), esp_err_to_name(pass_err));
+        nvs_handle_t network_store;
+        if (nvs_open("network", NVS_READONLY, &network_store) == ESP_OK) {
+            network_v1_t saved = {0};
+            size_t length = sizeof(saved);
+            esp_err_t saved_err = nvs_get_blob(network_store, "home_v1", &saved, &length);
+            nvs_close(network_store);
+            if (saved_err == ESP_OK && length == sizeof(saved) && memchr(saved.ssid, 0, sizeof(saved.ssid)) &&
+                memchr(saved.password, 0, sizeof(saved.password))) {
+                memcpy(ssid, saved.ssid, sizeof(ssid));
+                memcpy(password, saved.password, sizeof(password));
+                ssid_err = pass_err = ESP_OK;
+            }
+        }
         bool has_home_wifi = ssid_err == ESP_OK && ssid[0];
         if (has_home_wifi && pass_err == ESP_OK && password[0]) {
             printf("Connecting to home Wi-Fi ssid=%s\n", ssid);
@@ -211,8 +277,7 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     if (home_wifi_enabled) {
         TRY(esp_wifi_connect());
         EventBits_t bits = xEventGroupWaitBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT,
-                                               pdFALSE, pdFALSE,
-                                               pdMS_TO_TICKS(20000));
+                                               pdFALSE, pdFALSE, pdMS_TO_TICKS(20000));
         if (!(bits & WIFI_CONNECTED_BIT)) {
             printf("Home Wi-Fi unavailable or unsupported; continuing in setup mode on fallback channel=%u\n",
                    id->channel);
@@ -220,7 +285,7 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
             xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
             (void)esp_wifi_disconnect();
             vTaskDelay(pdMS_TO_TICKS(100));
-            TRY(esp_wifi_set_mode(WIFI_MODE_AP));
+            TRY(esp_wifi_set_mode(WIFI_MODE_APSTA));
             TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
         }
     } else {
@@ -229,7 +294,8 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     TRY(esp_now_init());
     TRY(esp_now_set_pmk(id->pmk));
     for (unsigned i = 0; i < id->count; i++) {
-        /* Channel 0 means the peer uses the current radio channel; this allows discovery after router changes. */
+        /* Channel 0 means the peer uses the current radio channel; this allows discovery after router
+         * changes. */
         esp_now_peer_info_t peer = {.channel = 0, .ifidx = WIFI_IF_STA, .encrypt = true};
         memcpy(peer.peer_addr, id->peers[i].mac, 6);
         memcpy(peer.lmk, id->peers[i].lmk, 16);
@@ -250,16 +316,62 @@ void sp_radio_process(void) {
     if (!radio_ok || !identity)
         return;
     if (identity->hub) {
+        if (network_trial) {
+            uint64_t now = (uint64_t)esp_timer_get_time() / 1000;
+            EventBits_t bits = xEventGroupGetBits(wifi_events);
+            wifi_ap_record_t current_ap = {0};
+            bool trial_connected = (bits & WIFI_CONNECTED_BIT) &&
+                                   esp_wifi_sta_get_ap_info(&current_ap) == ESP_OK &&
+                                   strlen(trial_network.ssid) == strnlen((const char *)current_ap.ssid, 32) &&
+                                   !memcmp(trial_network.ssid, current_ap.ssid, strlen(trial_network.ssid));
+            if (trial_connected) {
+                nvs_handle_t store;
+                bool saved = nvs_open("network", NVS_READWRITE, &store) == ESP_OK;
+                if (saved) {
+                    saved = nvs_set_blob(store, "home_v1", &trial_network, sizeof(trial_network)) == ESP_OK &&
+                            nvs_commit(store) == ESP_OK;
+                    nvs_close(store);
+                }
+                if (saved) {
+                    network_trial = false;
+                    network_phase = "connected";
+                    memset(&trial_network, 0, sizeof(trial_network));
+                    memset(&previous_network, 0, sizeof(previous_network));
+                } else {
+                    network_deadline = 0;
+                    network_phase = "storage_error";
+                }
+            }
+            if (network_trial && (now >= network_deadline || (bits & WIFI_CHANNEL_UNSUPPORTED_BIT))) {
+                network_trial = false;
+                if (strcmp(network_phase, "storage_error"))
+                    network_phase = "failed";
+                home_wifi_enabled = false;
+                (void)esp_wifi_disconnect();
+                xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
+                vTaskDelay(pdMS_TO_TICKS(100));
+                (void)esp_wifi_set_mode(WIFI_MODE_APSTA);
+                (void)esp_wifi_set_config(WIFI_IF_STA, &previous_network);
+                home_wifi_enabled = previous_enabled;
+                if (home_wifi_enabled)
+                    (void)esp_wifi_connect();
+                else
+                    (void)esp_wifi_set_channel(identity->channel, WIFI_SECOND_CHAN_NONE);
+                memset(&trial_network, 0, sizeof(trial_network));
+                memset(&previous_network, 0, sizeof(previous_network));
+            }
+        }
         if (!wifi_events || !(xEventGroupGetBits(wifi_events) & WIFI_CHANNEL_UNSUPPORTED_BIT))
             return;
         xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
         (void)esp_wifi_disconnect();
         vTaskDelay(pdMS_TO_TICKS(100));
-        if (esp_wifi_set_mode(WIFI_MODE_AP) != ESP_OK ||
+        if (esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK ||
             esp_wifi_set_channel(identity->channel, WIFI_SECOND_CHAN_NONE) != ESP_OK)
             puts("Could not restore standalone channel; reboot required");
         else
-            printf("Home Wi-Fi disabled; standalone AP and ESP-NOW restored on channel=%u\n", identity->channel);
+            printf("Home Wi-Fi disabled; standalone AP and ESP-NOW restored on channel=%u\n",
+                   identity->channel);
         return;
     }
     uint64_t now = (uint64_t)esp_timer_get_time() / 1000;
@@ -342,4 +454,118 @@ bool sp_radio_receive(sp_received_t *out) {
     }
     out->peer = i;
     return true;
+}
+
+esp_err_t sp_radio_network_begin(const char *ssid, const char *password) {
+    if (!identity || !identity->hub || !radio_ok || network_trial)
+        return ESP_ERR_INVALID_STATE;
+    if (!ssid || !password || !ssid[0] || strlen(ssid) > 32 || strlen(password) < 8 || strlen(password) > 63)
+        return ESP_ERR_INVALID_ARG;
+    if (esp_wifi_get_config(WIFI_IF_STA, &previous_network) != ESP_OK)
+        return ESP_FAIL;
+    previous_enabled = home_wifi_enabled;
+    memset(&trial_network, 0, sizeof(trial_network));
+    snprintf(trial_network.ssid, sizeof(trial_network.ssid), "%s", ssid);
+    snprintf(trial_network.password, sizeof(trial_network.password), "%s", password);
+    home_wifi_enabled = false;
+    (void)esp_wifi_disconnect();
+    xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
+    vTaskDelay(pdMS_TO_TICKS(100));
+    wifi_config_t sta = {0};
+    memcpy(sta.sta.ssid, ssid, strlen(ssid));
+    memcpy(sta.sta.password, password, strlen(password));
+    network_trial = true;
+    network_phase = "connecting";
+    network_deadline = (uint64_t)esp_timer_get_time() / 1000 + 30000;
+    if (esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK || esp_wifi_set_config(WIFI_IF_STA, &sta) != ESP_OK) {
+        network_deadline = 0;
+        return ESP_FAIL;
+    }
+    home_wifi_enabled = true;
+    if (esp_wifi_connect() != ESP_OK) {
+        network_deadline = 0;
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+void sp_radio_network_json(cJSON *o) {
+    wifi_ap_record_t ap = {0};
+    esp_netif_ip_info_t info = {0};
+    esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    bool connected = wifi_events && (xEventGroupGetBits(wifi_events) & WIFI_CONNECTED_BIT) &&
+                     esp_wifi_sta_get_ap_info(&ap) == ESP_OK && netif &&
+                     esp_netif_get_ip_info(netif, &info) == ESP_OK && info.ip.addr;
+    char ssid[33] = {0}, ip[16] = {0};
+    if (connected) {
+        memcpy(ssid, ap.ssid, 32);
+        snprintf(ip, sizeof(ip), IPSTR, IP2STR(&info.ip));
+    }
+    uint8_t channel = 0;
+    wifi_second_chan_t secondary;
+    (void)esp_wifi_get_channel(&channel, &secondary);
+    cJSON_AddBoolToObject(o, "wifi_connected", connected);
+    cJSON_AddStringToObject(o, "wifi_phase",
+                            network_trial                                 ? "connecting"
+                            : !strcmp(network_phase, "idle") && connected ? "connected"
+                                                                          : network_phase);
+    cJSON_AddStringToObject(o, "ssid", ssid);
+    cJSON_AddStringToObject(o, "ip", ip);
+    cJSON_AddNumberToObject(o, "channel", channel);
+}
+esp_err_t sp_radio_add_peer(const sp_peer_t *peer) {
+    if (!identity || !identity->hub || !radio_ok || identity->count >= SP_PEER_MAX || network_trial)
+        return ESP_ERR_INVALID_STATE;
+    uint8_t self_mac[6];
+    esp_read_mac(self_mac, ESP_MAC_WIFI_STA);
+    if (!memcmp(peer->mac, self_mac, 6) || !memcmp(peer->device, identity->self, 6))
+        return ESP_ERR_INVALID_ARG;
+    for (unsigned i = 0; i < identity->count; i++)
+        if (!memcmp(peer->mac, identity->peers[i].mac, 6) ||
+            !memcmp(peer->device, identity->peers[i].device, 6))
+            return ESP_ERR_INVALID_STATE;
+    if (!nonzero(peer->lmk, 16) || !nonzero(peer->app_key, 16) || !memcmp(peer->lmk, peer->app_key, 16))
+        return ESP_ERR_INVALID_ARG;
+    for (unsigned i = 0; i < identity->count; i++) {
+        const sp_peer_t *p = &identity->peers[i];
+        if (!memcmp(peer->lmk, p->lmk, 16) || !memcmp(peer->app_key, p->app_key, 16) ||
+            !memcmp(peer->lmk, p->app_key, 16) || !memcmp(peer->app_key, p->lmk, 16))
+            return ESP_ERR_INVALID_ARG;
+    }
+    esp_now_peer_info_t radio = {.channel = 0, .ifidx = WIFI_IF_STA, .encrypt = true};
+    memcpy(radio.peer_addr, peer->mac, 6);
+    memcpy(radio.lmk, peer->lmk, 16);
+    esp_err_t err = esp_now_add_peer(&radio);
+    if (err != ESP_OK)
+        return err;
+    links_v1_t links = {.version = 1, .count = identity->count + 1};
+    memcpy(links.owner, identity->self, 6);
+    for (unsigned i = 0; i < links.count; i++) {
+        const sp_peer_t *p = i == identity->count ? peer : &identity->peers[i];
+        memcpy(links.peers[i].mac, p->mac, 6);
+        memcpy(links.peers[i].device, p->device, 6);
+        memcpy(links.peers[i].lmk, p->lmk, 16);
+        memcpy(links.peers[i].app_key, p->app_key, 16);
+    }
+    nvs_handle_t store;
+    err = nvs_open("links", NVS_READWRITE, &store);
+    if (err == ESP_OK) {
+        err = nvs_set_blob(store, "registry_v1", &links, sizeof(links));
+        if (err == ESP_OK)
+            err = nvs_commit(store);
+        nvs_close(store);
+    }
+    if (err != ESP_OK) {
+        (void)esp_now_del_peer(peer->mac);
+        return err;
+    }
+    identity->peers[identity->count++] = *peer;
+    return ESP_OK;
+}
+
+uint8_t sp_radio_channel(void) {
+    uint8_t channel = 0;
+    wifi_second_chan_t secondary;
+    return esp_wifi_get_channel(&channel, &secondary) == ESP_OK && channel >= 1 && channel <= 11 ? channel
+           : identity ? identity->channel
+                      : 6;
 }

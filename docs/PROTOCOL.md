@@ -1,5 +1,7 @@
 # Локальный контракт v1
 
+> Обновление 2026-11-02: добавлены [мастер USB и страница первого запуска](SETUP.md), настройка Wi-Fi и USB-assisted привязка новых C3. Контракт: [Setup API v1](../spec/setup/v1/README.md), решение: [ADR-0013](adr/0013-setup-and-preserving-updates.md). Это код для стенда; аппаратная проверка новых сценариев ещё требуется.
+
 Стендовый HTTPS-сервер и JSON-адаптер реализованы на Hub; границы и доступ — в [ADR-0012](adr/0012-bench-web-and-sensor-registry.md). Внутренний [SPP](../spec/spp/v1/README.md) остаётся отдельным контрактом. [Матрица готовности](FIRMWARE.md) различает код, host-проверки и ещё не выполненные аппаратные испытания.
 
 Добавлены причины `command_expired`, `command_conflict`, `storage_fault`, `watering_no_response` и необязательное `State.watering.safety_reserved_ml`. Последнее — консервативный защитный резерв ([ADR-0011](adr/0011-conservative-water-accounting.md)), не поданный объём и не замена `daily_estimated_ml`. Пример отказа находится в [command-rejected.json](../spec/v1/examples/command-rejected.json). Числовой reason=0 в SPP преобразуется в null, enum нельзя выдавать числом в публичном JSON.
