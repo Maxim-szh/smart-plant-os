@@ -1,9 +1,20 @@
 'use strict';
 const $ = selector => document.querySelector(selector);
-let token = '', timer = null, busy = false, pendingSsid = null;
+let token = '', timer = null, busy = false, pendingSsid = null, changingWifi = false;
+const viaSetupAP = location.hostname === '192.168.4.1';
 const phase = {idle:'Домашняя сеть ещё не настроена',connecting:'Проверяем новую сеть…',connected:'Подключено',failed:'Новая сеть недоступна. Прежняя конфигурация сохранена.',storage_error:'Не удалось сохранить настройки. Прежняя конфигурация восстановлена.'};
 const message = text => { $('#message').textContent = text; };
-function session() { $('#login').hidden = !!token; $('#dashboard').hidden = !token; if (!token) {clearTimeout(timer); timer = null;} }
+function session() {
+  if (!token) {
+    for (const id of ['network-panel','ready-panel','management']) $(`#${id}`).hidden = true;
+    setStep('login');
+  } $('#login').hidden = !!token; $('#dashboard').hidden = !token; if (!token) {clearTimeout(timer); timer = null;} }
+function setStep(step) {
+  for (const id of ['login','wifi','ready']) {
+    const el = $(`#step-${id}`);
+    if (id === step) el.setAttribute('aria-current','step'); else el.removeAttribute('aria-current');
+  }
+}
 async function request(path, method = 'GET', body) {
   const headers = {}; if (token) headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -21,16 +32,26 @@ async function refresh() {
   if (!token) return;
   try {
     const data = await request('/setup');
+    const ready = data.wifi_connected && data.wifi_phase === 'connected' &&
+      /^(\d{1,3}\.){3}\d{1,3}$/.test(data.ip) && data.ip.split('.').every(n => +n <= 255);
+    $('#network-panel').hidden = ready && !changingWifi;
+    $('#ready-panel').hidden = !ready || changingWifi;
+    $('#management').hidden = !ready || viaSetupAP || changingWifi;
+    setStep(ready && !changingWifi ? 'ready' : 'wifi');
+    const open = $('#open-plants'); open.hidden = !ready;
+    if (ready) {open.href = `https://${data.ip}/`; $('#home-address').textContent = `https://${data.ip}/`;}
+    else {open.removeAttribute('href'); $('#home-address').textContent = '';}
     $('#network-status').textContent = phase[data.wifi_phase] || data.wifi_phase;
     if (pendingSsid !== null) {
       if (data.wifi_phase === 'failed' || data.wifi_phase === 'storage_error') {message(phase[data.wifi_phase]);pendingSsid = null;}
-      else if (data.wifi_connected && data.ssid === pendingSsid && data.wifi_phase === 'connected') {message('Подключение к выбранной сети подтверждено. Адрес Hub указан ниже.');pendingSsid = null;}
+      else if (data.wifi_connected && data.ssid === pendingSsid && data.wifi_phase === 'connected') {message('Подключение подтверждено. Подключите телефон к домашней сети и откройте адрес Hub ниже. Точка SmartPlantOS скоро выключится.');pendingSsid = null;}
     }
     $('#ssid-value').textContent = data.ssid || '—';
     $('#channel-value').textContent = data.channel || '—';
+    $('#ap-value').textContent = data.setup_ap_enabled === undefined ? '—' : data.setup_ap_enabled ? 'Включена' : 'Выключена';
     const ip = $('#ip-value'); ip.replaceChildren();
     if (data.wifi_connected && /^\d{1,3}(\.\d{1,3}){3}$/.test(data.ip)) {
-      const a = document.createElement('a'); a.href = `https://${data.ip}/setup`; a.textContent = data.ip; ip.append(a);
+      const a = document.createElement('a'); a.href = `https://${data.ip}/`; a.textContent = data.ip; ip.append(a);
     } else ip.textContent = '—';
     $('#wifi-button').disabled = data.wifi_phase === 'connecting';
     $('#nodes').replaceChildren(...data.nodes.map(node => {const li = document.createElement('li');li.textContent = node.device_id;return li;}));
@@ -52,7 +73,7 @@ $('#access-file').onchange = async () => {
 };
 $('#login-form').onsubmit = e => {e.preventDefault();action($('#login-button'), async () => {
   const password = $('#admin').value; $('#admin').value = '';
-  token = (await request('/session','POST',{password})).token; session();message('Вход выполнен. Настройте сеть или добавьте растение.');await refresh();
+  token = (await request('/session','POST',{password})).token; session();message('Устройство подтверждено. Проверяем настройки сети…');await refresh();
 });};
 $('#wifi-form').onsubmit = e => {e.preventDefault();action($('#wifi-button'), async () => {
   const ssid = $('#ssid').value, password = $('#wifi-password').value;
@@ -60,6 +81,7 @@ $('#wifi-form').onsubmit = e => {e.preventDefault();action($('#wifi-button'), as
   if (!/^[\x20-\x7e]{8,63}$/.test(password)) throw new Error('Пароль: 8–63 печатных ASCII-символа');
   $('#wifi-password').value = '';
   message('Подключаемся. При отключении телефона повторно выберите SmartPlantOS.');
+  changingWifi = false;
   pendingSsid = ssid;
   try {await request('/setup/wifi','POST',{ssid,password});}
   catch(e) {
@@ -78,5 +100,6 @@ $('#pair-form').onsubmit = e => {e.preventDefault();action($('#pair-button'),asy
   const data = JSON.parse(await file.text());$('#pairing').value = '';
   await request('/setup/peers','POST',data);message('Контроллер добавлен. Его связь и состояние доступны в API Hub.');await refresh();
 });};
+$('#change-wifi').onclick = () => {changingWifi = true; $('#network-panel').hidden = false; $('#ready-panel').hidden = true; $('#management').hidden = true; setStep('wifi'); $('#ssid').focus();};
 $('#logout').onclick = () => action($('#logout'),async () => {try {await request('/session','DELETE');} finally {token='';session();message('Сеанс завершён.');}});
 session();

@@ -14,6 +14,7 @@ import sys
 import tempfile
 import uuid
 import secrets
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 PROFILES = {'n8r2': ('esp32s3', 9, 8), 'n16r8': ('esp32s3', 9, 16), 'c3': ('esp32c3', 5, 4)}
@@ -162,9 +163,46 @@ def prepare_node(port,passport_file,bundle):
     tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x30000',files['app'],'0x9000',output/'node.nvs.bin')
     print(f'Готово. На странице /setup вашего Hub загрузите {output/"node-pairing.json"}\nЭто приватный файл. GPIO остаются неназначенными.')
 
+def factory_reset(port,profile):
+    chip=PROFILES[profile][0];mac=detect(port,profile)
+    with tempfile.TemporaryDirectory() as directory:
+        path=Path(directory)/'partitions.bin';read_region(port,chip,0x8000,0x1000,path)
+        data=path.read_bytes();parse_partitions(data)
+        found=False
+        for offset in range(0,len(data),32):
+            row=data[offset:offset+32]
+            if len(row)!=32 or struct.unpack_from('<H',row)[0]!=0x50aa:break
+            _,kind,subtype,address,size,label,_=struct.unpack('<HBBLL16sL',row)
+            if label.rstrip(b'\0')==b'nvs' and kind==1 and subtype==2 and address==0x9000 and size==0x20000:found=True
+        if not found:raise ValueError('Не найдена ожидаемая область NVS. Сброс отменён.')
+    print('Заводской сброс удалит ключи, привязки, настройки и историю этой платы. Затем нужна новая установка с новыми ключами.')
+    if input(f'Для сброса введите RESET {mac}: ').strip()!=f'RESET {mac}':print('Отменено.');return
+    tool('--chip',chip,'--port',port,'erase_region','0x9000','0x20000')
+    print('NVS очищен. Приложение сохранено. Выполните первую установку; старый NVS не восстанавливайте.')
+
+def setup_ap(port):
+    import serial
+    connection=serial.Serial(baudrate=115200,timeout=0.2)
+    connection.dtr=False;connection.rts=False;connection.port=port
+    with connection:
+        time.sleep(0.2);connection.write(b'\nsetup-ap\n');deadline=time.monotonic()+8
+        while time.monotonic()<deadline:
+            line=connection.readline().decode('utf-8',errors='replace').strip()
+            if line.startswith('OK setup-ap'):print('Точка SmartPlantOS открыта. Пароль smartplantos. Окно восстановления — 5 минут.');return
+            if line.startswith('ERR setup-ap'):raise ValueError(line)
+    raise ValueError('Нет ответа. Дождитесь загрузки Hub или обновите прошивку с поддержкой setup-ap.')
+
+def new_node(port,bundle):
+    """Install a fresh discoverable C3; firmware creates its own local identity once."""
+    profile='c3';chip='esp32c3';detect(port,profile);require_blank_nvs(port,chip)
+    files=load_bundle(bundle,profile)
+    if input('Новый C3 без привязки. GPIO отключены. Введите INSTALL: ').strip()!='INSTALL':print('Отменено.');return
+    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x30000',files['app'])
+    print('C3 готов. Откройте приложение Hub → Добавить контроллер → Найти рядом. Поиск доступен первые 2 минуты после включения C3.')
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',nargs='?',choices=['install','update','prepare-node','ports'])
+    parser.add_argument('action',nargs='?',choices=['install','update','prepare-node','ports','factory-reset','setup-ap','new-node'])
     parser.add_argument('--port');parser.add_argument('--profile',choices=PROFILES)
     parser.add_argument('--bundle',type=Path);parser.add_argument('--passport',type=Path)
     args=parser.parse_args()
@@ -172,19 +210,22 @@ def main():
         for p in ports():print(f'{p.device}\t{p.description}')
         return
     if not args.action:
-        print('Smart Plant OS\n1. Первая установка Hub\n2. Обновить прошивку с сохранением настроек\n3. Подготовить новый C3 для добавления через веб-интерфейс')
-        args.action={'1':'install','2':'update','3':'prepare-node'}.get(input('Выберите действие: ').strip())
+        print('Smart Plant OS\n1. Первая установка Hub\n2. Обновить прошивку с сохранением настроек\n3. Установить новый C3 для автоматического поиска\n4. Заводской сброс платы\n5. Открыть точку доступа Hub по USB')
+        args.action={'1':'install','2':'update','3':'new-node','4':'factory-reset','5':'setup-ap'}.get(input('Выберите действие: ').strip())
         if not args.action:raise ValueError('Неверное действие')
     print("USB-проба перезапускает плату. Перед работой отключите питание насоса и других нагрузок.")
     args.port=args.port or choose_port()
-    args.profile='c3' if args.action=='prepare-node' else args.profile or input('Профиль платы (n8r2 / n16r8 / c3): ').strip().lower()
+    if args.action=='setup-ap':setup_ap(args.port);return
+    args.profile='c3' if args.action in {'prepare-node','new-node'} else args.profile or input('Профиль платы (n8r2 / n16r8 / c3): ').strip().lower()
     if args.profile not in PROFILES or (args.action=='install' and args.profile=='c3'):raise ValueError('Выберите n8r2/n16r8 для Hub или prepare-node для нового C3')
+    if args.action=='factory-reset':factory_reset(args.port,args.profile);return
     if not args.bundle:
         path=input('Каталог USB-пакета (Enter — собрать из исходников через ESP-IDF): ').strip()
         args.bundle=Path(path) if path else source_build(args.profile)
     load_bundle(args.bundle,args.profile)
     if args.action=='update':update(args.port,args.profile,args.bundle)
     elif args.action=='install':fresh_hub(args.port,args.profile,args.bundle)
+    elif args.action=='new-node':new_node(args.port,args.bundle)
     else:prepare_node(args.port,args.passport or input('Путь к hub-passport.json: ').strip(),args.bundle)
 
 if __name__=='__main__':

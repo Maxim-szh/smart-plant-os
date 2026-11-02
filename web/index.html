@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Smart Plant OS</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,6 +32,7 @@
   --ok:#7ACB92;--warn:#EDB655;--danger:#FF8A80;
   --sky:#1E2A25;--soil:#5B4A3A;--shadow:none;--shine:rgba(255,255,255,.07);--leaf-hi:#6EBB92;--leaf-lo:#357B5A;--fruit:#E5604D;--fruit-hi:#F9A090;--fruit-lo:#A5342A;--bloom:#EE8FB0;--bloom-hi:#FAD2E0;--pot:#B07A5A;--dirt:#4A382A;color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
 body{background:var(--bg);color:var(--tx);font:400 16px/1.5 var(--body);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
 button,select,input{font:inherit;color:inherit}
@@ -353,6 +359,8 @@ button.row.it{justify-content:flex-start;gap:14px}button.row.it>div{flex:1}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
  .demo-banner{margin:12px 0 4px;padding:11px 15px;border:1px solid color-mix(in srgb,var(--warn) 34%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--warn) 9%,var(--surface));color:var(--tx2);font-size:13px}.demo-banner b{color:var(--warn)}
 </style>
+</head>
+<body>
 
 <div class="app" id="app">
   <aside class="rail" id="rail" aria-label="Разделы"></aside>
@@ -360,7 +368,7 @@ button.row.it{justify-content:flex-start;gap:14px}button.row.it>div{flex:1}
     <div class="top">
       <div class="brand"><i></i>Smart Plant</div><a class="btn" href="/setup">Настройка Hub</a>
     </div>
-    <div class="demo-banner" role="note"><b>Предварительный макет.</b> Данные демонстрационные. Интерфейс пока не управляет ESP32 и насосом.</div>
+    <div class="demo-banner" role="note"><b>Предварительный макет.</b> Карточки ухода демонстрационные. Подключение контроллеров работает; команды полива из макета не отправляются.</div>
     <main id="view" tabindex="-1"></main>
   </div>
 </div>
@@ -385,3 +393,6 @@ button.row.it{justify-content:flex-start;gap:14px}button.row.it>div{flex:1}
 <g mask="url(#mmask)"><path d="M0 0C-4 6-22 4-27-12C-31-28-16-42 0-49C16-42 31-28 27-12C22 4 4 6 0 0Z" fill="url(#lf)"/><path d="M0 0C4 6 22 4 27-12C31-28 16-42 0-49C4-34 4-14 0 0Z" fill="var(--leaf-lo)" opacity=".35"/></g></g>
 </defs></svg>
 <script src="/app.js" defer></script>
+<script src="/pairing.js" defer></script>
+
+</body></html>

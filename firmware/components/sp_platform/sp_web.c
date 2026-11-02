@@ -1,4 +1,5 @@
 #include "sp_web.h"
+#include "sp_web_address.h"
 #include "sdkconfig.h"
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +8,7 @@
 #include "esp_https_server.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "lwip/sockets.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "nvs.h"
@@ -22,6 +24,8 @@ extern const uint8_t setup_start[] asm("_binary_setup_html_start");
 extern const uint8_t setup_end[] asm("_binary_setup_html_end");
 extern const uint8_t setup_js_start[] asm("_binary_setup_js_start");
 extern const uint8_t setup_js_end[] asm("_binary_setup_js_end");
+extern const uint8_t pairing_js_start[] asm("_binary_pairing_js_start");
+extern const uint8_t pairing_js_end[] asm("_binary_pairing_js_end");
 static QueueHandle_t incoming, outgoing;
 static char password[65], token[65];
 static int64_t expires, attempt_window;
@@ -64,14 +68,14 @@ bool sp_web_ap(unsigned channel) {
     nvs_handle_t h;
     if (nvs_open("web", NVS_READONLY, &h) != ESP_OK)
         return false;
-    char *ap = setting(h, "ap_pass"), *admin = setting(h, "admin");
+    char *admin = setting(h, "admin");
     nvs_close(h);
     size_t admin_len = admin ? strlen(admin) : 0;
-    bool valid = ap && admin && strlen(ap) >= 12 && strlen(ap) <= 63 && (admin_len == 32 || admin_len == 64);
+    bool valid = admin && (admin_len == 32 || admin_len == 64);
     if (valid) {
         wifi_config_t c = {0};
         snprintf((char *)c.ap.ssid, sizeof(c.ap.ssid), "SmartPlantOS");
-        snprintf((char *)c.ap.password, sizeof(c.ap.password), "%s", ap);
+        snprintf((char *)c.ap.password, sizeof(c.ap.password), "%s", SP_SETUP_AP_PASSWORD);
         c.ap.channel = channel;
         c.ap.max_connection = 3;
         c.ap.authmode = WIFI_AUTH_WPA2_PSK;
@@ -80,7 +84,6 @@ bool sp_web_ap(unsigned channel) {
         if (valid)
             snprintf(password, sizeof(password), "%s", admin);
     }
-    free(ap);
     free(admin);
     if (!valid)
         (void)esp_wifi_set_mode(WIFI_MODE_STA);
@@ -123,6 +126,28 @@ static bool body(httpd_req_t *r, char *out) {
     out[n] = 0;
     return true;
 }
+/* Decide by the accepted socket, never by an untrusted Host header.
+ * The setup AP always serves the wizard, including during recovery. */
+static bool home_interface(httpd_req_t *r) {
+    struct sockaddr_storage local = {0};
+    socklen_t length = sizeof(local);
+    esp_netif_ip_info_t ip = {0};
+    esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    if (!sta || esp_netif_get_ip_info(sta, &ip) != ESP_OK || !ip.ip.addr ||
+        getsockname(httpd_req_to_sockfd(r), (struct sockaddr *)&local, &length) != 0)
+        return false;
+    if (local.ss_family == AF_INET && length >= sizeof(struct sockaddr_in)) {
+        const struct sockaddr_in *v4 = (const struct sockaddr_in *)&local;
+        return sp_web_home_address((const uint8_t *)&v4->sin_addr, 4, (const uint8_t *)&ip.ip.addr);
+    }
+#if CONFIG_LWIP_IPV6
+    if (local.ss_family == AF_INET6 && length >= sizeof(struct sockaddr_in6)) {
+        const struct sockaddr_in6 *v6 = (const struct sockaddr_in6 *)&local;
+        return sp_web_home_address((const uint8_t *)&v6->sin6_addr, 16, (const uint8_t *)&ip.ip.addr);
+    }
+#endif
+    return false;
+}
 static esp_err_t handle(httpd_req_t *r) {
     httpd_resp_set_hdr(r, "Cache-Control", "no-store");
     httpd_resp_set_hdr(r, "X-Content-Type-Options", "nosniff");
@@ -138,12 +163,21 @@ static esp_err_t handle(httpd_req_t *r) {
         return httpd_resp_send(r, (const char *)setup_js_start, setup_js_end - setup_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/")) {
+        if (!home_interface(r)) {
+            httpd_resp_set_status(r, "303 See Other");
+            httpd_resp_set_hdr(r, "Location", "/setup");
+            return httpd_resp_sendstr(r, "");
+        }
         httpd_resp_set_type(r, "text/html; charset=utf-8");
         return httpd_resp_send(r, (const char *)page_start, page_end - page_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/live.js")) {
         httpd_resp_set_type(r, "application/javascript");
         return httpd_resp_send(r, (const char *)script_start, script_end - script_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/pairing.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)pairing_js_start, pairing_js_end - pairing_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/app.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
@@ -186,19 +220,41 @@ static esp_err_t handle(httpd_req_t *r) {
         for (unsigned i = 0; i < 32; i++)
             snprintf(token + 2 * i, 3, "%02x", random[i]);
         expires = now + 900000;
+        char cookie[160];
+        snprintf(cookie, sizeof(cookie),
+                 "sp_session=%s; Path=/; Max-Age=900; HttpOnly; Secure; SameSite=Strict", token);
+        httpd_resp_set_hdr(r, "Set-Cookie", cookie);
         char result[150];
         snprintf(result, sizeof(result), "{\"schema_version\":1,\"token\":\"%s\",\"expires_in\":900}", token);
         return send_json(r, 200, result);
     }
-    char auth[80];
-    if (now >= expires || httpd_req_get_hdr_value_str(r, "Authorization", auth, sizeof(auth)) != ESP_OK ||
-        strncmp(auth, "Bearer ", 7) || !equal(auth + 7, token)) {
+    char auth[80], cookie[256];
+    bool authorized = httpd_req_get_hdr_value_str(r, "Authorization", auth, sizeof(auth)) == ESP_OK &&
+                      !strncmp(auth, "Bearer ", 7) && equal(auth + 7, token);
+    if (!authorized && httpd_req_get_hdr_value_str(r, "Cookie", cookie, sizeof(cookie)) == ESP_OK) {
+        char *p = cookie;
+        while (*p) {
+            while (*p == ' ' || *p == ';')
+                p++;
+            char *end = strchr(p, ';');
+            if (end)
+                *end = 0;
+            if (!strncmp(p, "sp_session=", 11) && equal(p + 11, token))
+                authorized = true;
+            if (!end)
+                break;
+            p = end + 1;
+        }
+    }
+    if (now >= expires || !authorized) {
         free(q);
         return fail(r, 401, "unauthorized");
     }
     if (r->method == HTTP_DELETE && !strcmp(r->uri, "/api/v1/session")) {
         token[0] = 0;
         expires = 0;
+        httpd_resp_set_hdr(r, "Set-Cookie",
+                           "sp_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict");
         free(q);
         return send_json(r, 200, "{\"schema_version\":1}");
     }

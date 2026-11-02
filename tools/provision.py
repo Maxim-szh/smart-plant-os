@@ -74,11 +74,11 @@ def generate(args):
                 .sign(private, hashes.SHA256()))
             cert.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
             key.write_bytes(private.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
-            web = {"admin": secrets.token_hex(32), "ap_pass": secrets.token_urlsafe(18),
+            web = {"admin": secrets.token_hex(32), "ap_pass": "smartplantos",
                    "cert": cert.read_text(encoding="utf-8"), "key": key.read_text(encoding="utf-8")}
             fingerprint = "SHA256 Fingerprint=" + ":".join(f"{b:02X}" for b in certificate.fingerprint(hashes.SHA256()))
             with (args.output / "access.json").open("x", encoding="utf-8") as access:
-                json.dump({"setup_wifi": "SmartPlantOS", "url": "https://192.168.4.1",
+                json.dump({"setup_wifi": "SmartPlantOS", "url": "https://192.168.4.1/setup",
                            "setup_wifi_password": web["ap_pass"], "admin_password": web["admin"],
                            "home_wifi_ssid": wifi_ssid or None, "certificate_sha256": fingerprint}, access, indent=2)
         pmk = secrets.token_bytes(16)
@@ -123,6 +123,9 @@ def generate(args):
                 csv.writer(output).writerows(rows)
             manifest["devices"].append({"name": name, "mac": address.hex(":"), "device_id": "spo-" + devices[index].hex(),
                 "plant_id": str(uuid.UUID(bytes=plants[index])), "hardware_enabled": bool(not role and args.pins)})
+        passport = {"format": 1, "hub_id": "spo-" + devices[0].hex(), "hub_mac": args.hub_mac.hex(":"), "country": args.country, "channel": args.channel}
+        with (args.output / "hub-passport.json").open("x", encoding="utf-8") as output:
+            json.dump(passport, output, indent=2)
         with (args.output / "manifest.json").open("x", encoding="utf-8") as output:
             json.dump(manifest, output, indent=2)
             output.write("\n")

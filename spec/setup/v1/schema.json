@@ -154,6 +154,9 @@
               }
             }
           }
+        },
+        "setup_ap_enabled": {
+          "type": "boolean"
         }
       }
     },
@@ -166,6 +169,84 @@
       "properties": {
         "schema_version": {
           "const": 1
+        }
+      }
+    },
+    "DiscoveryStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "phase",
+        "remaining_seconds",
+        "selected_device_id",
+        "pending",
+        "security_mode",
+        "candidates"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "phase": {
+          "enum": [
+            "idle",
+            "searching",
+            "connecting",
+            "waiting_device",
+            "storage_error",
+            "paired",
+            "unavailable"
+          ]
+        },
+        "remaining_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 120
+        },
+        "selected_device_id": {
+          "type": "string",
+          "pattern": "^(|spo-[0-9a-f]{12})$"
+        },
+        "pending": {
+          "type": "boolean"
+        },
+        "security_mode": {
+          "const": "first_use_unverified"
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "device_id",
+              "model"
+            ],
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "pattern": "^spo-[0-9a-f]{12}$"
+              },
+              "model": {
+                "const": "ESP32-C3"
+              }
+            }
+          }
+        }
+      }
+    },
+    "DiscoveryConnect": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_id"
+      ],
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "pattern": "^spo-[0-9a-f]{12}$"
         }
       }
     }

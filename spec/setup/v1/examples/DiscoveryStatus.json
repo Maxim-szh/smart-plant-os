@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "phase": "searching",
+  "remaining_seconds": 118,
+  "selected_device_id": "",
+  "pending": false,
+  "security_mode": "first_use_unverified",
+  "candidates": [
+    {
+      "device_id": "spo-010203040506",
+      "model": "ESP32-C3"
+    }
+  ]
+}
