@@ -3,6 +3,19 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+void sp_pairing_json(cJSON *o) {
+    cJSON_AddStringToObject(o, "phase", "idle");
+}
+esp_err_t sp_pairing_open(void) {
+    return ESP_OK;
+}
+esp_err_t sp_pairing_retry(void) {
+    return ESP_OK;
+}
+esp_err_t sp_pairing_begin(const uint8_t *device) {
+    (void)device;
+    return ESP_OK;
+}
 static cJSON *output;
 static int status, wifi_calls, pair_calls;
 static esp_err_t result;
@@ -95,6 +108,18 @@ int main(void) {
     assert(status == 400 && pair_calls == 2);
     request(&id, &api, "GET", "/api/v1/setup/unknown", NULL);
     assert(status == 404);
+    request(&id, &api, "GET", "/api/v1/setup/pairing", NULL);
+    assert(status == 200);
+    request(&id, &api, "POST", "/api/v1/setup/pairing/search", "{}");
+    assert(status == 202);
+    request(&id, &api, "POST", "/api/v1/setup/pairing/search", "{\"extra\":1}");
+    assert(status == 400);
+    request(&id, &api, "POST", "/api/v1/setup/pairing/connect", "{\"device_id\":\"spo-010203040506\"}");
+    assert(status == 202);
+    request(&id, &api, "POST", "/api/v1/setup/pairing/connect", "{\"device_id\":\"spo-000000000000\"}");
+    assert(status == 400);
+    request(&id, &api, "POST", "/api/v1/setup/pairing/retry", "{}");
+    assert(status == 202);
     cJSON_Delete(output);
     puts("PASS: setup parser, empty Hub, no exported keys, Wi-Fi validation/busy, pairing owner/MAC "
          "validation, duplicate and unknown route");

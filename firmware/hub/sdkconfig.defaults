@@ -17,3 +17,5 @@ CONFIG_COMPILER_OPTIMIZATION_SIZE=y
 
 # Modern browsers (including Safari) exceed the ESP-IDF 512-byte default.
 CONFIG_HTTPD_MAX_REQ_HDR_LEN=4096
+
+CONFIG_MBEDTLS_HKDF_C=y

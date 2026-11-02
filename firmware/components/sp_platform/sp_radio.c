@@ -15,6 +15,8 @@
 #include "freertos/semphr.h"
 #include "freertos/event_groups.h"
 #include "sp_crypto.h"
+#include "sp_pairing.h"
+#include "esp_random.h"
 
 typedef struct {
     uint8_t mac[6], bytes[SP_WIRE_MAX];
@@ -25,6 +27,8 @@ static SemaphoreHandle_t tx_done;
 static EventGroupHandle_t wifi_events;
 static sp_identity_t *identity;
 static bool radio_ok;
+static unsigned rx_packets, rx_unknown, rx_header, rx_auth, rx_valid, tx_attempts, tx_ok;
+static uint64_t diagnostic_at;
 static volatile bool home_wifi_enabled;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_CHANNEL_UNSUPPORTED_BIT BIT1
@@ -139,26 +143,46 @@ bool sp_identity_load(sp_identity_t *id, bool hub) {
     memset(id, 0, sizeof(*id));
     id->hub = hub;
     nvs_handle_t nvs;
-    if (nvs_open("provision", NVS_READONLY, &nvs) != ESP_OK)
+    esp_err_t provision_status = nvs_open("provision", NVS_READONLY, &nvs);
+    if (!hub && provision_status == ESP_ERR_NVS_NOT_FOUND) {
+        /* Fresh empty Node only: never repair, erase or replace an existing identity. */
+        uint8_t device[6], plant[16], pmk[16];
+        esp_fill_random(device, sizeof(device));
+        esp_fill_random(plant, sizeof(plant));
+        esp_fill_random(pmk, sizeof(pmk));
+        plant[6] = (plant[6] & 15) | 0x40;
+        plant[8] = (plant[8] & 63) | 0x80;
+        if (nvs_open("provision", NVS_READWRITE, &nvs) != ESP_OK)
+            return false;
+        bool created = nvs_set_u8(nvs, "role", 0) == ESP_OK && nvs_set_u8(nvs, "count", 0) == ESP_OK &&
+                       nvs_set_u8(nvs, "channel", 6) == ESP_OK &&
+                       nvs_set_str(nvs, "country", "01") == ESP_OK &&
+                       nvs_set_blob(nvs, "device", device, sizeof(device)) == ESP_OK &&
+                       nvs_set_blob(nvs, "plant", plant, sizeof(plant)) == ESP_OK &&
+                       nvs_set_blob(nvs, "pmk", pmk, sizeof(pmk)) == ESP_OK && nvs_commit(nvs) == ESP_OK;
+        nvs_close(nvs);
+        if (!created || nvs_open("provision", NVS_READONLY, &nvs) != ESP_OK)
+            return false;
+    } else if (provision_status != ESP_OK)
         return false;
     uint8_t role = 255;
     size_t country_len = sizeof(id->country);
     bool ok = nvs_get_u8(nvs, "role", &role) == ESP_OK && role == (hub ? 1 : 0) &&
-              nvs_get_u8(nvs, "count", &id->count) == ESP_OK && (hub || id->count >= 1) &&
-              id->count <= SP_PEER_MAX && (hub || id->count == 1) &&
-              nvs_get_u8(nvs, "channel", &id->channel) == ESP_OK && id->channel >= 1 && id->channel <= 11 &&
+              nvs_get_u8(nvs, "count", &id->count) == ESP_OK && id->count <= SP_PEER_MAX &&
+              (hub || id->count <= 1) && nvs_get_u8(nvs, "channel", &id->channel) == ESP_OK &&
+              id->channel >= 1 && id->channel <= 11 &&
               nvs_get_str(nvs, "country", id->country, &country_len) == ESP_OK && country_len == 3 &&
               blob(nvs, "device", id->self, 6) && nonzero(id->self, 6) && blob(nvs, "plant", id->plant, 16) &&
               blob(nvs, "pmk", id->pmk, 16) && nonzero(id->pmk, 16);
     links_v1_t links = {0};
     nvs_handle_t link_store;
     bool overlay = false;
-    if (hub && nvs_open("links", NVS_READONLY, &link_store) == ESP_OK) {
+    if (nvs_open("links", NVS_READONLY, &link_store) == ESP_OK) {
         size_t length = sizeof(links);
         esp_err_t e = nvs_get_blob(link_store, "registry_v1", &links, &length);
         if (e == ESP_OK) {
             overlay = length == sizeof(links) && links.version == 1 && links.count <= SP_PEER_MAX &&
-                      !memcmp(links.owner, id->self, 6);
+                      (hub || links.count <= 1) && !memcmp(links.owner, id->self, 6);
             if (!overlay)
                 ok = false;
             else
@@ -210,7 +234,7 @@ bool sp_identity_load(sp_identity_t *id, bool hub) {
     return true;
 }
 static void on_receive(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
-    if (!info || !data || len < SP_WIRE_HEADER + SP_WIRE_TAG || len > SP_WIRE_MAX)
+    if (!info || !data || len < 5 || len > SP_WIRE_MAX)
         return;
     rx_packet_t p = {.len = (size_t)len};
     memcpy(p.mac, info->src_addr, 6);
@@ -326,6 +350,9 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
         memcpy(peer.lmk, id->peers[i].lmk, 16);
         TRY(esp_now_add_peer(&peer));
     }
+    esp_now_peer_info_t broadcast = {.channel = 0, .ifidx = WIFI_IF_STA, .encrypt = false};
+    memset(broadcast.peer_addr, 0xff, 6);
+    TRY(esp_now_add_peer(&broadcast));
     TRY(esp_now_register_recv_cb(on_receive));
     TRY(esp_now_register_send_cb(on_sent));
     if (!id->hub) {
@@ -338,6 +365,14 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
 #undef TRY
 }
 void sp_radio_process(void) {
+    uint64_t diagnostic_now = (uint64_t)esp_timer_get_time() / 1000;
+    if (identity && identity->count && diagnostic_now < 120000 && diagnostic_now >= diagnostic_at) {
+        diagnostic_at = diagnostic_now + 5000;
+        printf("radio_diag role=%u count=%u enabled=%u channel=%u rx=%u unknown=%u header=%u auth=%u "
+               "valid=%u tx=%u ok=%u\n",
+               identity->hub, identity->count, radio_ok, sp_radio_channel(), rx_packets, rx_unknown,
+               rx_header, rx_auth, rx_valid, tx_attempts, tx_ok);
+    }
     if (!radio_ok || !identity)
         return;
     if (identity->hub) {
@@ -412,6 +447,7 @@ void sp_radio_process(void) {
 bool sp_radio_send(unsigned peer, const sp_message_t *m) {
     if (!radio_ok || peer >= identity->count || identity->tx_sequence == UINT32_MAX)
         return false;
+    tx_attempts++;
     sp_peer_t *p = &identity->peers[peer];
     if (m->value[SP_K_KIND] != SP_HELLO && !p->boot)
         return false;
@@ -421,33 +457,54 @@ bool sp_radio_send(unsigned peer, const sp_message_t *m) {
                      .boot = identity->boot,
                      .sequence = ++identity->tx_sequence,
                      .target_boot = m->value[SP_K_KIND] == SP_HELLO ? 0 : p->boot};
-    if (!sp_frame_seal(p->app_key, &h, m, frame, &len) || esp_now_send(p->mac, frame, len) != ESP_OK)
+    if (!sp_frame_seal(p->app_key, &h, m, frame, &len)) {
+        printf("radio_tx_encode_failed role=%u kind=%u\n", identity->hub, (unsigned)m->value[0]);
         return false;
+    }
+    esp_err_t sent = esp_now_send(p->mac, frame, len);
+    if (sent != ESP_OK) {
+        printf("radio_tx_failed role=%u kind=%u error=%s\n", identity->hub, (unsigned)m->value[0],
+               esp_err_to_name(sent));
+        return false;
+    }
     /* Never send the next frame before completion. A missing callback disables transport,
        rather than misattributing a late callback to the next physical command. */
-    if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE)
+    if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE) {
+        printf("radio_tx_callback_timeout role=%u; transport disabled\n", identity->hub);
         radio_ok = false;
+    }
+    if (radio_ok)
+        tx_ok++;
     return radio_ok;
 }
 bool sp_radio_receive(sp_received_t *out) {
     rx_packet_t packet;
     if (!radio_ok || xQueueReceive(rx_queue, &packet, 0) != pdTRUE)
         return false;
+    rx_packets++;
+    if (sp_pairing_receive(packet.mac, packet.bytes, packet.len))
+        return false;
     unsigned i;
     for (i = 0; i < identity->count; i++)
         if (!memcmp(identity->peers[i].mac, packet.mac, 6))
             break;
-    if (i == identity->count)
+    if (i == identity->count) {
+        rx_unknown++;
         return false;
+    }
     sp_peer_t *p = &identity->peers[i];
     sp_header_t h;
     if (!sp_header_decode(&h, packet.bytes, packet.len) || h.role == identity->hub || h.boot < p->boot ||
-        (h.boot == p->boot && h.sequence <= p->rx_sequence))
+        (h.boot == p->boot && h.sequence <= p->rx_sequence)) {
+        rx_header++;
         return false;
+    }
     if (!sp_frame_open(p->app_key, packet.bytes, packet.len, &h, &out->message) ||
         !sp_header_fresh(&h, identity->hub, identity->boot, p->boot, p->rx_sequence,
-                         out->message.value[0] == SP_HELLO))
+                         out->message.value[0] == SP_HELLO)) {
+        rx_auth++;
         return false;
+    }
     if (out->message.value[SP_K_KIND] == SP_HELLO) {
         if (h.target_boot || !sp_message_has(&out->message, SP_K_DEVICE) ||
             memcmp(out->message.bytes[SP_K_DEVICE - 24], p->device, 6))
@@ -475,6 +532,8 @@ bool sp_radio_receive(sp_received_t *out) {
             node_scan_due_ms = node_last_hub_rx_ms + NODE_HUB_TIMEOUT_MS;
         }
     }
+    rx_valid++;
+    sp_pairing_link_seen(i);
     out->peer = i;
     return true;
 }
@@ -540,7 +599,8 @@ void sp_radio_network_json(cJSON *o) {
     cJSON_AddNumberToObject(o, "channel", channel);
 }
 esp_err_t sp_radio_add_peer(const sp_peer_t *peer) {
-    if (!identity || !identity->hub || !radio_ok || identity->count >= SP_PEER_MAX || network_trial)
+    if (!identity || !radio_ok || identity->count >= SP_PEER_MAX || (!identity->hub && identity->count) ||
+        network_trial)
         return ESP_ERR_INVALID_STATE;
     uint8_t self_mac[6];
     esp_read_mac(self_mac, ESP_MAC_WIFI_STA);
@@ -586,6 +646,10 @@ esp_err_t sp_radio_add_peer(const sp_peer_t *peer) {
         return err;
     }
     identity->peers[identity->count++] = *peer;
+    if (!identity->hub) {
+        node_last_hub_rx_ms = (uint64_t)esp_timer_get_time() / 1000;
+        node_scan_due_ms = node_last_hub_rx_ms + NODE_HUB_TIMEOUT_MS;
+    }
     return ESP_OK;
 }
 
@@ -602,4 +666,52 @@ bool sp_radio_setup_window(void) {
         return false;
     ap_forced_until = (uint64_t)esp_timer_get_time() / 1000 + 300000;
     return true;
+}
+
+bool sp_radio_pair_send(const uint8_t *data, size_t size) {
+    static const uint8_t broadcast[6] = {255, 255, 255, 255, 255, 255};
+    if (!radio_ok || !data || size > 250)
+        return false;
+    if (esp_now_send(broadcast, data, size) != ESP_OK)
+        return false;
+    if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE) {
+        printf("radio_tx_callback_timeout role=%u; transport disabled\n", identity->hub);
+        radio_ok = false;
+    }
+    return radio_ok;
+}
+
+esp_err_t sp_radio_pair_pmk(const uint8_t key[16]) {
+    if (!identity || identity->hub || identity->count != 1 || !radio_ok)
+        return ESP_ERR_INVALID_STATE;
+    if (!memcmp(identity->pmk, key, 16))
+        return ESP_OK;
+    nvs_handle_t h;
+    esp_err_t e = nvs_open("provision", NVS_READWRITE, &h);
+    if (e != ESP_OK)
+        return e;
+    e = nvs_set_blob(h, "pmk", key, 16);
+    if (e == ESP_OK)
+        e = nvs_commit(h);
+    nvs_close(h);
+    if (e != ESP_OK)
+        return e;
+    sp_peer_t *p = &identity->peers[0];
+    esp_now_peer_info_t radio = {.channel = 0, .ifidx = WIFI_IF_STA, .encrypt = true};
+    memcpy(radio.peer_addr, p->mac, 6);
+    memcpy(radio.lmk, p->lmk, 16);
+    e = esp_now_del_peer(p->mac);
+    if (e == ESP_OK)
+        e = esp_now_set_pmk(key);
+    if (e == ESP_OK)
+        e = esp_now_add_peer(&radio);
+    if (e != ESP_OK) {
+        radio_ok = false;
+        return e;
+    }
+    memcpy(identity->pmk, key, 16);
+    node_last_hub_rx_ms = (uint64_t)esp_timer_get_time() / 1000;
+    node_scan_due_ms = node_last_hub_rx_ms + NODE_HUB_TIMEOUT_MS;
+    puts("Radio PMK synchronized over protected pairing exchange");
+    return ESP_OK;
 }

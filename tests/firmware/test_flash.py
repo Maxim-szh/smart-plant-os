@@ -84,6 +84,16 @@ class FlashTests(unittest.TestCase):
         self.assertEqual(memory[:0x9000],before[:0x9000]);self.assertEqual(memory[0x29000:],before[0x29000:])
         self.assertEqual(memory[0x9000:0x29000],b'\xff'*0x20000)
 
+    def test_discoverable_node_installs_no_private_partition(self):
+        files={key:Path(key+'.bin') for key in ['app','bootloader','partition_table']}
+        with patch.object(flash,'detect'),patch.object(flash,'require_blank_nvs') as blank,patch.object(flash,'load_bundle',return_value=files),patch.object(flash,'tool') as tool:
+            with patch('builtins.input',return_value='cancel'):flash.new_node('test',Path('bundle'))
+            tool.assert_not_called()
+            with patch('builtins.input',return_value='INSTALL'):flash.new_node('test',Path('bundle'))
+            blank.assert_called_with('test','esp32c3')
+            args=tool.call_args.args
+            self.assertIn('0x30000',args);self.assertNotIn('0x9000',args);self.assertNotIn('erase_region',args)
+
     def test_fresh_install_rejects_nonempty_nvs(self):
         def read(port,chip,address,size,path):Path(path).write_bytes(b'\xff'*5+b'\x00')
         with patch.object(flash,'read_region',side_effect=read):

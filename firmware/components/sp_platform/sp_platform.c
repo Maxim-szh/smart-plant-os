@@ -3,6 +3,7 @@
 #include "sp_service.h"
 #include "sp_web.h"
 #include "sp_setup.h"
+#include "sp_pairing.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -389,6 +390,8 @@ void sp_platform_run(bool hub) {
     err = sp_radio_start(&identity);
     if (err != ESP_OK)
         printf("radio_unavailable error=%d; local safety remains active\n", err);
+    if (err == ESP_OK && !sp_pairing_start(&identity))
+        puts("Pairing unavailable: stored state invalid or storage/crypto error");
     if (hub && err == ESP_OK) {
         api = calloc(1, sizeof(*api));
         web_request = malloc(sizeof(*web_request));
@@ -426,7 +429,12 @@ void sp_platform_run(bool hub) {
     for (;;) {
         uint64_t now = now_ms();
         sp_radio_process();
+        sp_pairing_tick();
         if (api) {
+            while (api->count < identity.count) {
+                unsigned slot = api->count++;
+                memcpy(api->nodes[slot].device, identity.peers[slot].device, 6);
+            }
             sp_api_tick(api, now, utc_ms(now));
             if (web_request && sp_web_take(web_request) && !sp_setup_handle(&identity, api, web_request))
                 sp_api_handle(api, web_request);

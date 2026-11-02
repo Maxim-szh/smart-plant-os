@@ -192,9 +192,17 @@ def setup_ap(port):
             if line.startswith('ERR setup-ap'):raise ValueError(line)
     raise ValueError('Нет ответа. Дождитесь загрузки Hub или обновите прошивку с поддержкой setup-ap.')
 
+def new_node(port,bundle):
+    """Install a fresh discoverable C3; firmware creates its own local identity once."""
+    profile='c3';chip='esp32c3';detect(port,profile);require_blank_nvs(port,chip)
+    files=load_bundle(bundle,profile)
+    if input('Новый C3 без привязки. GPIO отключены. Введите INSTALL: ').strip()!='INSTALL':print('Отменено.');return
+    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x30000',files['app'])
+    print('C3 готов. Откройте приложение Hub → Добавить контроллер → Найти рядом. Поиск доступен первые 2 минуты после включения C3.')
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',nargs='?',choices=['install','update','prepare-node','ports','factory-reset','setup-ap'])
+    parser.add_argument('action',nargs='?',choices=['install','update','prepare-node','ports','factory-reset','setup-ap','new-node'])
     parser.add_argument('--port');parser.add_argument('--profile',choices=PROFILES)
     parser.add_argument('--bundle',type=Path);parser.add_argument('--passport',type=Path)
     args=parser.parse_args()
@@ -202,13 +210,13 @@ def main():
         for p in ports():print(f'{p.device}\t{p.description}')
         return
     if not args.action:
-        print('Smart Plant OS\n1. Первая установка Hub\n2. Обновить прошивку с сохранением настроек\n3. Подготовить новый C3 для добавления через веб-интерфейс\n4. Заводской сброс платы\n5. Открыть точку доступа Hub по USB')
-        args.action={'1':'install','2':'update','3':'prepare-node','4':'factory-reset','5':'setup-ap'}.get(input('Выберите действие: ').strip())
+        print('Smart Plant OS\n1. Первая установка Hub\n2. Обновить прошивку с сохранением настроек\n3. Установить новый C3 для автоматического поиска\n4. Заводской сброс платы\n5. Открыть точку доступа Hub по USB')
+        args.action={'1':'install','2':'update','3':'new-node','4':'factory-reset','5':'setup-ap'}.get(input('Выберите действие: ').strip())
         if not args.action:raise ValueError('Неверное действие')
     print("USB-проба перезапускает плату. Перед работой отключите питание насоса и других нагрузок.")
     args.port=args.port or choose_port()
     if args.action=='setup-ap':setup_ap(args.port);return
-    args.profile='c3' if args.action=='prepare-node' else args.profile or input('Профиль платы (n8r2 / n16r8 / c3): ').strip().lower()
+    args.profile='c3' if args.action in {'prepare-node','new-node'} else args.profile or input('Профиль платы (n8r2 / n16r8 / c3): ').strip().lower()
     if args.profile not in PROFILES or (args.action=='install' and args.profile=='c3'):raise ValueError('Выберите n8r2/n16r8 для Hub или prepare-node для нового C3')
     if args.action=='factory-reset':factory_reset(args.port,args.profile);return
     if not args.bundle:
@@ -217,6 +225,7 @@ def main():
     load_bundle(args.bundle,args.profile)
     if args.action=='update':update(args.port,args.profile,args.bundle)
     elif args.action=='install':fresh_hub(args.port,args.profile,args.bundle)
+    elif args.action=='new-node':new_node(args.port,args.bundle)
     else:prepare_node(args.port,args.passport or input('Путь к hub-passport.json: ').strip(),args.bundle)
 
 if __name__=='__main__':
