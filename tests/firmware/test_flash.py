@@ -90,9 +90,30 @@ class FlashTests(unittest.TestCase):
             with patch('builtins.input',return_value='cancel'):flash.new_node('test',Path('bundle'))
             tool.assert_not_called()
             with patch('builtins.input',return_value='INSTALL'):flash.new_node('test',Path('bundle'))
-            blank.assert_called_with('test','esp32c3')
+            blank.assert_called_with('test','esp32c3',keep_rom=True)
             args=tool.call_args.args
             self.assertIn('0x30000',args);self.assertNotIn('0x9000',args);self.assertNotIn('erase_region',args)
+
+    def test_fresh_node_probes_never_boot_autoprovisioning_app(self):
+        from types import SimpleNamespace
+        memory=bytearray(b'\xff'*0x20000);writes=[];reads=[]
+        files={key:Path(key+'.bin') for key in ['app','bootloader','partition_table']}
+        def tool(*args,**kwargs):
+            if 'read_flash' in args:
+                i=args.index('read_flash');self.assertEqual(args[i+1:i+3],('0x9000','0x20000'))
+                Path(args[i+3]).write_bytes(memory);reads.append('nvs')
+                output=''
+            elif 'flash_id' in args:reads.append('flash');output='Detected flash size: 4MB'
+            elif 'read_mac' in args:reads.append('mac');output='MAC: 02:00:00:00:00:01'
+            elif 'write_flash' in args:writes.append(args);output=''
+            else:self.fail(str(args))
+            # Firmware creates identity on every first boot of a blank partition.
+            if '--after' not in args or args[args.index('--after')+1]!='no_reset':memory[0]=0
+            return SimpleNamespace(stdout=output)
+        with patch.object(flash,'load_bundle',return_value=files),patch.object(flash,'tool',side_effect=tool),patch('builtins.input',return_value='INSTALL'):
+            flash.new_node('test',Path('bundle'))
+        self.assertEqual(reads,['flash','mac','nvs']);self.assertEqual(len(writes),1)
+        self.assertEqual(memory[0],0)  # Only the final successful write boots the app.
 
     def test_fresh_install_rejects_nonempty_nvs(self):
         def read(port,chip,address,size,path):Path(path).write_bytes(b'\xff'*5+b'\x00')
