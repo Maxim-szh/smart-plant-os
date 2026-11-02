@@ -368,7 +368,8 @@ static void status_reply(const sp_api_request_t *q) {
     const esp_partition_t *running = esp_ota_get_running_partition();
     const char *last = "none";
     if (committed_loaded && !active) {
-        memcpy(session, committed.session, 16);
+        if (!strcmp(phase, "idle"))
+            memcpy(session, committed.session, 16);
         last = running && running->address == committed.address ? verifying ? "verifying" : "validated"
                                                                 : "rolled_back";
     }
