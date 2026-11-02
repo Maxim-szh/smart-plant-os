@@ -154,13 +154,19 @@ static cJSON *sensor_array(const sp_api_t *a, const sp_api_node_t *n, bool sampl
             str(o, "kind", sp_sensor_kind_name(d->descriptor.kind));
             str(o, "unit", sp_sensor_unit_name(d->descriptor.unit));
             num(o, "max_age_ms", d->descriptor.max_age_ms);
+            str(o, "calibration", d->descriptor.calibration == 1 ? "soil_two_point" : "none");
             if (samples) {
                 uint64_t age = sp_sensor_age(d, a->now);
                 sp_quality_t q = d->sample.quality;
-                if (q == SP_Q_OK && age > d->descriptor.max_age_ms)
+                if (q == SP_Q_OK &&
+                    (age > d->descriptor.max_age_ms || !sp_registry_online(&n->registry, a->now)))
                     q = SP_Q_STALE;
                 str(o, "quality", sp_quality_name(q));
                 num(o, "sample_age_ms", age);
+                if (d->sample.quality == SP_Q_OK || d->sample.quality == SP_Q_STALE)
+                    num(o, "last_value", d->sample.milli_value / 1000.0);
+                else
+                    cJSON_AddNullToObject(o, "last_value");
                 if (q == SP_Q_OK)
                     num(o, "value", d->sample.milli_value / 1000.0);
                 else
@@ -174,12 +180,23 @@ static cJSON *device_json(const sp_api_t *a, const sp_api_node_t *n) {
     cJSON *o = obj();
     identity(o, n);
     str(o, "api_version", "1.0");
-    str(o, "firmware_version", "0.1.0");
+    char firmware[24];
+    if (n->hardware_known)
+        snprintf(firmware, sizeof(firmware), "%u.%u.%u", (unsigned)((n->firmware_number >> 16) & 255),
+                 (unsigned)((n->firmware_number >> 8) & 255), (unsigned)(n->firmware_number & 255));
+    else
+        snprintf(firmware, sizeof(firmware), "unknown");
+    str(o, "firmware_version", firmware);
     str(o, "board", "esp32-c3-super-mini");
     cJSON *cap = cJSON_AddObjectToObject(o, "capabilities");
     str(cap, "soil_sensor", "analog");
-    cJSON_AddBoolToObject(cap, "tank_sensor", true);
-    cJSON_AddBoolToObject(cap, "pump", true);
+    cJSON_AddBoolToObject(cap, "hardware_known", n->hardware_known);
+    cJSON_AddBoolToObject(cap, "tank_sensor", n->hardware_known && (n->hardware_flags & 2));
+    cJSON_AddBoolToObject(cap, "pump", n->hardware_known && (n->hardware_flags & 4));
+    cJSON_AddBoolToObject(cap, "soil_configured", n->hardware_known && (n->hardware_flags & 1));
+    cJSON_AddBoolToObject(cap, "identify", false);
+    cJSON_AddBoolToObject(cap, "detach", n->hardware_known && (n->hardware_flags & 32));
+    cJSON_AddBoolToObject(cap, "ota", n->hardware_known && (n->hardware_flags & 16));
     str(cap, "water_volume", "estimated");
     str(cap, "event_history", "local_bounded");
     cJSON_AddItemToObject(cap, "sensors", sensor_array(a, n, false));
@@ -193,12 +210,19 @@ static cJSON *state_json(const sp_api_t *a, const sp_api_node_t *n) {
     identity(o, n);
     num(o, "revision", m->value[13]);
     str(o, "clock_state", utc ? "synced" : "unset");
-    stamp(o, "observed_at", utc);
+    stamp(o, "observed_at", m->value[2]);
     num(o, "uptime_ms", m->value[14] + elapsed);
     cJSON *plant = cJSON_AddObjectToObject(o, "plant");
     plant_identity(plant, n, "name");
+    str(plant, "room", n->plant.room);
     cJSON *soil = cJSON_AddObjectToObject(o, "soil");
+    bool online = sp_registry_online(&n->registry, a->now);
+    cJSON *availability = cJSON_AddObjectToObject(o, "availability");
+    cJSON_AddBoolToObject(availability, "online", online);
+    num(availability, "last_seen_age_ms", elapsed);
     sp_quality_t q = (sp_quality_t)m->value[10];
+    if (!online && q != SP_Q_MISSING)
+        q = SP_Q_STALE;
     if (q == SP_Q_OK && age > (uint64_t)(n->have_config ? n->config.max_age_s : 30) * 1000)
         q = SP_Q_STALE;
     str(soil, "quality", sp_quality_name(q));
@@ -206,6 +230,8 @@ static cJSON *state_json(const sp_api_t *a, const sp_api_node_t *n) {
         cJSON_AddNullToObject(soil, "raw_adc");
     else
         num(soil, "raw_adc", m->value[8]);
+    if (q == SP_Q_STALE && m->value[10] == SP_Q_OK)
+        num(soil, "last_index_pct", m->value[9]);
     if (q == SP_Q_OK)
         num(soil, "soil_index_pct", m->value[9]);
     else
@@ -213,7 +239,7 @@ static cJSON *state_json(const sp_api_t *a, const sp_api_node_t *n) {
     stamp(soil, "sampled_at", utc > age ? utc - age : 0);
     num(soil, "sample_age_ms", age);
     cJSON *tank = cJSON_AddObjectToObject(o, "tank");
-    str(tank, "quality", m->value[11] ? "ok" : "missing");
+    str(tank, "quality", !online ? "stale" : m->value[11] ? "ok" : "missing");
     if (m->value[11])
         cJSON_AddBoolToObject(tank, "water_present", m->value[11] == 2);
     else
@@ -302,19 +328,23 @@ void sp_api_receive(sp_api_t *a, unsigned peer, uint32_t boot, const sp_message_
         sp_api_timeout(a, peer);
         n->registry.have_state = false;
         n->have_config = false;
+        n->hardware_known = false;
+        n->hardware_flags = 0;
         memset(n->have_sensor, 0, sizeof(n->have_sensor));
         n->boot = boot;
     }
     unsigned kind = m->value[0];
     if (kind == SP_HELLO && sp_message_has(m, 27)) {
+        n->hardware_known = sp_message_has(m, SP_K_REVISION) && m->value[SP_K_REVISION] == 1 &&
+                            sp_message_has(m, SP_K_RPC) && m->value[SP_K_RPC] <= 0xffffff;
+        n->hardware_flags = n->hardware_known ? (uint32_t)m->value[SP_K_FLAGS] : 0;
+        n->firmware_number = n->hardware_known ? (uint32_t)m->value[SP_K_RPC] : 0;
         if (!n->have_plant) {
             memcpy(n->plant.plant, m->bytes[3], 16);
-            n->plant.version = 1;
+            n->plant.version = 2;
             if (!n->plant.name[0])
                 snprintf(n->plant.name, sizeof(n->plant.name), "Plant %02x%02x", n->device[4], n->device[5]);
-            n->have_plant = true;
-            if (a->io.save_plant)
-                (void)a->io.save_plant(a->io.ctx, n->device, &n->plant);
+            n->have_plant = !a->io.save_plant || a->io.save_plant(a->io.ctx, n->device, &n->plant);
         }
         return;
     }
@@ -553,6 +583,14 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
             char did[17];
             sp_api_device_id(n->device, did);
             str(row, "display_name", n->plant.name[0] ? n->plant.name : did);
+            str(row, "room", n->plant.room);
+            num(row, "setup_stage", n->plant.setup_stage);
+            if (n->have_plant) {
+                char plant[37];
+                sp_api_uuid(n->plant.plant, plant);
+                str(row, "plant_id", plant);
+            } else
+                cJSON_AddNullToObject(row, "plant_id");
             cJSON_AddBoolToObject(row, "online", sp_registry_online(&n->registry, a->now));
             uint64_t age = a->now - n->registry.received_ms;
             stamp(row, "last_seen_at", n->registry.have_state && a->utc > age ? a->utc - age : 0);
@@ -564,7 +602,8 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
     cJSON *body = NULL;
     if (post || put) {
         body = cJSON_ParseWithOpts(r->body, NULL, true);
-        if (!body) {
+        if (!body || strstr(r->body, "\\u0000")) {
+            cJSON_Delete(body);
             error(a, r->id, 400, "invalid_json");
             return;
         }
@@ -613,6 +652,72 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         events(a, r, n, route[6] ? route + 7 : NULL);
         goto done;
     }
+    if ((get || put) && !strcmp(route, "plant") && !n->have_plant) {
+        error(a, r->id, 503, "identity_pending");
+        goto done;
+    }
+    if (put && !strcmp(route, "plant")) {
+        static const char *const ks[] = {"schema_version", "revision", "name",
+                                         "species_id",     "room",     "setup_stage"};
+        bool extended = cJSON_HasObjectItem(body, "room") || cJSON_HasObjectItem(body, "setup_stage");
+        const char *room = extended ? text(body, "room") : n->plant.room;
+        uint64_t stage = n->plant.setup_stage;
+        uint64_t rev, v;
+        const char *name = text(body, "name"), *species = text(body, "species_id");
+        if (!keys(body, ks, extended ? 6 : 4) || !room || strlen(room) > 80 ||
+            (extended && !integer(body, "setup_stage", 0, 3, &stage)) ||
+            !integer(body, "schema_version", 1, 1, &v) ||
+            !integer(body, "revision", 0, UINT32_MAX - 1, &rev) || !name || !name[0] || strlen(name) > 80 ||
+            (!species && !cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(body, "species_id"))) ||
+            (species && (!species[0] || strlen(species) > 40))) {
+            error(a, r->id, 422, "plant_invalid");
+            goto done;
+        }
+        if (species)
+            for (const char *s = species; *s; s++)
+                if (!((*s >= 'a' && *s <= 'z') || (*s >= '0' && *s <= '9') || *s == '-')) {
+                    error(a, r->id, 422, "plant_invalid");
+                    goto done;
+                }
+        if (rev != n->plant.revision) {
+            error(a, r->id, 409, "revision_conflict");
+            goto done;
+        }
+        sp_plant_meta_t next = n->plant;
+        next.revision++;
+        next.version = 2;
+        next.setup_stage = (uint8_t)stage;
+        snprintf(next.room, sizeof(next.room), "%s", room);
+        snprintf(next.name, sizeof(next.name), "%s", name);
+        snprintf(next.species, sizeof(next.species), "%s", species ? species : "");
+        if (!a->io.save_plant || !a->io.save_plant(a->io.ctx, n->device, &next)) {
+            error(a, r->id, 503, "storage_fault");
+            goto done;
+        }
+        n->plant = next;
+        cJSON *o = obj();
+        num(o, "revision", next.revision);
+        str(o, "name", next.name);
+        str(o, "species_id", next.species[0] ? next.species : NULL);
+        str(o, "room", next.room);
+        num(o, "setup_stage", next.setup_stage);
+        reply(a, r->id, 200, o);
+        goto done;
+    }
+    if (get && !strcmp(route, "plant")) {
+        cJSON *o = obj();
+        num(o, "revision", n->plant.revision);
+        str(o, "name", n->plant.name);
+        str(o, "species_id", n->plant.species[0] ? n->plant.species : NULL);
+        str(o, "room", n->plant.room);
+        num(o, "setup_stage", n->plant.setup_stage);
+        reply(a, r->id, 200, o);
+        goto done;
+    }
+    if (get && !strcmp(route, "state") && n->have_plant && n->registry.have_state) {
+        reply(a, r->id, 200, state_json(a, n));
+        goto done;
+    }
     if (!sp_registry_online(&n->registry, a->now)) {
         error(a, r->id, 503, "node_offline");
         goto done;
@@ -649,51 +754,7 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
             n->proposed = proposed;
         goto done;
     }
-    if (put && !strcmp(route, "plant")) {
-        static const char *const ks[] = {"schema_version", "revision", "name", "species_id"};
-        uint64_t rev, v;
-        const char *name = text(body, "name"), *species = text(body, "species_id");
-        if (!keys(body, ks, 4) || !integer(body, "schema_version", 1, 1, &v) ||
-            !integer(body, "revision", 0, UINT32_MAX - 1, &rev) || !name || !name[0] || strlen(name) > 80 ||
-            (!species && !cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(body, "species_id"))) ||
-            (species && (!species[0] || strlen(species) > 40))) {
-            error(a, r->id, 422, "plant_invalid");
-            goto done;
-        }
-        if (species)
-            for (const char *s = species; *s; s++)
-                if (!((*s >= 'a' && *s <= 'z') || (*s >= '0' && *s <= '9') || *s == '-')) {
-                    error(a, r->id, 422, "plant_invalid");
-                    goto done;
-                }
-        if (rev != n->plant.revision) {
-            error(a, r->id, 409, "revision_conflict");
-            goto done;
-        }
-        sp_plant_meta_t next = n->plant;
-        next.revision++;
-        snprintf(next.name, sizeof(next.name), "%s", name);
-        snprintf(next.species, sizeof(next.species), "%s", species ? species : "");
-        if (!a->io.save_plant || !a->io.save_plant(a->io.ctx, n->device, &next)) {
-            error(a, r->id, 503, "storage_fault");
-            goto done;
-        }
-        n->plant = next;
-        cJSON *o = obj();
-        num(o, "revision", next.revision);
-        str(o, "name", next.name);
-        str(o, "species_id", next.species[0] ? next.species : NULL);
-        reply(a, r->id, 200, o);
-        goto done;
-    }
-    if (get && !strcmp(route, "plant")) {
-        cJSON *o = obj();
-        num(o, "revision", n->plant.revision);
-        str(o, "name", n->plant.name);
-        str(o, "species_id", n->plant.species[0] ? n->plant.species : NULL);
-        reply(a, r->id, 200, o);
-        goto done;
-    }
+
     if (post && (!strcmp(route, "commands/water") || !strcmp(route, "commands/stop"))) {
         bool water = !strcmp(route, "commands/water");
         const char *ks[] = {"schema_version", "command_id", water ? "requested_ml" : "target_command_id"};

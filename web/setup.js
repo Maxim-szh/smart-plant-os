@@ -103,3 +103,5 @@ $('#pair-form').onsubmit = e => {e.preventDefault();action($('#pair-button'),asy
 $('#change-wifi').onclick = () => {changingWifi = true; $('#network-panel').hidden = false; $('#ready-panel').hidden = true; $('#management').hidden = true; setStep('wifi'); $('#ssid').focus();};
 $('#logout').onclick = () => action($('#logout'),async () => {try {await request('/session','DELETE');} finally {token='';session();message('Сеанс завершён.');}});
 session();
+
+$("#open-updates").onclick=()=>window.SmartPlantUpdates.open("hub");

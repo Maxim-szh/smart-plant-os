@@ -26,6 +26,16 @@ extern const uint8_t setup_js_start[] asm("_binary_setup_js_start");
 extern const uint8_t setup_js_end[] asm("_binary_setup_js_end");
 extern const uint8_t pairing_js_start[] asm("_binary_pairing_js_start");
 extern const uint8_t pairing_js_end[] asm("_binary_pairing_js_end");
+extern const uint8_t api_js_start[] asm("_binary_api_js_start");
+extern const uint8_t api_js_end[] asm("_binary_api_js_end");
+extern const uint8_t style_start[] asm("_binary_style_css_start");
+extern const uint8_t style_end[] asm("_binary_style_css_end");
+extern const uint8_t demo_start[] asm("_binary_demo_html_start");
+extern const uint8_t demo_end[] asm("_binary_demo_html_end");
+extern const uint8_t demo_js_start[] asm("_binary_demo_js_start");
+extern const uint8_t demo_js_end[] asm("_binary_demo_js_end");
+extern const uint8_t updates_start[] asm("_binary_updates_js_start");
+extern const uint8_t updates_end[] asm("_binary_updates_js_end");
 static QueueHandle_t incoming, outgoing;
 static char password[65], token[65];
 static int64_t expires, attempt_window;
@@ -152,8 +162,27 @@ static esp_err_t handle(httpd_req_t *r) {
     httpd_resp_set_hdr(r, "Cache-Control", "no-store");
     httpd_resp_set_hdr(r, "X-Content-Type-Options", "nosniff");
     httpd_resp_set_hdr(r, "Content-Security-Policy",
-                       "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src "
+                       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
                        "'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    if (r->method == HTTP_GET && (!strcmp(r->uri, "/demo") || !strcmp(r->uri, "/demo.html"))) {
+        httpd_resp_set_hdr(r, "Content-Security-Policy",
+                           "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                           "connect-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+        httpd_resp_set_type(r, "text/html; charset=utf-8");
+        return httpd_resp_send(r, (const char *)demo_start, demo_end - demo_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/demo.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)demo_js_start, demo_js_end - demo_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/api.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)api_js_start, api_js_end - api_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/style.css")) {
+        httpd_resp_set_type(r, "text/css; charset=utf-8");
+        return httpd_resp_send(r, (const char *)style_start, style_end - style_start);
+    }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/setup")) {
         httpd_resp_set_type(r, "text/html; charset=utf-8");
         return httpd_resp_send(r, (const char *)setup_start, setup_end - setup_start);
@@ -182,6 +211,10 @@ static esp_err_t handle(httpd_req_t *r) {
     if (r->method == HTTP_GET && !strcmp(r->uri, "/app.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
         return httpd_resp_send(r, (const char *)app_start, app_end - app_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/updates.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)updates_start, updates_end - updates_start);
     }
     if (!origin_allowed(r))
         return fail(r, 403, "origin_rejected");

@@ -4,6 +4,10 @@
 #include "sp_web.h"
 #include "sp_setup.h"
 #include "sp_pairing.h"
+#include "sp_release.h"
+#include "sp_catalog.h"
+#include "sp_maintenance.h"
+#include "sp_update.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -37,6 +41,35 @@ typedef struct {
     uint64_t due;
 } pending_t;
 static pending_t pending[SP_PEER_MAX];
+static bool maintenance_idle(void *ctx) {
+    (void)ctx;
+    if (!api)
+        return false;
+    for (unsigned i = 0; i < identity.count; i++)
+        if (pending[i].active || api->nodes[i].request_id)
+            return false;
+    return true;
+}
+static bool maintenance_remove(void *ctx, unsigned slot) {
+    (void)ctx;
+    if (slot >= identity.count)
+        return false;
+    unsigned tail = identity.count - slot - 1;
+    if (sp_radio_remove_peer(slot) != ESP_OK)
+        return false;
+    memmove(&registry[slot], &registry[slot + 1], tail * sizeof(registry[0]));
+    memmove(&pending[slot], &pending[slot + 1], tail * sizeof(pending[0]));
+    memmove(&observed_boot[slot], &observed_boot[slot + 1], tail * sizeof(observed_boot[0]));
+    memmove(&event_cursor[slot], &event_cursor[slot + 1], tail * sizeof(event_cursor[0]));
+    memmove(&api->nodes[slot], &api->nodes[slot + 1], tail * sizeof(api->nodes[0]));
+    memset(&api->nodes[identity.count], 0, sizeof(api->nodes[0]));
+    memset(&registry[identity.count], 0, sizeof(registry[0]));
+    memset(&pending[identity.count], 0, sizeof(pending[0]));
+    observed_boot[identity.count] = 0;
+    event_cursor[identity.count] = 0;
+    api->count = identity.count;
+    return true;
+}
 static uint64_t now_ms(void) {
     return (uint64_t)esp_timer_get_time() / 1000;
 }
@@ -63,14 +96,7 @@ static bool api_time(void *ctx, uint64_t value) {
 }
 static bool api_save_plant(void *ctx, const uint8_t device[6], const sp_plant_meta_t *meta) {
     (void)ctx;
-    char id[17];
-    sp_api_device_id(device, id);
-    nvs_handle_t h;
-    if (nvs_open("plants", NVS_READWRITE, &h) != ESP_OK)
-        return false;
-    bool ok = nvs_set_blob(h, id + 4, meta, sizeof(*meta)) == ESP_OK && nvs_commit(h) == ESP_OK;
-    nvs_close(h);
-    return ok;
+    return sp_catalog_save(device, meta);
 }
 static bool save_core(void *ctx, const sp_persist_t *p) {
     (void)ctx;
@@ -92,7 +118,9 @@ static void hello(unsigned peer) {
     sp_message_init(&m, SP_HELLO);
     sp_message_bytes(&m, SP_K_DEVICE, identity.self);
     sp_message_bytes(&m, SP_K_PLANT, identity.plant);
-    sp_message_set(&m, SP_K_FLAGS, identity.hub ? 0 : 7); /* soil, tank, pump */
+    sp_message_set(&m, SP_K_FLAGS, identity.hub ? 0 : (sp_board_capabilities() | 32 | 16u));
+    sp_message_set(&m, SP_K_REVISION, 1); /* hardware descriptor version */
+    sp_message_set(&m, SP_K_RPC, SP_FIRMWARE_NUMBER);
     (void)sp_radio_send(peer, &m);
 }
 static bool hex_id(const char *text, uint8_t out[16]) {
@@ -290,6 +318,10 @@ static void poll_console(void) {
 static void hub_receive(const sp_received_t *r, uint64_t now) {
     const sp_message_t *m = &r->message;
     unsigned i = r->peer;
+    if (sp_maintenance_receive(i, m))
+        return;
+    if (api && m->value[0] == SP_HELLO && sp_message_has(m, SP_K_PLANT))
+        (void)sp_catalog_claim(&api->nodes[i], m->bytes[SP_K_PLANT - 24]);
     if (api)
         sp_api_receive(api, i, identity.peers[i].boot, m);
     if (m->value[0] == SP_CONFIG && pending[i].active && pending[i].request.value[0] == SP_CONFIG_GET)
@@ -337,10 +369,12 @@ static void hub_receive(const sp_received_t *r, uint64_t now) {
     }
 }
 void sp_platform_run(bool hub) {
+    sp_update_boot_guard();
+    bool boot_healthy = true;
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
-    printf("Smart Plant %s 0.1.0 engineering; STA MAC %02x:%02x:%02x:%02x:%02x:%02x\n", hub ? "Hub" : "Node",
-           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    printf("Smart Plant %s 0.2.0-abi1 engineering; STA MAC %02x:%02x:%02x:%02x:%02x:%02x\n",
+           hub ? "Hub" : "Node", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     /* Never erase NVS automatically: doing so would reset dedupe, limits and AEAD epochs. */
     esp_err_t err = nvs_flash_init();
     if (err != ESP_OK || !sp_identity_load(&identity, hub)) {
@@ -389,6 +423,8 @@ void sp_platform_run(bool hub) {
     }
     err = sp_radio_start(&identity);
     if (err != ESP_OK)
+        boot_healthy = false;
+    if (err != ESP_OK)
         printf("radio_unavailable error=%d; local safety remains active\n", err);
     if (err == ESP_OK && !sp_pairing_start(&identity))
         puts("Pairing unavailable: stored state invalid or storage/crypto error");
@@ -402,23 +438,25 @@ void sp_platform_run(bool hub) {
                 .send = api_send, .reply = sp_web_reply, .save_plant = api_save_plant, .set_time = api_time};
             for (unsigned i = 0; i < identity.count; i++) {
                 memcpy(api->nodes[i].device, identity.peers[i].device, 6);
-                char id[17];
-                sp_api_device_id(identity.peers[i].device, id);
-                nvs_handle_t h;
-                if (nvs_open("plants", NVS_READONLY, &h) == ESP_OK) {
-                    sp_plant_meta_t meta;
-                    size_t size = sizeof(meta);
-                    if (nvs_get_blob(h, id + 4, &meta, &size) == ESP_OK && size == sizeof(meta) &&
-                        meta.version == 1 && memchr(meta.name, 0, sizeof(meta.name)) &&
-                        memchr(meta.species, 0, sizeof(meta.species)))
-                        api->nodes[i].plant = meta;
-                    nvs_close(h);
-                }
             }
-            puts(sp_web_start() ? "Web: https://192.168.4.1 (physical credentials required)"
-                                : "Web unavailable: provision web credentials/certificate first");
+            if (!sp_catalog_load(&identity, api)) {
+                boot_healthy = false;
+                puts("Catalog unavailable: metadata migration/storage error; do not erase NVS");
+            }
+            if (!sp_maintenance_init(
+                    &identity, api, NULL,
+                    (sp_maintenance_io_t){.idle = maintenance_idle, .remove = maintenance_remove}))
+                puts("Maintenance unavailable: journal invalid");
+            bool web_ready = sp_web_start();
+            boot_healthy = boot_healthy && web_ready;
+            puts(web_ready ? "Web: https://192.168.4.1 (physical credentials required)"
+                           : "Web unavailable: provision web credentials/certificate first");
         }
     }
+    if (!hub && !sp_maintenance_init(&identity, NULL, &core, (sp_maintenance_io_t){0}))
+        puts("Node maintenance unavailable");
+    sp_update_init(&identity, api, hub ? NULL : &core, hub ? maintenance_idle : NULL,
+                   boot_healthy && !sp_maintenance_busy() && (!hub || (api && web_request)));
     int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
     if (flags >= 0)
         (void)fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
@@ -430,18 +468,22 @@ void sp_platform_run(bool hub) {
         uint64_t now = now_ms();
         sp_radio_process();
         sp_pairing_tick();
+        sp_maintenance_tick();
+        sp_update_tick();
         if (api) {
             while (api->count < identity.count) {
                 unsigned slot = api->count++;
                 memcpy(api->nodes[slot].device, identity.peers[slot].device, 6);
             }
             sp_api_tick(api, now, utc_ms(now));
-            if (web_request && sp_web_take(web_request) && !sp_setup_handle(&identity, api, web_request))
+            if (web_request && sp_web_take(web_request) && !sp_update_handle(web_request) &&
+                !sp_maintenance_handle(web_request) && !sp_setup_handle(&identity, api, web_request) &&
+                !sp_catalog_handle(api, web_request))
                 sp_api_handle(api, web_request);
         }
         if (!hub) {
             sp_sensors_poll(&sensors, now);
-            core.hardware_ready = sp_board_healthy();
+            core.hardware_ready = sp_board_healthy() && !sp_maintenance_busy() && !sp_update_busy();
             sp_core_tick(&core, now);
             if (sp_core_auto_due(&core)) {
                 sp_request_t req = {.action = SP_WATER,
@@ -460,12 +502,15 @@ void sp_platform_run(bool hub) {
                 hub_receive(&r, now);
             else if (r.message.value[0] != SP_HELLO) {
                 sp_message_t response;
-                bool mutating = r.message.value[0] == SP_COMMAND || r.message.value[0] == SP_CONFIG;
+                bool mutating = r.message.value[0] == SP_COMMAND || r.message.value[0] == SP_CONFIG ||
+                                r.message.value[0] == SP_MANAGE;
                 bool stop = r.message.value[0] == SP_COMMAND && r.message.value[3] == SP_STOP;
-                if (!mutating || stop || now >= last_command_at + 250) {
+                if ((!mutating || stop || !sp_update_busy()) &&
+                    (!mutating || stop || now >= last_command_at + 250)) {
                     if (mutating)
                         last_command_at = now;
-                    if (sp_node_dispatch(&core, &r.message, &response))
+                    if (sp_maintenance_node(&r.message, &response) ||
+                        sp_node_dispatch(&core, &r.message, &response))
                         (void)sp_radio_send(0, &response);
                 }
             }
@@ -485,7 +530,7 @@ void sp_platform_run(bool hub) {
             sensor_at = now + 500;
         }
         if (identity.count && now >= periodic_at) {
-            unsigned i = periodic_peer;
+            unsigned i = periodic_peer % identity.count;
             hello(i);
             sp_message_t m;
             if (hub) {

@@ -10,6 +10,8 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
   await page.route('**/*',async route=>{
    const request=route.request(),path=new URL(request.url()).pathname;
    if(path==='/')return route.fulfill({contentType:'text/html',body:fs.readFileSync('web/index.html','utf8')});
+   if(['/updates.js','/api.js'].includes(path))return route.fulfill({contentType:'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
+   if(path==='/style.css')return route.fulfill({contentType:'text/css',body:fs.readFileSync('web/style.css','utf8')});
    if(path==='/pairing.js')return route.fulfill({contentType:'application/javascript',body:fs.readFileSync('web/pairing.js','utf8')});
    if(path==='/app.js')return route.fulfill({contentType:'application/javascript',body:fs.readFileSync('web/app.js','utf8')});
    if(path==='/setup')return route.fulfill({contentType:'text/html',headers:{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"},body:fs.readFileSync('web/setup.html','utf8')});
@@ -62,7 +64,7 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
   await page.locator('#change-wifi').click();assert(await page.locator('#network-panel').isVisible());
   await page.waitForTimeout(3200);assert(await page.locator('#network-panel').isVisible());
   await page.goto('https://smartplant.test/');
-  await page.locator('.pcard h3').first().waitFor();
+  await page.locator('#owner-login').waitFor();
   assert.equal(await page.locator('meta[name=viewport]').getAttribute('content'),'width=device-width, initial-scale=1, viewport-fit=cover');
   await page.setViewportSize({width:390,height:844});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);

@@ -96,3 +96,7 @@ Capability bits HELLO: bit0 soil, bit1 tank, bit2 pump. Профиль Node об
 ## Векторы и проверки
 
 [vectors.json](vectors.json) содержит JSON map с числовыми ключами и канонический CBOR hex. Для byte strings используется объект `{"hex":"..."}`. [Инструмент](../../../tools/spp_inspect.py) декодирует консольный hex и проверяет векторы. Соответствие C-кодека проверяется в native tests. Формат AEAD проверяется тем же C-кодом на хосте с Mbed TLS и независимым [вектором](aead-vector.json); нулевой ключ в нём предназначен исключительно для теста.
+
+## Расширение обслуживания 0.2.0
+
+HELLO descriptor, SENSOR calibration, MANAGE14/MANAGE_RESULT15 и отдельный SPU1 описаны в [контракте обслуживания](../../maintenance/v1/README.md). SPU1 не является CBOR-фрагментацией SPP и использует отдельный ключевой домен. Старые версии сначала обновляются по USB.

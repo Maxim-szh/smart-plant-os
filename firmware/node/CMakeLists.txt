@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 set(EXTRA_COMPONENT_DIRS "../components")
+set(PROJECT_VER "0.2.0-abi1")
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(smart_plant_node VERSION 0.1.0)
+project(smart_plant_node VERSION 0.2.0)
 if(NOT IDF_TARGET STREQUAL "esp32c3")
   message(FATAL_ERROR "Node requires idf.py set-target esp32c3")
+endif()
+
+if(NOT CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE)
+  message(FATAL_ERROR "OTA requires CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y; recreate the build config using tools/flash.py")
 endif()

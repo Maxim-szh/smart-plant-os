@@ -9,6 +9,7 @@ static sp_message_t sent;
 static cJSON *response;
 static unsigned calls;
 static int status;
+static bool metadata_writable=true;
 static const uint8_t command[16] = {1, 2, 3, 4, 5, 6, 0x40, 8, 0x80, 10, 11, 12, 13, 14, 15, 16};
 static bool send_message(void *ctx, unsigned peer, const sp_message_t *m) {
     (void)ctx;
@@ -33,7 +34,7 @@ static bool save_plant(void *ctx, const uint8_t *id, const sp_plant_meta_t *p) {
     (void)ctx;
     (void)id;
     (void)p;
-    return false;
+    return metadata_writable;
 }
 static bool time_set(void *ctx, uint64_t utc) {
     (void)ctx;
@@ -132,12 +133,15 @@ int main(void) {
     assert(!status);
     sp_api_timeout(&api, 0);
     assert(status == 503);
+    metadata_writable=false;
     request("PUT", "plant", "{\"schema_version\":1,\"revision\":0,\"name\":\"test\",\"species_id\":null}");
     assert(status == 503);
     assert(strcmp(api.nodes[0].plant.name, "test"));
     sp_api_tick(&api, 25000, SP_MIN_EPOCH_MS + 25000);
     request("GET", "state", NULL);
-    assert(status == 503);
+    assert(status == 200);
+    assert(!cJSON_IsTrue(cJSON_GetObjectItem(cJSON_GetObjectItem(response,"availability"),"online")));
+    assert(cJSON_IsNull(cJSON_GetObjectItem(cJSON_GetObjectItem(response,"soil"),"soil_index_pct")));
     cJSON_Delete(response);
     return 0;
 }

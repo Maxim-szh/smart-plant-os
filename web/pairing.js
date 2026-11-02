@@ -13,6 +13,7 @@
   const message = text => { $('connect-message').textContent = text; };
   function session() { $('connect-login').hidden = authenticated; $('connect-controls').hidden = !authenticated; }
   async function request(path, method='GET', data) {
+    if(window.SPApi)return window.SPApi.request(path,method,data);
     const headers={}; if(token) headers.Authorization=`Bearer ${token}`;
     if(data!==undefined) headers['Content-Type']='application/json';
     const controller=new AbortController(), timeout=setTimeout(()=>controller.abort(),8000);
@@ -59,19 +60,11 @@
   }
   $('connect-login').onsubmit=e=>{e.preventDefault();action(async()=>{
     const password=$('connect-key').value;$('connect-key').value='';
-    token=(await request('/session','POST',{password})).token;authenticated=true;
+    if(window.SPApi)await window.SPApi.login(password);else token=(await request('/session','POST',{password})).token;authenticated=true;
   });};
   $('connect-search').onclick=()=>action(()=>request('/setup/pairing/search','POST',{}));
   $('connect-retry').onclick=()=>action(()=>request('/setup/pairing/retry','POST',{}));
   $('connect-close').onclick=()=>dialog.close();
   dialog.addEventListener('close',()=>{clearTimeout(timer);$('connect-key').value='';});
-  async function refreshRegistry(){
-    try {
-      const registry=await request('/nodes');authenticated=true;
-      window.dispatchEvent(new CustomEvent('smartplant:registry',{detail:{nodes:registry.nodes,current:true}}));
-    } catch(e){window.dispatchEvent(new CustomEvent('smartplant:registry',{detail:{current:false}}));}
-    setTimeout(refreshRegistry,15000);
-  }
-  refreshRegistry();
-  window.SmartPlantConnect={open(){session();if(!dialog.open)dialog.showModal();if(authenticated)poll();}};
+  window.SmartPlantConnect={async open(){try{await request('/setup/pairing');authenticated=true;}catch(e){authenticated=false;}session();if(!dialog.open)dialog.showModal();if(authenticated)poll();}};
 })();

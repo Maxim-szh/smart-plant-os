@@ -9,3 +9,7 @@
 Привязка C3 из основного приложения: [ADR-0015](docs/adr/0015-first-use-radio-pairing.md), `sp_pairing`/`sp_join_crypto`, `web/pairing.js`. Профиль first_use_unverified не защищён от MITM при первом обмене; не называйте его аутентифицированной привязкой. 202 означает принятие действия, успех UI требует online. Host-проверки включают `wireless_pairing`, `join_crypto`, `web_interface_routing`; браузерные — `npm run test:setup`.
 
 Сеанс владельца: [ADR-0016](docs/adr/0016-browser-session-cookie.md), Bearer и короткая HttpOnly/Secure/SameSite=Strict cookie. PMK сети Hub доставляется C3 только в domain-separated AES-GCM-обёртке; предположение о независимых PMK не подтвердилось на стенде. Не сбрасывайте links/safety/replay для исправления радио.
+
+## Реальный сад и обслуживание
+
+Контракты: `docs/adr/0017-live-garden-and-maintenance.md`, `docs/adr/0018-ota-slots-and-confirmed-updates.md`, `spec/maintenance/v1/README.md`. Демо не использует реальный API. Новые датчики объявляют capabilities/единицы/качество/калибровку; GPIO не угадываются. Plant ID, device ID и radio slot не взаимозаменяемы. При OTA сохраняются NVS, safety/state_v1 и boot epochs. Не использовать `idf.py flash` для обновления действующего OTA-устройства. Изменения ABI требуют отдельной миграции и ADR. Проверки: native C, JSON Schema, USB-миграция и браузерный сценарий; физические нагрузки — отдельный стенд.

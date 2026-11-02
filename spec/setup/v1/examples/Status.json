@@ -6,6 +6,6 @@
   "ssid": "",
   "ip": "",
   "channel": 6,
-  "update_method": "usb_app_only",
+  "update_method": "usb_and_web",
   "nodes": []
 }

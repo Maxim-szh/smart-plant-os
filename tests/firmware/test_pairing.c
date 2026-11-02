@@ -195,6 +195,20 @@ int main(void) {
     o = status();
     assert(cJSON_GetArraySize(cJSON_GetObjectItem(o, "candidates")) == 0);
     cJSON_Delete(o);
+    /* Compacting peers must preserve B's protected PMK envelope, not A's index state. */
+    hub.count = 2;
+    memcpy(hub.peers[1].device, "PEERBB", 6);
+    memset(hub.peers[1].app_key, 7, 16);
+    sp_pairing_link_seen(0);
+    sp_pairing_peer_removed(0);
+    hub.peers[0] = hub.peers[1];
+    hub.count = 1;
+    now += 1000;
+    sp_pairing_tick();
+    assert(transmitted_size == SP_JOIN_PMK_SIZE);
+    uint8_t unwrapped[16];
+    assert(sp_join_pmk_open(hub.peers[0].app_key, hub.peers[0].device, hub.self, transmitted,
+                            transmitted_size, unwrapped));
     puts("PASS: discovery window, restart recovery, storage failure, proof rejection, pairing, idempotency "
          "and no bound advertising");
 }

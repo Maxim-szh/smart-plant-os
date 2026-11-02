@@ -20,7 +20,8 @@ const char *sp_sensor_unit_name(unsigned u) {
 bool sp_sensor_descriptor_valid(const sp_sensor_descriptor_t *d) {
     static const uint8_t units[] = {SP_UNIT_PERCENT, SP_UNIT_BOOLEAN, SP_UNIT_CELSIUS,  SP_UNIT_PERCENT,
                                     SP_UNIT_LUX,     SP_UNIT_VOLT,    SP_UNIT_ML_SECOND};
-    return d && d->slot < SP_SENSOR_MAX && d->kind < SP_SENSOR_KIND_COUNT && d->unit == units[d->kind] &&
+    return d && d->calibration <= 1 && (!d->calibration || (d->kind == SP_SENSOR_SOIL && d->slot == 0)) &&
+           d->slot < SP_SENSOR_MAX && d->kind < SP_SENSOR_KIND_COUNT && d->unit == units[d->kind] &&
            d->interval_ms >= 20 && d->interval_ms <= 3600000 && d->max_age_ms >= d->interval_ms &&
            d->max_age_ms <= 86400000;
 }
@@ -78,6 +79,8 @@ void sp_sensor_message(const sp_sensor_driver_t *d, uint64_t now, sp_message_t *
     sp_message_set(m, 14, now - d->sample.sampled_ms);
     sp_message_set(m, 15, d->descriptor.max_age_ms);
     sp_message_set(m, 16, d->descriptor.interval_ms);
+    if (d->descriptor.calibration)
+        sp_message_set(m, 23, d->descriptor.calibration);
     if (d->sample.has_raw)
         sp_message_set(m, 19, d->sample.raw);
 }
@@ -86,10 +89,11 @@ bool sp_sensor_from_message(const sp_message_t *m, uint64_t now, sp_sensor_drive
     const unsigned keys[] = {0, 1, 3, 4, 8, 10, 14, 15, 16};
     for (unsigned i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
         mask |= UINT32_C(1) << keys[i];
-    if (m->value[0] != SP_SENSOR || (m->present & ~(UINT32_C(1) << 19)) != mask ||
+    if (m->value[0] != SP_SENSOR || (m->present & ~((UINT32_C(1) << 19) | (UINT32_C(1) << 23))) != mask ||
         m->value[1] >= SP_SENSOR_MAX || m->value[3] >= SP_SENSOR_KIND_COUNT || m->value[4] >= SP_UNIT_COUNT ||
         m->value[8] > UINT32_MAX || m->value[10] > SP_Q_STALE || m->value[15] > UINT32_MAX ||
-        m->value[16] > UINT32_MAX || (sp_message_has(m, 19) && m->value[19] > 4095))
+        m->value[16] > UINT32_MAX || (sp_message_has(m, 23) && m->value[23] > 1) ||
+        (sp_message_has(m, 19) && m->value[19] > 4095))
         return false;
     memset(d, 0, sizeof(*d));
     d->remote = true;
@@ -97,6 +101,7 @@ bool sp_sensor_from_message(const sp_message_t *m, uint64_t now, sp_sensor_drive
     d->age_at_receive_ms = m->value[14];
     d->descriptor = (sp_sensor_descriptor_t){.slot = m->value[1],
                                              .kind = m->value[3],
+                                             .calibration = sp_message_has(m, 23) ? m->value[23] : 0,
                                              .unit = m->value[4],
                                              .max_age_ms = m->value[15],
                                              .interval_ms = m->value[16]};
