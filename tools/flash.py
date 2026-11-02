@@ -40,11 +40,12 @@ def choose_port():
     if not selected.isdigit() or not 1 <= int(selected) <= len(found): raise ValueError('Неверный номер порта')
     return found[int(selected)-1].device
 
-def detect(port,profile):
+def detect(port,profile,keep_rom=False):
     chip,_,mb=PROFILES[profile]
-    result=tool('--chip',chip,'--port',port,'flash_id',capture=True).stdout
+    after=('--after','no_reset') if keep_rom else ()
+    result=tool('--chip',chip,'--port',port,*after,'flash_id',capture=True).stdout
     if f'{mb}MB' not in result: raise ValueError(f'Размер flash не подтверждён как {mb}MB для {profile}. Проверьте маркировку платы.')
-    result=tool('--chip',chip,'--port',port,'read_mac',capture=True).stdout
+    result=tool('--chip',chip,'--port',port,*after,'read_mac',capture=True).stdout
     match=re.search(r'^MAC:\s*([0-9a-fA-F:]{17})',result,re.M)
     if not match: raise ValueError('Не удалось определить MAC платы')
     return match.group(1).lower()
@@ -93,12 +94,15 @@ def load_bundle(directory,profile):
     if len(app)>size: raise ValueError('Приложение не помещается в раздел')
     return result
 
-def read_region(port,chip,address,size,path):
-    tool('--chip',chip,'--port',port,'read_flash',hex(address),hex(size),path,capture=True)
+def read_region(port,chip,address,size,path,keep_rom=False):
+    after=('--after','no_reset') if keep_rom else ()
+    tool('--chip',chip,'--port',port,*after,'read_flash',hex(address),hex(size),path,capture=True)
 
-def require_blank_nvs(port,chip):
+def require_blank_nvs(port,chip,keep_rom=False):
     with tempfile.TemporaryDirectory() as directory:
-        path=Path(directory)/'nvs.bin';read_region(port,chip,0x9000,0x20000,path)
+        path=Path(directory)/'nvs.bin'
+        if keep_rom:read_region(port,chip,0x9000,0x20000,path,keep_rom=True)
+        else:read_region(port,chip,0x9000,0x20000,path)
         if any(b!=255 for b in path.read_bytes()): raise ValueError('NVS уже содержит данные. Для действующей платы используйте обновление. Этот мастер не стирает NVS и не переустанавливает существующие ключи.')
 
 def source_build(profile):
@@ -177,8 +181,10 @@ def factory_reset(port,profile):
         if not found:raise ValueError('Не найдена ожидаемая область NVS. Сброс отменён.')
     print('Заводской сброс удалит ключи, привязки, настройки и историю этой платы. Затем нужна новая установка с новыми ключами.')
     if input(f'Для сброса введите RESET {mac}: ').strip()!=f'RESET {mac}':print('Отменено.');return
-    tool('--chip',chip,'--port',port,'erase_region','0x9000','0x20000')
+    after=('--after','no_reset') if profile=='c3' else ()
+    tool('--chip',chip,'--port',port,*after,'erase_region','0x9000','0x20000')
     print('NVS очищен. Приложение сохранено. Выполните первую установку; старый NVS не восстанавливайте.')
+    if profile=='c3':print('C3 оставлен в загрузчике до новой установки. Не переподключайте USB между сбросом и new-node.')
 
 def setup_ap(port):
     import serial
@@ -194,9 +200,9 @@ def setup_ap(port):
 
 def new_node(port,bundle):
     """Install a fresh discoverable C3; firmware creates its own local identity once."""
-    profile='c3';chip='esp32c3';detect(port,profile);require_blank_nvs(port,chip)
+    profile='c3';chip='esp32c3';detect(port,profile,keep_rom=True);require_blank_nvs(port,chip,keep_rom=True)
     files=load_bundle(bundle,profile)
-    if input('Новый C3 без привязки. GPIO отключены. Введите INSTALL: ').strip()!='INSTALL':print('Отменено.');return
+    if input('Новый C3 без привязки. GPIO отключены. Введите INSTALL: ').strip()!='INSTALL':print('Отменено. Для запуска прежнего приложения переподключите USB.');return
     tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x30000',files['app'])
     print('C3 готов. Откройте приложение Hub → Добавить контроллер → Найти рядом. Поиск доступен первые 2 минуты после включения C3.')
 
