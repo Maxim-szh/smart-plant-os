@@ -11,7 +11,7 @@ def package(build,output,profile):
     build,output=Path(build).resolve(),Path(output).resolve()
     chip='esp32c3' if profile=='c3' else 'esp32s3'
     app='smart_plant_node.bin' if profile=='c3' else 'smart_plant_hub.bin'
-    files={'app':build/app,'bootloader':build/'bootloader/bootloader.bin','partition_table':build/'partition_table/partition-table.bin'}
+    files={'app':build/app,'bootloader':build/'bootloader/bootloader.bin','partition_table':build/'partition_table/partition-table.bin','otadata':build/'ota_data_initial.bin'}
     config=json.loads((build/'config/sdkconfig.json').read_text(encoding="utf-8"))
     if config.get('IDF_TARGET')!=chip:raise ValueError('Build target does not match profile')
     if profile!='c3':
@@ -23,10 +23,12 @@ def package(build,output,profile):
     if output.exists() and any(p.name not in allowed or not p.is_file() or p.is_symlink() for p in output.iterdir()):
         raise ValueError('Output directory contains unrelated files; use a clean firmware package directory')
     output.mkdir(parents=True,exist_ok=True)
-    manifest={'format':1,'profile':profile,'chip':chip,'app_offset':0x30000}
+    if not config.get('BOOTLOADER_APP_ROLLBACK_ENABLE'):raise ValueError('OTA requires bootloader rollback support')
+    description=json.loads((build/'project_description.json').read_text())
+    manifest={'format':2,'layout':'ota-v1','data_abi':1,'version':description['project_version'],'profile':profile,'chip':chip,'app_offset':0x30000}
     for key,src in files.items():
         dst=output/src.name;shutil.copyfile(src,dst)
-        manifest[key]={'file':dst.name,'sha256':hashlib.sha256(dst.read_bytes()).hexdigest()}
+        manifest[key]={'file':dst.name,'sha256':hashlib.sha256(dst.read_bytes()).hexdigest(),'size':dst.stat().st_size}
     sdk=Path(os.environ.get('IDF_PATH',''))
     generator=sdk/'components/nvs_flash/nvs_partition_generator/nvs_partition_gen.py'
     if generator.is_file():

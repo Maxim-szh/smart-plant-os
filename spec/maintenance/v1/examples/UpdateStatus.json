@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "phase": "idle",
+  "error": "",
+  "active": false,
+  "verifying": false,
+  "validated": true,
+  "received_bytes": 0,
+  "total_bytes": 0,
+  "firmware_version": "0.2.0-abi1",
+  "data_abi": 1,
+  "profile": "n8r2",
+  "layout": "ota-v1",
+  "session_id": "00000000-0000-0000-0000-000000000000",
+  "last_result": "none"
+}

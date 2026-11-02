@@ -14,12 +14,19 @@ typedef struct {
     uint32_t version, revision;
     uint8_t plant[16];
     char name[81], species[41];
+} sp_plant_meta_v1_t;
+typedef struct {
+    uint32_t version, revision;
+    uint8_t plant[16];
+    char name[81], species[41], room[81];
+    uint8_t setup_stage;
 } sp_plant_meta_t;
 typedef struct {
     uint8_t device[6];
     sp_plant_meta_t plant;
     bool have_plant, have_config;
-    uint32_t boot;
+    uint32_t boot, hardware_flags, firmware_number;
+    bool hardware_known;
     sp_registry_entry_t registry;
     sp_config_t config;
     sp_sensor_driver_t sensors[SP_SENSOR_MAX];

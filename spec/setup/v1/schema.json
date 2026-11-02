@@ -136,7 +136,10 @@
           "maximum": 14
         },
         "update_method": {
-          "const": "usb_app_only"
+          "enum": [
+            "usb_app_only",
+            "usb_and_web"
+          ]
         },
         "nodes": {
           "type": "array",

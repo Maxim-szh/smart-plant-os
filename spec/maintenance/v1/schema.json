@@ -1,0 +1,229 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://smartplantos.local/spec/maintenance/v1/schema.json",
+  "$defs": {
+    "Detach": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "operation_id",
+        "acknowledge_autonomy"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "operation_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "acknowledge_autonomy": {
+          "const": true
+        }
+      }
+    },
+    "ReplaceController": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "revision",
+        "device_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "device_id": {
+          "type": "string",
+          "pattern": "^spo-[a-f0-9]{12}$"
+        }
+      }
+    },
+    "BeginUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "device_id",
+        "profile",
+        "size",
+        "sha256",
+        "header",
+        "session_id"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "device_id": {
+          "anyOf": [
+            {
+              "const": "hub"
+            },
+            {
+              "type": "string",
+              "pattern": "^spo-[a-f0-9]{12}$"
+            }
+          ]
+        },
+        "profile": {
+          "enum": [
+            "c3",
+            "n8r2",
+            "n16r8"
+          ]
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 128,
+          "maximum": 2097152
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "header": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{256}$"
+        },
+        "session_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "UpdateChunk": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "offset",
+        "data"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "data": {
+          "type": "string",
+          "pattern": "^(?:[a-f0-9]{2}){1,768}$"
+        }
+      }
+    },
+    "UpdateSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "UpdateStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "phase",
+        "error",
+        "active",
+        "verifying",
+        "validated",
+        "received_bytes",
+        "total_bytes",
+        "firmware_version",
+        "data_abi",
+        "profile",
+        "layout",
+        "session_id",
+        "last_result"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "phase": {
+          "enum": [
+            "idle",
+            "uploading",
+            "transferring",
+            "rebooting",
+            "rebooting_node",
+            "completed",
+            "failed"
+          ]
+        },
+        "error": {
+          "type": "string"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "verifying": {
+          "type": "boolean"
+        },
+        "validated": {
+          "type": "boolean"
+        },
+        "received_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "total_bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "firmware_version": {
+          "type": "string"
+        },
+        "data_abi": {
+          "const": 1
+        },
+        "profile": {
+          "enum": [
+            "c3",
+            "n8r2",
+            "n16r8"
+          ]
+        },
+        "layout": {
+          "enum": [
+            "ota-v1",
+            "factory"
+          ]
+        },
+        "session_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "last_result": {
+          "enum": [
+            "none",
+            "verifying",
+            "validated",
+            "rolled_back"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -17,12 +17,14 @@ import secrets
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'tools'))
 PROFILES = {'n8r2': ('esp32s3', 9, 8), 'n16r8': ('esp32s3', 9, 16), 'c3': ('esp32c3', 5, 4)}
 
 def run(args, capture=False):
     return subprocess.run(list(map(str,args)),check=True,text=True,capture_output=capture,cwd=ROOT)
 
 def tool(*args, capture=False):
+    if '--baud' not in args:args=('--baud','921600',*args)
     return run([sys.executable,'-m','esptool',*args],capture=capture)
 
 def ports():
@@ -52,7 +54,7 @@ def detect(port,profile,keep_rom=False):
 
 def parse_partitions(data):
     """Validate ESP-IDF partition table, including its MD5 marker."""
-    apps=[]; checked=False; intervals=[]
+    apps=[]; checked=False; intervals=[]; records=[]
     for off in range(0,min(len(data),0x1000),32):
         row=data[off:off+32]
         if len(row)!=32: raise ValueError('Обрезанная таблица разделов')
@@ -66,18 +68,21 @@ def parse_partitions(data):
         if flags: raise ValueError('Зашифрованный/специальный раздел требует отдельного инструмента обновления')
         if any(address<b and address+size>a for a,b in intervals): raise ValueError('Разделы перекрываются')
         intervals.append((address,address+size))
+        records.append((kind,subtype,address,size,label.rstrip(b"\0")))
         if kind==0: apps.append((subtype,address,size,label.rstrip(b'\0')))
     if not checked: raise ValueError('У таблицы разделов нет проверяемого MD5')
-    if len(apps)!=1 or apps[0][0]!=0 or apps[0][1]!=0x30000: raise ValueError('Поддерживается только действующая factory-разметка Smart Plant OS. OTA-разметка требует другого обновления.')
-    return apps[0][1],apps[0][2]
+    if (1,2,0x9000,0x20000,b'nvs') not in records or (1,1,0x29000,0x1000,b'phy_init') not in records:raise ValueError('Не совпадает защищённая область NVS/PHY')
+    if len(apps)==1 and apps[0][0]==0 and apps[0][1]==0x30000:return apps[0][1],apps[0][2]
+    if (1,0,0x2a000,8192,b'otadata') in records and len(apps)==2 and apps[0][0]==16 and apps[1][0]==17 and apps[0][1]==0x30000 and apps[0][2]==apps[1][2] and apps[1][1]==apps[0][1]+apps[0][2] and apps[0][2] in (0x200000,0x1e0000):return apps[0][1],apps[0][2]
+    raise ValueError('Неизвестная разметка приложений; запись отменена')
 
 def load_bundle(directory,profile):
     directory=Path(directory).resolve()
     manifest=json.loads((directory/'manifest.json').read_text(encoding="utf-8"))
     chip,chip_id,mb=PROFILES[profile]
-    if manifest.get('format')!=1 or manifest.get('profile')!=profile or manifest.get('chip')!=chip: raise ValueError('Пакет не соответствует профилю платы')
+    if manifest.get('format') not in (1,2) or manifest.get('profile')!=profile or manifest.get('chip')!=chip: raise ValueError('Пакет не соответствует профилю платы')
     result={}
-    for name in ('app','bootloader','partition_table'):
+    for name in (('app','bootloader','partition_table','otadata') if manifest.get('format')==2 else ('app','bootloader','partition_table')):
         entry=manifest.get(name,{})
         file=entry.get('file','')
         if not file or Path(file).name!=file: raise ValueError('Некорректный путь файла в пакете')
@@ -92,11 +97,21 @@ def load_bundle(directory,profile):
     if manifest.get('app_offset')!=0x30000: raise ValueError('Некорректное смещение приложения')
     offset,size=parse_partitions(result['partition_table'].read_bytes())
     if len(app)>size: raise ValueError('Приложение не помещается в раздел')
+    if manifest.get('format')==2:
+        if manifest.get('layout')!='ota-v1' or manifest.get('data_abi')!=1 or manifest['app'].get('size')!=len(app) or len(app)<128 or struct.unpack_from('<I',app,32)[0]!=0xabcd5432:raise ValueError('Несовместимый OTA-пакет')
+        version=app[48:80].split(b'\0',1)[0].decode('ascii')
+        project=app[80:112].split(b'\0',1)[0].decode('ascii')
+        if version!=manifest.get('version') or not re.fullmatch(r'\d+\.\d+\.\d+-abi1',version) or project!=('smart_plant_node' if profile=='c3' else 'smart_plant_hub'):raise ValueError('Неверная версия или проект приложения')
+        if len(result['otadata'].read_bytes())!=8192:raise ValueError('Некорректный otadata')
+        if size!=(0x1e0000 if profile=='c3' else 0x200000):raise ValueError('Некорректный размер OTA-слотов')
     return result
+
+def initial_ota_args(files):
+    return ('0x2a000',files['otadata']) if 'otadata' in files else ()
 
 def read_region(port,chip,address,size,path,keep_rom=False):
     after=('--after','no_reset') if keep_rom else ()
-    tool('--chip',chip,'--port',port,*after,'read_flash',hex(address),hex(size),path,capture=True)
+    tool('--chip',chip,'--port',port,'--baud','921600',*after,'read_flash',hex(address),hex(size),path,capture=True)
 
 def require_blank_nvs(port,chip,keep_rom=False):
     with tempfile.TemporaryDirectory() as directory:
@@ -125,20 +140,43 @@ def fresh_hub(port,profile,bundle):
     nvs_generate(output/'hub.csv',output/'hub.nvs.bin',bundle)
     files=load_bundle(bundle,profile)
     if input(f'Первичная установка нового Hub {mac}. Введите INSTALL: ').strip()!='INSTALL': print('Отменено. Плата не изменена.');return
-    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x30000',files['app'],'0x9000',output/'hub.nvs.bin')
+    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],*initial_ota_args(files),'0x30000',files['app'],'0x9000',output/'hub.nvs.bin')
     print(f'Готово. Подключитесь к SmartPlantOS и откройте https://192.168.4.1/setup\nПароль точки и ключ администратора: {output/"access.json"}')
 
 def update(port,profile,bundle):
-    chip=PROFILES[profile][0];detect(port,profile);files=load_bundle(bundle,profile)
+    chip=PROFILES[profile][0];detect(port,profile,keep_rom=True);files=load_bundle(bundle,profile)
+    manifest=json.loads((Path(bundle)/'manifest.json').read_text())
     with tempfile.TemporaryDirectory() as directory:
-        path=Path(directory)/'partitions.bin';read_region(port,chip,0x8000,0x1000,path)
-        offset,size=parse_partitions(path.read_bytes())
-        if path.read_bytes()[:0xc00]!=files['partition_table'].read_bytes()[:0xc00]: raise ValueError('Разметка пакета отличается от платы. Автоматическая миграция не выполняется.')
-        if files['app'].stat().st_size>size: raise ValueError('Приложение не помещается в установленный раздел')
-    print(f'Обновление {profile}: только приложение по адресу {offset:#x}. NVS, ключи и лимиты сохраняются.')
-    if input('Введите UPDATE: ').strip()!='UPDATE': print('Отменено.');return
-    tool('--chip',chip,'--port',port,'write_flash',hex(offset),files['app'])
-    print('Обновление записано. Проверьте запуск платы и состояние подключения. При обрыве питания повторите USB-обновление; factory-профиль не имеет OTA-отката.')
+        directory=Path(directory);path=directory/'partitions.bin';read_region(port,chip,0x8000,0x1000,path,keep_rom=True)
+        installed=path.read_bytes();offset,size=parse_partitions(installed)
+        if manifest.get('format')==1:
+            if installed[:0xc00]!=files['partition_table'].read_bytes()[:0xc00]:raise ValueError('Пакет требует другой разметки')
+            if files['app'].stat().st_size>size:raise ValueError('Приложение не помещается в раздел')
+            if input('Старое обновление без отката. Введите UPDATE: ').strip()!='UPDATE':print('Отменено.');return
+            tool('--chip',chip,'--port',port,'write_flash',hex(offset),files['app']);return
+        from ota_layout import selection,selection_data,image_size
+        target_size=0x1e0000 if profile=='c3' else 0x200000
+        migration=size in (0x300000,0x400000)
+        if migration:
+            # Preserve the existing factory app as ota_0. Never read/write NVS.
+            fallback=directory/'fallback.bin';read_region(port,chip,0x30000,target_size,fallback,keep_rom=True)
+            data=fallback.read_bytes();image_size(data)
+            if len(data)<128 or data[80:112].split(b'\0',1)[0]!=(b'smart_plant_node' if profile=='c3' else b'smart_plant_hub'):raise ValueError('Установлено неизвестное приложение; автоматическая миграция отменена')
+            sequence=1;candidate=0x30000+target_size
+        else:
+            if installed[:0xc00]!=files['partition_table'].read_bytes()[:0xc00]:raise ValueError('Неизвестная OTA-разметка; запись отменена')
+            ota=directory/'old-otadata.bin';read_region(port,chip,0x2a000,8192,ota,keep_rom=True)
+            slot,sequence=selection(ota.read_bytes());candidate=0x30000+(1-slot)*target_size
+        selection_file=directory/'otadata.bin';selection_file.write_bytes(selection_data(sequence))
+        print('USB-миграция в два OTA-слота.' if migration else 'Обновление неактивного OTA-слота.')
+        print('NVS, ключи, Wi-Fi, привязки и лимиты сохраняются. Не отключайте USB во время записи загрузчика и таблицы.')
+        if input('Введите UPDATE: ').strip()!='UPDATE':print('Отменено. Переподключите USB для запуска прежней прошивки.');return
+        tool('--chip',chip,'--port',port,'--after','no_reset','write_flash',hex(candidate),files['app'])
+        if migration:
+            tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x2a000',selection_file)
+        else:
+            tool('--chip',chip,'--port',port,'write_flash','0x2a000',selection_file)
+    print('Кандидат записан. Подождите 30–90 секунд: новая прошивка подтвердит запуск либо загрузчик вернёт предыдущий слот. Не восстанавливайте старые копии NVS.')
 
 def prepare_node(port,passport_file,bundle):
     passport=json.loads(Path(passport_file).read_text(encoding="utf-8"));profile='c3';chip='esp32c3'
@@ -164,7 +202,7 @@ def prepare_node(port,passport_file,bundle):
     with os.fdopen(fd,'w',newline='',encoding='utf-8') as f:csv.writer(f).writerows(rows)
     nvs_generate(output/'node.csv',output/'node.nvs.bin',bundle)
     if input(f'Новый C3 {mac}, выходы насоса отключены. Введите INSTALL: ').strip()!='INSTALL':print('Отменено.');return
-    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x30000',files['app'],'0x9000',output/'node.nvs.bin')
+    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],*initial_ota_args(files),'0x30000',files['app'],'0x9000',output/'node.nvs.bin')
     print(f'Готово. На странице /setup вашего Hub загрузите {output/"node-pairing.json"}\nЭто приватный файл. GPIO остаются неназначенными.')
 
 def factory_reset(port,profile):
@@ -203,7 +241,7 @@ def new_node(port,bundle):
     profile='c3';chip='esp32c3';detect(port,profile,keep_rom=True);require_blank_nvs(port,chip,keep_rom=True)
     files=load_bundle(bundle,profile)
     if input('Новый C3 без привязки. GPIO отключены. Введите INSTALL: ').strip()!='INSTALL':print('Отменено. Для запуска прежнего приложения переподключите USB.');return
-    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],'0x30000',files['app'])
+    tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],*initial_ota_args(files),'0x30000',files['app'])
     print('C3 готов. Откройте приложение Hub → Добавить контроллер → Найти рядом. Поиск доступен первые 2 минуты после включения C3.')
 
 def main():

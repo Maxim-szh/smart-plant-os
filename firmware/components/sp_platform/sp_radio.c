@@ -1,4 +1,5 @@
 #include "sp_internal.h"
+#include "sp_update.h"
 #include "sp_web.h"
 #include "sp_setup.h"
 #include "sp_ap_policy.h"
@@ -16,6 +17,7 @@
 #include "freertos/event_groups.h"
 #include "sp_crypto.h"
 #include "sp_pairing.h"
+#include "sp_epochs.h"
 #include "esp_random.h"
 
 typedef struct {
@@ -44,6 +46,11 @@ typedef struct {
     uint8_t owner[6];
     link_v1_t peers[SP_PEER_MAX];
 } links_v1_t;
+typedef struct {
+    uint32_t version, count;
+    uint8_t owner[6], operation[16];
+    link_v1_t peer;
+} node_link_v2_t;
 typedef struct {
     char ssid[33], password[64];
 } network_v1_t;
@@ -189,6 +196,23 @@ bool sp_identity_load(sp_identity_t *id, bool hub) {
                 id->count = links.count;
         } else if (e != ESP_ERR_NVS_NOT_FOUND)
             ok = false;
+        if (!hub) {
+            node_link_v2_t node = {0};
+            length = sizeof(node);
+            e = nvs_get_blob(link_store, "node_v2", &node, &length);
+            if (e == ESP_OK) {
+                if (length != sizeof(node) || node.version != 2 || node.count > 1 ||
+                    memcmp(node.owner, id->self, 6))
+                    ok = false;
+                else {
+                    overlay = true;
+                    links.count = id->count = node.count;
+                    if (node.count)
+                        links.peers[0] = node.peer;
+                }
+            } else if (e != ESP_ERR_NVS_NOT_FOUND)
+                ok = false;
+        }
         nvs_close(link_store);
     }
     for (unsigned i = 0; ok && i < id->count; i++) {
@@ -224,13 +248,8 @@ bool sp_identity_load(sp_identity_t *id, bool hub) {
     id->boot++;
     if (nvs_set_u32(id->runtime, "boot", id->boot) != ESP_OK || nvs_commit(id->runtime) != ESP_OK)
         return false;
-    for (unsigned i = 0; i < id->count; i++) {
-        char key[16];
-        snprintf(key, sizeof(key), "p%uboot", i);
-        err = nvs_get_u32(id->runtime, key, &id->peers[i].boot);
-        if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND)
-            return false;
-    }
+    if (!sp_peer_epochs_load(id))
+        return false;
     return true;
 }
 static void on_receive(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
@@ -477,6 +496,15 @@ bool sp_radio_send(unsigned peer, const sp_message_t *m) {
         tx_ok++;
     return radio_ok;
 }
+bool sp_radio_update_send(unsigned peer, const uint8_t *data, size_t len) {
+    if (!radio_ok || peer >= identity->count || len > SP_WIRE_MAX)
+        return false;
+    if (esp_now_send(identity->peers[peer].mac, data, len) != ESP_OK)
+        return false;
+    if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE)
+        radio_ok = false;
+    return radio_ok;
+}
 bool sp_radio_receive(sp_received_t *out) {
     rx_packet_t packet;
     if (!radio_ok || xQueueReceive(rx_queue, &packet, 0) != pdTRUE)
@@ -492,6 +520,8 @@ bool sp_radio_receive(sp_received_t *out) {
         rx_unknown++;
         return false;
     }
+    if (sp_update_receive(i, packet.bytes, packet.len))
+        return false;
     sp_peer_t *p = &identity->peers[i];
     sp_header_t h;
     if (!sp_header_decode(&h, packet.bytes, packet.len) || h.role == identity->hub || h.boot < p->boot ||
@@ -512,10 +542,7 @@ bool sp_radio_receive(sp_received_t *out) {
     } else if (h.target_boot != identity->boot)
         return false;
     if (h.boot > p->boot) {
-        char key[16];
-        snprintf(key, sizeof(key), "p%uboot", i);
-        if (nvs_set_u32(identity->runtime, key, h.boot) != ESP_OK ||
-            nvs_commit(identity->runtime) != ESP_OK) {
+        if (!sp_peer_epoch_store(identity->runtime, p->device, h.boot)) {
             radio_ok = false;
             return false;
         }
@@ -534,6 +561,7 @@ bool sp_radio_receive(sp_received_t *out) {
     }
     rx_valid++;
     sp_pairing_link_seen(i);
+    sp_update_link_seen(i);
     out->peer = i;
     return true;
 }
@@ -636,7 +664,13 @@ esp_err_t sp_radio_add_peer(const sp_peer_t *peer) {
     nvs_handle_t store;
     err = nvs_open("links", NVS_READWRITE, &store);
     if (err == ESP_OK) {
-        err = nvs_set_blob(store, "registry_v1", &links, sizeof(links));
+        if (identity->hub)
+            err = nvs_set_blob(store, "registry_v1", &links, sizeof(links));
+        else {
+            node_link_v2_t node = {.version = 2, .count = 1, .peer = links.peers[0]};
+            memcpy(node.owner, identity->self, 6);
+            err = nvs_set_blob(store, "node_v2", &node, sizeof(node));
+        }
         if (err == ESP_OK)
             err = nvs_commit(store);
         nvs_close(store);
@@ -713,5 +747,59 @@ esp_err_t sp_radio_pair_pmk(const uint8_t key[16]) {
     node_last_hub_rx_ms = (uint64_t)esp_timer_get_time() / 1000;
     node_scan_due_ms = node_last_hub_rx_ms + NODE_HUB_TIMEOUT_MS;
     puts("Radio PMK synchronized over protected pairing exchange");
+    return ESP_OK;
+}
+
+esp_err_t sp_radio_prepare_unpair(const uint8_t operation[16]) {
+    if (!identity || identity->hub || identity->count != 1 || !radio_ok)
+        return ESP_ERR_INVALID_STATE;
+    node_link_v2_t node = {.version = 2, .count = 0};
+    memcpy(node.owner, identity->self, 6);
+    memcpy(node.operation, operation, 16);
+    nvs_handle_t h;
+    esp_err_t e = nvs_open("links", NVS_READWRITE, &h);
+    if (e != ESP_OK)
+        return e;
+    e = nvs_set_blob(h, "node_v2", &node, sizeof(node));
+    if (e == ESP_OK)
+        e = nvs_commit(h);
+    nvs_close(h);
+    return e;
+}
+esp_err_t sp_radio_remove_peer(unsigned slot) {
+    if (!identity || !identity->hub || !radio_ok || slot >= identity->count || network_trial)
+        return ESP_ERR_INVALID_STATE;
+    sp_peer_t old = identity->peers[slot];
+    links_v1_t next = {.version = 1, .count = identity->count - 1};
+    memcpy(next.owner, identity->self, 6);
+    unsigned k = 0;
+    for (unsigned i = 0; i < identity->count; i++)
+        if (i != slot) {
+            sp_peer_t *p = &identity->peers[i];
+            link_v1_t *d = &next.peers[k++];
+            memcpy(d->mac, p->mac, 6);
+            memcpy(d->device, p->device, 6);
+            memcpy(d->lmk, p->lmk, 16);
+            memcpy(d->app_key, p->app_key, 16);
+        }
+    nvs_handle_t h;
+    esp_err_t e = nvs_open("links", NVS_READWRITE, &h);
+    if (e != ESP_OK)
+        return e;
+    e = nvs_set_blob(h, "registry_v1", &next, sizeof(next));
+    if (e == ESP_OK)
+        e = nvs_commit(h);
+    nvs_close(h);
+    if (e != ESP_OK)
+        return e;
+    e = esp_now_del_peer(old.mac);
+    if (e != ESP_OK) {
+        radio_ok = false;
+        return e;
+    }
+    sp_pairing_peer_removed(slot);
+    memmove(&identity->peers[slot], &identity->peers[slot + 1],
+            (identity->count - slot - 1) * sizeof(sp_peer_t));
+    memset(&identity->peers[--identity->count], 0, sizeof(sp_peer_t));
     return ESP_OK;
 }

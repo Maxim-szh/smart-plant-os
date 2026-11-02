@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Пример сада · Smart Plant OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400..600&family=Onest:wght@300..700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app" id="app">
+  <aside class="rail" id="rail" aria-label="Разделы"></aside>
+  <div class="main">
+    <div class="top">
+      <div class="brand"><i></i>Smart Plant</div><a class="btn" href="/">Мои растения</a>
+    </div>
+    <div class="demo-banner" role="note"><b>Предварительный макет.</b> Это отдельный пример с вымышленными растениями. Все действия выполняются только внутри примера.</div>
+    <main id="view" tabindex="-1"></main>
+  </div>
+</div>
+<nav class="tabbar" id="tabbar" aria-label="Разделы"></nav>
+<div id="ctaHost"></div>
+<dialog id="sheet" aria-labelledby="shT"></dialog>
+<div id="live" class="sr" role="status" aria-live="polite"></div>
+<div id="toastHost"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<linearGradient id="lf" x1="0" y1="1" x2="0" y2="0"><stop offset="0" style="stop-color:var(--leaf-lo)"/><stop offset="1" style="stop-color:var(--leaf-hi)"/></linearGradient>
+<linearGradient id="lf2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" style="stop-color:color-mix(in srgb,var(--leaf-lo) 65%,var(--water))"/><stop offset="1" style="stop-color:color-mix(in srgb,var(--leaf-hi) 70%,var(--water))"/></linearGradient>
+<radialGradient id="frt" cx=".35" cy=".3" r=".8"><stop offset="0" style="stop-color:var(--fruit-hi)"/><stop offset=".5" style="stop-color:var(--fruit)"/><stop offset="1" style="stop-color:var(--fruit-lo)"/></radialGradient>
+<linearGradient id="pep" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:var(--fruit-hi)"/><stop offset=".45" style="stop-color:var(--fruit)"/><stop offset="1" style="stop-color:var(--fruit-lo)"/></linearGradient>
+<radialGradient id="bl" cx=".5" cy=".85" r=".9"><stop offset="0" style="stop-color:var(--bloom)"/><stop offset="1" style="stop-color:var(--bloom-hi)"/></radialGradient>
+<radialGradient id="lem" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="#FBEE95"/><stop offset=".55" stop-color="#EDC93A"/><stop offset="1" stop-color="#C79A14"/></radialGradient>
+<radialGradient id="orc" cx=".5" cy=".4" r=".75"><stop offset="0" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#F6E1EE"/><stop offset="1" stop-color="#DC9BC2"/></radialGradient>
+<radialGradient id="gp" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#F58A8A"/><stop offset="1" stop-color="#C93B4F"/></radialGradient>
+<radialGradient id="shd"><stop offset="0" stop-color="#000" stop-opacity=".34"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+<linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--dirt)"/><stop offset=".35" style="stop-color:var(--soil)"/><stop offset="1" style="stop-color:color-mix(in srgb,var(--soil) 80%,var(--dirt))"/></linearGradient>
+<g id="mleaf"><mask id="mmask" maskUnits="userSpaceOnUse" x="-40" y="-60" width="80" height="70"><rect x="-40" y="-60" width="80" height="70" fill="#fff"/><g fill="#000"><ellipse cx="-25" cy="-11" rx="9" ry="2.6" transform="rotate(-14 -25 -11)"/><ellipse cx="-27" cy="-23" rx="9" ry="2.6" transform="rotate(6 -27 -23)"/><ellipse cx="-21" cy="-35" rx="9" ry="2.6" transform="rotate(32 -21 -35)"/><ellipse cx="25" cy="-11" rx="9" ry="2.6" transform="rotate(14 25 -11)"/><ellipse cx="27" cy="-23" rx="9" ry="2.6" transform="rotate(-6 27 -23)"/><ellipse cx="21" cy="-35" rx="9" ry="2.6" transform="rotate(-32 21 -35)"/><ellipse cx="-10" cy="-20" rx="2.4" ry="3.2"/><ellipse cx="10" cy="-27" rx="2.4" ry="3.2"/></g></mask>
+<g mask="url(#mmask)"><path d="M0 0C-4 6-22 4-27-12C-31-28-16-42 0-49C16-42 31-28 27-12C22 4 4 6 0 0Z" fill="url(#lf)"/><path d="M0 0C4 6 22 4 27-12C31-28 16-42 0-49C4-34 4-14 0 0Z" fill="var(--leaf-lo)" opacity=".35"/></g></g>
+</defs></svg>
+<script src="demo.js" defer></script>
+
+
+</body></html>

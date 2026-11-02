@@ -125,6 +125,21 @@
               "items": {
                 "$ref": "#/$defs/SensorDescriptor"
               }
+            },
+            "hardware_known": {
+              "type": "boolean"
+            },
+            "soil_configured": {
+              "type": "boolean"
+            },
+            "identify": {
+              "type": "boolean"
+            },
+            "ota": {
+              "type": "boolean"
+            },
+            "detach": {
+              "type": "boolean"
             }
           }
         }
@@ -191,6 +206,10 @@
                 "null"
               ],
               "pattern": "^[a-z0-9-]+$"
+            },
+            "room": {
+              "type": "string",
+              "maxLength": 80
             }
           }
         },
@@ -232,6 +251,14 @@
                 "null"
               ],
               "minimum": 0
+            },
+            "last_index_pct": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 100
             }
           }
         },
@@ -346,6 +373,23 @@
           "maxItems": 8,
           "items": {
             "$ref": "#/$defs/SensorSample"
+          }
+        },
+        "availability": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "online",
+            "last_seen_age_ms"
+          ],
+          "properties": {
+            "online": {
+              "type": "boolean"
+            },
+            "last_seen_age_ms": {
+              "type": "integer",
+              "minimum": 0
+            }
           }
         }
       },
@@ -1188,6 +1232,25 @@
               },
               "last_seen_at": {
                 "$ref": "#/$defs/timestamp"
+              },
+              "room": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "setup_stage": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "plant_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/uuid"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             }
           }
@@ -1272,6 +1335,12 @@
           "type": "integer",
           "minimum": 20,
           "maximum": 86400000
+        },
+        "calibration": {
+          "enum": [
+            "none",
+            "soil_two_point"
+          ]
         }
       }
     },
@@ -1330,6 +1399,18 @@
         "sample_age_ms": {
           "type": "integer",
           "minimum": 0
+        },
+        "calibration": {
+          "enum": [
+            "none",
+            "soil_two_point"
+          ]
+        },
+        "last_value": {
+          "type": [
+            "number",
+            "null"
+          ]
         }
       },
       "allOf": [
@@ -1457,6 +1538,101 @@
           ],
           "pattern": "^[a-z0-9-]+$",
           "maxLength": 40
+        },
+        "room": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "setup_stage": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      },
+      "dependentRequired": {
+        "room": [
+          "setup_stage"
+        ],
+        "setup_stage": [
+          "room"
+        ]
+      }
+    },
+    "PlantCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "plants"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "plants": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "plant_id",
+              "device_id",
+              "name",
+              "room",
+              "species_id",
+              "revision",
+              "setup_stage"
+            ],
+            "properties": {
+              "plant_id": {
+                "$ref": "#/$defs/uuid"
+              },
+              "device_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/deviceId"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "room": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "species_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967295
+              },
+              "setup_stage": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3
+              },
+              "controller_history": {
+                "type": "array",
+                "maxItems": 40,
+                "items": {
+                  "$ref": "#/$defs/deviceId"
+                }
+              }
+            }
+          }
         }
       }
     }

@@ -1,4 +1,6 @@
 #include "sp_setup.h"
+#include "sp_pairing.h"
+#include "sp_release.h"
 #include "sp_web.h"
 #include "esp_mac.h"
 #include <stdio.h>
@@ -40,12 +42,19 @@ static void reply(const sp_api_request_t *q, int status, const char *error) {
 bool sp_setup_handle(sp_identity_t *id, sp_api_t *api, const sp_api_request_t *q) {
     if (strncmp(q->path, "/api/v1/setup", 13))
         return false;
+    if (!strcmp(q->method, "GET") && !strcmp(q->path, "/api/v1/setup/pairing")) {
+        cJSON *o = cJSON_CreateObject();
+        cJSON_AddNumberToObject(o, "schema_version", 1);
+        sp_pairing_json(o);
+        sp_web_reply(NULL, q->id, 200, o);
+        return true;
+    }
     if (!strcmp(q->method, "GET") && !strcmp(q->path, "/api/v1/setup")) {
         cJSON *o = cJSON_CreateObject();
         cJSON_AddNumberToObject(o, "schema_version", 1);
-        cJSON_AddStringToObject(o, "firmware_version", "0.1.0");
+        cJSON_AddStringToObject(o, "firmware_version", SP_FIRMWARE_VERSION);
         sp_radio_network_json(o);
-        cJSON_AddStringToObject(o, "update_method", "usb_app_only");
+        cJSON_AddStringToObject(o, "update_method", "usb_and_web");
         cJSON *peers = cJSON_AddArrayToObject(o, "nodes");
         for (unsigned i = 0; i < id->count; i++) {
             char name[17];
@@ -83,7 +92,27 @@ bool sp_setup_handle(sp_identity_t *id, sp_api_t *api, const sp_api_request_t *q
         reply(q, 400, "invalid_body");
         return true;
     }
-    if (!strcmp(q->path, "/api/v1/setup/wifi")) {
+    if (!strcmp(q->path, "/api/v1/setup/pairing/search") || !strcmp(q->path, "/api/v1/setup/pairing/retry")) {
+        bool valid = cJSON_GetArraySize(o) == 0;
+        esp_err_t e = !valid                                             ? ESP_ERR_INVALID_ARG
+                      : !strcmp(q->path, "/api/v1/setup/pairing/search") ? sp_pairing_open()
+                                                                         : sp_pairing_retry();
+        reply(q,
+              e == ESP_OK                ? 202
+              : e == ESP_ERR_INVALID_ARG ? 400
+                                         : 409,
+              e == ESP_OK ? NULL : "pairing_busy_or_unavailable");
+    } else if (!strcmp(q->path, "/api/v1/setup/pairing/connect")) {
+        uint8_t target[6];
+        bool valid = cJSON_GetArraySize(o) == 1 &&
+                     device(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "device_id")), target);
+        esp_err_t e = valid ? sp_pairing_begin(target) : ESP_ERR_INVALID_ARG;
+        reply(q,
+              e == ESP_OK                ? 202
+              : e == ESP_ERR_INVALID_ARG ? 400
+                                         : 409,
+              e == ESP_OK ? NULL : "pairing_busy_or_unavailable");
+    } else if (!strcmp(q->path, "/api/v1/setup/wifi")) {
         const char *ssid = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "ssid"));
         const char *pass = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "password"));
         bool valid = cJSON_GetArraySize(o) == 2 && ssid && pass && strlen(ssid) > 0 && strlen(ssid) <= 32 &&

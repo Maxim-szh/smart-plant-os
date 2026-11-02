@@ -10,7 +10,7 @@ static int32_t pump_pin = -1, tank_pin = -1;
 static adc_oneshot_unit_handle_t adc;
 static adc_channel_t soil_channel;
 static gptimer_handle_t cutoff;
-static bool healthy;
+static bool healthy, soil_ready, tank_ready, pump_ready;
 
 #if CONFIG_IDF_TARGET_ESP32C3
 static bool IRAM_ATTR cutoff_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *event, void *arg) {
@@ -31,37 +31,52 @@ bool sp_board_start(nvs_handle_t nvs) {
     return false; /* Hub never has a pump driver. */
 #else
     int32_t soil = -1;
-    if (nvs_get_i32(nvs, "soil_pin", &soil) != ESP_OK || nvs_get_i32(nvs, "pump_pin", &pump_pin) != ESP_OK ||
-        nvs_get_i32(nvs, "tank_pin", &tank_pin) != ESP_OK || !allowed(soil) || !allowed(pump_pin) ||
-        !allowed(tank_pin) || soil == pump_pin || soil == tank_pin || tank_pin == pump_pin)
+    esp_err_t e1 = nvs_get_i32(nvs, "soil_pin", &soil), e2 = nvs_get_i32(nvs, "pump_pin", &pump_pin),
+              e3 = nvs_get_i32(nvs, "tank_pin", &tank_pin);
+    if ((e1 != ESP_OK && e1 != ESP_ERR_NVS_NOT_FOUND) || (e2 != ESP_OK && e2 != ESP_ERR_NVS_NOT_FOUND) ||
+        (e3 != ESP_OK && e3 != ESP_ERR_NVS_NOT_FOUND))
         return false;
-    adc_unit_t unit;
-    if (adc_oneshot_io_to_channel(soil, &unit, &soil_channel) != ESP_OK || unit != ADC_UNIT_1)
+    if ((soil >= 0 && (!allowed(soil) || soil > 4)) || (pump_pin >= 0 && !allowed(pump_pin)) ||
+        (tank_pin >= 0 && !allowed(tank_pin)) || (soil >= 0 && (soil == pump_pin || soil == tank_pin)) ||
+        (pump_pin >= 0 && pump_pin == tank_pin))
         return false;
-    /* External pulldown is mandatory: software cannot control reset/ROM boot levels. */
-    if (gpio_set_level(pump_pin, 0) != ESP_OK || gpio_set_direction(pump_pin, GPIO_MODE_OUTPUT) != ESP_OK)
-        return false;
-    gpio_config_t tank_cfg = {
-        .pin_bit_mask = UINT64_C(1) << tank_pin, .mode = GPIO_MODE_INPUT, .pull_up_en = GPIO_PULLUP_ENABLE};
-    if (gpio_config(&tank_cfg) != ESP_OK)
-        return false;
-    adc_oneshot_unit_init_cfg_t ac = {.unit_id = ADC_UNIT_1};
-    adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12};
-    if (adc_oneshot_new_unit(&ac, &adc) != ESP_OK ||
-        adc_oneshot_config_channel(adc, soil_channel, &cc) != ESP_OK)
-        return false;
-    gptimer_config_t tc = {
-        .clk_src = GPTIMER_CLK_SRC_DEFAULT, .direction = GPTIMER_COUNT_UP, .resolution_hz = 1000000};
-    gptimer_event_callbacks_t cb = {.on_alarm = cutoff_isr};
-    if (gptimer_new_timer(&tc, &cutoff) != ESP_OK ||
-        gptimer_register_event_callbacks(cutoff, &cb, NULL) != ESP_OK || gptimer_enable(cutoff) != ESP_OK)
-        return false;
-    healthy = true;
-    return true;
+    if (soil >= 0) {
+        adc_unit_t unit;
+        if (adc_oneshot_io_to_channel(soil, &unit, &soil_channel) != ESP_OK || unit != ADC_UNIT_1)
+            return false;
+        adc_oneshot_unit_init_cfg_t ac = {.unit_id = ADC_UNIT_1};
+        adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12};
+        if (adc_oneshot_new_unit(&ac, &adc) != ESP_OK ||
+            adc_oneshot_config_channel(adc, soil_channel, &cc) != ESP_OK)
+            return false;
+        soil_ready = true;
+    }
+    if (tank_pin >= 0) {
+        gpio_config_t tank_cfg = {.pin_bit_mask = UINT64_C(1) << tank_pin,
+                                  .mode = GPIO_MODE_INPUT,
+                                  .pull_up_en = GPIO_PULLUP_ENABLE};
+        if (gpio_config(&tank_cfg) != ESP_OK)
+            return false;
+        tank_ready = true;
+    }
+    if (pump_pin >= 0) {
+        /* External pulldown remains mandatory; no GPIO is inferred by the web interface. */
+        if (gpio_set_level(pump_pin, 0) != ESP_OK || gpio_set_direction(pump_pin, GPIO_MODE_OUTPUT) != ESP_OK)
+            return false;
+        gptimer_config_t tc = {
+            .clk_src = GPTIMER_CLK_SRC_DEFAULT, .direction = GPTIMER_COUNT_UP, .resolution_hz = 1000000};
+        gptimer_event_callbacks_t cb = {.on_alarm = cutoff_isr};
+        if (gptimer_new_timer(&tc, &cutoff) != ESP_OK ||
+            gptimer_register_event_callbacks(cutoff, &cb, NULL) != ESP_OK || gptimer_enable(cutoff) != ESP_OK)
+            return false;
+        pump_ready = true;
+    }
+    healthy = soil_ready && tank_ready && pump_ready;
+    return healthy;
 #endif
 }
 bool sp_board_sample(uint16_t out[SP_SAMPLE_COUNT]) {
-    if (!healthy)
+    if (!soil_ready)
         return false;
     for (unsigned i = 0; i < SP_SAMPLE_COUNT; i++) {
         int raw;
@@ -72,7 +87,7 @@ bool sp_board_sample(uint16_t out[SP_SAMPLE_COUNT]) {
     return true;
 }
 int sp_board_tank(void) {
-    return healthy ? !gpio_get_level(tank_pin) : -1;
+    return tank_ready ? !gpio_get_level(tank_pin) : -1;
 }
 bool sp_board_healthy(void) {
     return healthy;
@@ -83,7 +98,7 @@ static bool read_soil(void *ctx, uint64_t now, sp_measurement_t *m) {
         *m = (sp_measurement_t){.quality = SP_Q_MISSING, .sampled_ms = now};
         return true;
     }
-    uint16_t raw[SP_SAMPLE_COUNT];
+    uint16_t raw[SP_SAMPLE_COUNT]={0};
     bool ok = sp_board_sample(raw);
     sp_core_sample(c, raw, ok, now);
     *m = (sp_measurement_t){.quality = c->soil.quality,
@@ -102,12 +117,18 @@ static bool read_tank(void *ctx, uint64_t now, sp_measurement_t *m) {
     return true;
 }
 void sp_board_register_sensors(sp_sensor_registry_t *r, sp_core_t *c) {
-    const sp_sensor_descriptor_t soil = {
-        .slot = 0, .kind = SP_SENSOR_SOIL, .unit = SP_UNIT_PERCENT, .interval_ms = 500, .max_age_ms = 30000};
+    const sp_sensor_descriptor_t soil = {.slot = 0,
+                                         .kind = SP_SENSOR_SOIL,
+                                         .unit = SP_UNIT_PERCENT,
+                                         .calibration = 1,
+                                         .interval_ms = 500,
+                                         .max_age_ms = 30000};
     const sp_sensor_descriptor_t tank = {
         .slot = 1, .kind = SP_SENSOR_TANK, .unit = SP_UNIT_BOOLEAN, .interval_ms = 100, .max_age_ms = 1500};
-    (void)sp_sensors_register(r, &soil, read_soil, c);
-    (void)sp_sensors_register(r, &tank, read_tank, c);
+    if (soil_ready)
+        (void)sp_sensors_register(r, &soil, read_soil, c);
+    if (tank_ready)
+        (void)sp_sensors_register(r, &tank, read_tank, c);
 }
 void sp_board_pump(void *ctx, bool on, uint32_t ms) {
     (void)ctx;
@@ -132,4 +153,8 @@ void sp_board_pump(void *ctx, bool on, uint32_t ms) {
         gpio_set_level(pump_pin, 0);
         healthy = false;
     }
+}
+
+uint32_t sp_board_capabilities(void) {
+    return (soil_ready ? 1u : 0u) | (tank_ready ? 2u : 0u) | (pump_ready ? 4u : 0u);
 }

@@ -25,7 +25,7 @@ typedef enum {
     SP_UNIT_COUNT
 } sp_sensor_unit_t;
 typedef struct {
-    uint8_t slot, kind, unit;
+    uint8_t slot, kind, unit, calibration;
     uint32_t interval_ms, max_age_ms;
 } sp_sensor_descriptor_t;
 typedef struct {

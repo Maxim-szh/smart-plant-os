@@ -374,3 +374,28 @@ void sp_pairing_link_seen(unsigned slot) {
         mbedtls_platform_zeroize(&pending, sizeof(pending));
     }
 }
+
+bool sp_pairing_pending(void) {
+    return have_pending;
+}
+
+void sp_pairing_peer_removed(unsigned slot) {
+    if (!owner || !owner->hub || slot >= owner->count)
+        return;
+    unsigned tail = owner->count - slot - 1;
+    char id[17];
+    sp_api_device_id(owner->peers[slot].device, id);
+    if (!strcmp(selected, id)) {
+        selected[0] = 0;
+        if (!have_pending)
+            phase = "idle";
+    }
+    memmove(proven + slot, proven + slot + 1, tail * sizeof(proven[0]));
+    memmove(wrapped + slot, wrapped + slot + 1, tail * sizeof(wrapped[0]));
+    memmove(pmk_frames + slot, pmk_frames + slot + 1, tail * sizeof(pmk_frames[0]));
+    proven[owner->count - 1] = false;
+    wrapped[owner->count - 1] = false;
+    memset(pmk_frames[owner->count - 1], 0, sizeof(pmk_frames[0]));
+    next_pmk = 0;
+    pmk_slot = 0;
+}

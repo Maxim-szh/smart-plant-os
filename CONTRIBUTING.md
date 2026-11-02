@@ -43,3 +43,7 @@
 До аппаратных испытаний ориентируйтесь на [критерии готовности](docs/ROADMAP.md#готовность-к-прошивке), а не на количество экранов в прототипе.
 
 Первый запуск и обновления: [SETUP.md](docs/SETUP.md), [ADR-0013](docs/adr/0013-setup-and-preserving-updates.md), [контракт настройки](spec/setup/v1/README.md). USB-мастер не стирает NVS при update и не заменяет непустой NVS в fresh-режиме. Новые C3 добавляются через приватный USB-файл привязки; существующие связи не ротируются повторным импортом. Перед публикацией проверьте `python tests/firmware/test_flash.py` и `python tests/firmware/test_provision.py`.
+
+## Реальный сад и обслуживание
+
+Контракты: `docs/adr/0017-live-garden-and-maintenance.md`, `docs/adr/0018-ota-slots-and-confirmed-updates.md`, `spec/maintenance/v1/README.md`. Демо не использует реальный API. Новые датчики объявляют capabilities/единицы/качество/калибровку; GPIO не угадываются. Plant ID, device ID и radio slot не взаимозаменяемы. При OTA сохраняются NVS, safety/state_v1 и boot epochs. Не использовать `idf.py flash` для обновления действующего OTA-устройства. Изменения ABI требуют отдельной миграции и ADR. Проверки: native C, JSON Schema, USB-миграция и браузерный сценарий; физические нагрузки — отдельный стенд.
