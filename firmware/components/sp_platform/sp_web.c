@@ -18,6 +18,10 @@ extern const uint8_t app_start[] asm("_binary_app_js_start");
 extern const uint8_t app_end[] asm("_binary_app_js_end");
 extern const uint8_t script_start[] asm("_binary_live_js_start");
 extern const uint8_t script_end[] asm("_binary_live_js_end");
+extern const uint8_t setup_start[] asm("_binary_setup_html_start");
+extern const uint8_t setup_end[] asm("_binary_setup_html_end");
+extern const uint8_t setup_js_start[] asm("_binary_setup_js_start");
+extern const uint8_t setup_js_end[] asm("_binary_setup_js_end");
 static QueueHandle_t incoming, outgoing;
 static char password[65], token[65];
 static int64_t expires, attempt_window;
@@ -63,8 +67,7 @@ bool sp_web_ap(unsigned channel) {
     char *ap = setting(h, "ap_pass"), *admin = setting(h, "admin");
     nvs_close(h);
     size_t admin_len = admin ? strlen(admin) : 0;
-    bool valid = ap && admin && strlen(ap) >= 12 && strlen(ap) <= 63 &&
-                 (admin_len == 32 || admin_len == 64);
+    bool valid = ap && admin && strlen(ap) >= 12 && strlen(ap) <= 63 && (admin_len == 32 || admin_len == 64);
     if (valid) {
         wifi_config_t c = {0};
         snprintf((char *)c.ap.ssid, sizeof(c.ap.ssid), "SmartPlantOS");
@@ -75,7 +78,7 @@ bool sp_web_ap(unsigned channel) {
         valid = esp_netif_create_default_wifi_ap() && esp_wifi_set_mode(WIFI_MODE_APSTA) == ESP_OK &&
                 esp_wifi_set_config(WIFI_IF_AP, &c) == ESP_OK;
         if (valid)
-            memcpy(password, admin, 65);
+            snprintf(password, sizeof(password), "%s", admin);
     }
     free(ap);
     free(admin);
@@ -126,6 +129,14 @@ static esp_err_t handle(httpd_req_t *r) {
     httpd_resp_set_hdr(r, "Content-Security-Policy",
                        "default-src 'self'; script-src 'self'; style-src 'unsafe-inline'; connect-src "
                        "'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/setup")) {
+        httpd_resp_set_type(r, "text/html; charset=utf-8");
+        return httpd_resp_send(r, (const char *)setup_start, setup_end - setup_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/setup.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)setup_js_start, setup_js_end - setup_js_start);
+    }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/")) {
         httpd_resp_set_type(r, "text/html; charset=utf-8");
         return httpd_resp_send(r, (const char *)page_start, page_end - page_start);

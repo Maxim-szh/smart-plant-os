@@ -32,6 +32,10 @@ def get_mac(chip, port):
 
 
 def build(project, target, profile=None):
+    if not os.environ.get("IDF_PATH") or not shutil.which("idf.py"):
+        raise RuntimeError("Для сборки откройте ESP-IDF 5.3.4 терминал или используйте готовый USB-пакет.")
+    if "v5.3.4" not in run(["idf.py", "--version"], capture=True).stdout:
+        raise RuntimeError("Для сборки требуется ESP-IDF v5.3.4.")
     project_path = ROOT / "firmware" / project
     name = f"install-{profile or target}"
     build_path = project_path / "build" / name
@@ -56,26 +60,26 @@ def build(project, target, profile=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hub-port", required=True, help="USB port for ESP32-S3 Hub")
-    parser.add_argument("--node-port", action="append", required=True,
+    parser.add_argument("--node-port", action="append", default=[],
                         help="USB port for an ESP32-C3 Node; repeat for more Nodes (up to 10)")
     parser.add_argument("--hub-profile", choices=("n16r8", "n8r2"), required=True,
                         help="S3 flash/PSRAM profile matching the board marking")
-    parser.add_argument("--channel", type=int, default=6, help="shared Wi-Fi/ESP-NOW channel (default: 6)")
+    parser.add_argument("--channel", type=int, default=6, help="fallback channel for standalone mode (default: 6); home Wi-Fi channel is detected")
     parser.add_argument("--country", default="01", help="ESP-IDF 5.3.4 country code (default: 01)")
-    parser.add_argument("--wifi-ssid", help="home 2.4 GHz Wi-Fi name; router channel must match --channel")
+    parser.add_argument("--wifi-ssid", default="", help="home 2.4 GHz Wi-Fi name; router channel must match --channel")
     parser.add_argument("--wifi-password", help="avoid this option because it may be stored in shell history")
     args = parser.parse_args()
     if not os.environ.get("IDF_PATH") or not (IDF / "export.sh").exists():
         parser.error("ESP-IDF 5.3.4 is required. Open its ESP-IDF terminal, then run this command again.")
     if not NVS_GENERATOR.exists():
         parser.error(f"ESP-IDF NVS generator not found: {NVS_GENERATOR}")
-    if not shutil.which("idf.py") or not shutil.which("openssl"):
-        parser.error("Activate ESP-IDF 5.3.4 environment and install OpenSSL before running the installer.")
+    if not shutil.which("idf.py"):
+        parser.error("Activate ESP-IDF 5.3.4 environment before running the installer.")
     version = run(["idf.py", "--version"], capture=True).stdout
     if "5.3.4" not in version:
         parser.error(f"This installer requires ESP-IDF 5.3.4; found: {version.strip()}")
-    if not 1 <= len(args.node_port) <= 10:
-        parser.error("Connect one to ten Nodes")
+    if not 0 <= len(args.node_port) <= 10:
+        parser.error("Connect zero to ten Nodes")
     if args.hub_port in args.node_port or len(set(args.node_port)) != len(args.node_port):
         parser.error("Every board must use a different USB port")
     wifi_ssid = args.wifi_ssid
@@ -99,6 +103,12 @@ def main():
 
     node_macs = [get_mac("esp32c3", port) for port in args.node_port]
     hub_mac = get_mac("esp32s3", args.hub_port)
+    # Legacy entry point remains fresh-only; never overwrite an existing installation.
+    sys.path.insert(0, str(ROOT / "tools"))
+    from flash import require_blank_nvs
+    require_blank_nvs(args.hub_port, "esp32s3")
+    for port in args.node_port:
+        require_blank_nvs(port, "esp32c3")
     print(f"Detected {len(node_macs)} C3 Node(s) and S3 Hub STA MAC {hub_mac}.")
     print("Actuator GPIOs remain disabled; no pump can be started by this installation.")
     node_build, _ = build("node", "esp32c3")
@@ -126,10 +136,10 @@ def main():
         run([sys.executable, "-m", "esptool", "--chip", "esp32c3", "--port", port,
              "write_flash", "0x9000", output / f"node-{i}.nvs.bin"])
     print(f"\nУстановка готова: один Hub и {len(node_macs)} Node.")
-    print(f"Первый вход: Wi-Fi SmartPlantOS → https://192.168.4.1; пароль и ключ входа: {output / 'access.json'}")
+    print(f"Первый вход: Wi-Fi SmartPlantOS → https://192.168.4.1/setup; пароль и ключ входа: {output / 'access.json'}")
     if wifi_ssid:
         print(f"Hub также подключается к домашней сети {wifi_ssid!r}; IP-адрес появится в serial monitor/списке клиентов роутера.")
-        print(f"Важно: канал роутера 2,4 ГГц должен быть закреплён на канале {args.channel}, иначе ESP-NOW Nodes не свяжутся с Hub.")
+        print("Канал домашнего Wi-Fi определяется автоматически; --channel задаёт резерв для автономного режима.")
     print("Сохраните каталог secrets: повторная генерация ключей не эквивалентна восстановлению установки.")
 
 

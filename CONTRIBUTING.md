@@ -33,7 +33,7 @@
 
 ## Где сейчас нужна помощь
 
-Первый запуск выполняйте по [FLASHING.md](docs/FLASHING.md). Для изменения датчиков используйте `sp_sensors` и явную привязку к правилам Node; для API — `sp_api`, а не GPIO из HTTP task. Стендовый UI находится в `web/live.html`/`web/live.js`, полный дизайн — в `web/index.html`. Реальный и демонстрационный источники не должны смешиваться. Изменения формата измерений синхронизируйте с SPP, JSON Schema и примерами. Добавляйте проверки в `tests/firmware/test_api.c`; его JSON-ответы можно проверить командой `tests/build/sp_api_tests > /tmp/api.jsonl && node scripts/check-api-output.mjs /tmp/api.jsonl`. Сценарии браузера — `tests/web-live.cjs` (только mock API, не физический полив).
+Первый запуск выполняйте по [FLASHING.md](docs/FLASHING.md). Для изменения датчиков используйте `sp_sensors` и явную привязку к правилам Node; для API — `sp_api`, а не GPIO из HTTP task. Полный демонстрационный дизайн — `web/index.html`/`web/app.js`; первый запуск и настройка — `web/setup.html`/`web/setup.js`. Реальный и демонстрационный источники не должны смешиваться. Изменения формата измерений синхронизируйте с SPP, JSON Schema и примерами. Добавляйте проверки в `tests/firmware/test_api.c`; его JSON-ответы можно проверить командой `tests/build/sp_api_tests > /tmp/api.jsonl && node scripts/check-api-output.mjs /tmp/api.jsonl`. Сценарии настройки — `tests/web-setup.cjs` (mock API под настоящей CSP, без физического полива); старый `tests/web-live.cjs` относится к предыдущему стендовому интерфейсу.
 
 - Проверка справочника растений по источникам и отделение советов по уходу от управления насосом.
 - Измерение и документирование конкретных ESP32-S3 N16R8 и ESP32-C3 Super Mini, а также ESP-NOW на стенде ([NETWORK.md](docs/NETWORK.md)).
@@ -41,3 +41,5 @@
 - Доступность HTML-прототипа и обозначение демонстрационных данных.
 
 До аппаратных испытаний ориентируйтесь на [критерии готовности](docs/ROADMAP.md#готовность-к-прошивке), а не на количество экранов в прототипе.
+
+Первый запуск и обновления: [SETUP.md](docs/SETUP.md), [ADR-0013](docs/adr/0013-setup-and-preserving-updates.md), [контракт настройки](spec/setup/v1/README.md). USB-мастер не стирает NVS при update и не заменяет непустой NVS в fresh-режиме. Новые C3 добавляются через приватный USB-файл привязки; существующие связи не ротируются повторным импортом. Перед публикацией проверьте `python tests/firmware/test_flash.py` и `python tests/firmware/test_provision.py`.

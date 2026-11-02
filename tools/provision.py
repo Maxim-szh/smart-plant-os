@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 import re
 import secrets
-import subprocess
 import uuid
 
 
@@ -35,8 +34,8 @@ IDF_COUNTRIES = {"01", "AT", "AU", "BE", "BG", "BR", "CA", "CH", "CN", "CY", "CZ
 
 
 def generate(args):
-    if not 1 <= len(args.node_mac) <= 10 or len(set([args.hub_mac, *args.node_mac])) != len(args.node_mac) + 1:
-        raise ValueError("1..10 distinct Node STA MACs and a distinct Hub STA MAC required")
+    if not 0 <= len(args.node_mac) <= 10 or len(set([args.hub_mac, *args.node_mac])) != len(args.node_mac) + 1:
+        raise ValueError("0..10 distinct Node STA MACs and a distinct Hub STA MAC required")
     if args.pins and len(args.pins) != len(args.node_mac):
         raise ValueError("supply --pins once per node, or omit all to disable hardware")
     if args.country not in IDF_COUNTRIES:
@@ -59,15 +58,26 @@ def generate(args):
         web = None
         if getattr(args, "web", False):
             cert, key = args.output / "hub-cert.pem", args.output / "hub-key.pem"
-            subprocess.run(["openssl", "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
-                "-pkeyopt", "ec_param_enc:named_curve",
-                "-nodes", "-days", "3650", "-subj", "/CN=Smart Plant OS", "-addext", "subjectAltName=IP:192.168.4.1",
-                "-keyout", str(key), "-out", str(cert)], check=True, capture_output=True)
-            web = {"admin": secrets.token_urlsafe(24), "ap_pass": secrets.token_urlsafe(18),
-                   "cert": cert.read_text(), "key": key.read_text()}
-            fingerprint = subprocess.run(["openssl", "x509", "-in", str(cert), "-noout", "-fingerprint", "-sha256"],
-                                         check=True, capture_output=True, text=True).stdout.strip()
-            with (args.output / "access.json").open("x") as access:
+            from cryptography import x509
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import ec
+            from cryptography.x509.oid import NameOID
+            from datetime import datetime, timedelta, timezone
+            import ipaddress
+            private = ec.generate_private_key(ec.SECP256R1())
+            subject = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "Smart Plant OS")])
+            now = datetime.now(timezone.utc)
+            certificate = (x509.CertificateBuilder().subject_name(subject).issuer_name(subject)
+                .public_key(private.public_key()).serial_number(x509.random_serial_number())
+                .not_valid_before(now - timedelta(days=1)).not_valid_after(now + timedelta(days=3650))
+                .add_extension(x509.SubjectAlternativeName([x509.IPAddress(ipaddress.ip_address("192.168.4.1"))]), critical=False)
+                .sign(private, hashes.SHA256()))
+            cert.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+            key.write_bytes(private.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+            web = {"admin": secrets.token_hex(32), "ap_pass": secrets.token_urlsafe(18),
+                   "cert": cert.read_text(encoding="utf-8"), "key": key.read_text(encoding="utf-8")}
+            fingerprint = "SHA256 Fingerprint=" + ":".join(f"{b:02X}" for b in certificate.fingerprint(hashes.SHA256()))
+            with (args.output / "access.json").open("x", encoding="utf-8") as access:
                 json.dump({"setup_wifi": "SmartPlantOS", "url": "https://192.168.4.1",
                            "setup_wifi_password": web["ap_pass"], "admin_password": web["admin"],
                            "home_wifi_ssid": wifi_ssid or None, "certificate_sha256": fingerprint}, access, indent=2)
@@ -109,11 +119,11 @@ def generate(args):
                 rows.append(["web", "namespace", "", ""])
                 for key, value in web.items():
                     data(key, "string", value)
-            with (args.output / f"{name}.csv").open("x", newline="") as output:
+            with (args.output / f"{name}.csv").open("x", newline="", encoding="utf-8") as output:
                 csv.writer(output).writerows(rows)
             manifest["devices"].append({"name": name, "mac": address.hex(":"), "device_id": "spo-" + devices[index].hex(),
                 "plant_id": str(uuid.UUID(bytes=plants[index])), "hardware_enabled": bool(not role and args.pins)})
-        with (args.output / "manifest.json").open("x") as output:
+        with (args.output / "manifest.json").open("x", encoding="utf-8") as output:
             json.dump(manifest, output, indent=2)
             output.write("\n")
     finally:
@@ -124,7 +134,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--hub-mac", type=mac, required=True)
     parser.add_argument("--web", action="store_true", help="generate Hub HTTPS certificate and unique Wi-Fi/admin secrets; requires OpenSSL")
-    parser.add_argument("--node-mac", type=mac, action="append", required=True)
+    parser.add_argument("--node-mac", type=mac, action="append", default=[])
     parser.add_argument("--pins", type=pins, action="append", help="verified soil,tank,pump GPIOs, once per Node; omitted => all disabled")
     parser.add_argument("--country", required=True)
     parser.add_argument("--channel", type=int, required=True)

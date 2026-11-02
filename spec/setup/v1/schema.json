@@ -1,0 +1,173 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://smartplantos.local/spec/setup/v1/schema.json",
+  "$defs": {
+    "Passport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "hub_id",
+        "hub_mac",
+        "country",
+        "channel"
+      ],
+      "properties": {
+        "format": {
+          "const": 1
+        },
+        "hub_id": {
+          "type": "string",
+          "pattern": "^spo-[0-9a-f]{12}$"
+        },
+        "hub_mac": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{2}:){5}[0-9a-f]{2}$"
+        },
+        "country": {
+          "type": "string",
+          "pattern": "^[A-Z0-9]{2}$"
+        },
+        "channel": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 11
+        }
+      }
+    },
+    "Pairing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "hub_id",
+        "node_id",
+        "node_mac",
+        "lmk",
+        "app_key"
+      ],
+      "properties": {
+        "format": {
+          "const": 1
+        },
+        "hub_id": {
+          "type": "string",
+          "pattern": "^spo-[0-9a-f]{12}$"
+        },
+        "node_id": {
+          "type": "string",
+          "pattern": "^spo-[0-9a-f]{12}$"
+        },
+        "node_mac": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{2}:){5}[0-9a-f]{2}$"
+        },
+        "lmk": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        },
+        "app_key": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{32}$"
+        }
+      }
+    },
+    "WiFiRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ssid",
+        "password"
+      ],
+      "properties": {
+        "ssid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "password": {
+          "type": "string",
+          "pattern": "^[ -~]{8,63}$"
+        }
+      }
+    },
+    "Status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "firmware_version",
+        "wifi_connected",
+        "wifi_phase",
+        "ssid",
+        "ip",
+        "channel",
+        "update_method",
+        "nodes"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "firmware_version": {
+          "type": "string"
+        },
+        "wifi_connected": {
+          "type": "boolean"
+        },
+        "wifi_phase": {
+          "enum": [
+            "idle",
+            "connecting",
+            "connected",
+            "failed",
+            "storage_error"
+          ]
+        },
+        "ssid": {
+          "type": "string"
+        },
+        "ip": {
+          "type": "string"
+        },
+        "channel": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 14
+        },
+        "update_method": {
+          "const": "usb_app_only"
+        },
+        "nodes": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "device_id"
+            ],
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "pattern": "^spo-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "Accepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        }
+      }
+    }
+  }
+}

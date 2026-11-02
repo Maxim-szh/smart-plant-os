@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "firmware_version": "0.1.0",
+  "wifi_connected": false,
+  "wifi_phase": "idle",
+  "ssid": "",
+  "ip": "",
+  "channel": 6,
+  "update_method": "usb_app_only",
+  "nodes": []
+}

@@ -25,7 +25,7 @@ class ProvisionTests(unittest.TestCase):
                 pins=None, web=True, output=Path(directory) / "web")
             provision.generate(args)
             access = json.loads((args.output / "access.json").read_text())
-            self.assertEqual(len(access["admin_password"]), 32)
+            self.assertEqual(len(access["admin_password"]), 64)
             self.assertEqual(access["home_wifi_ssid"], "Plant-WiFi")
             self.assertIn("setup_wifi_password", access)
             self.assertEqual(stat.S_IMODE((args.output / "access.json").stat().st_mode), 0o600)
@@ -77,6 +77,18 @@ class ProvisionTests(unittest.TestCase):
             self.assertNotIn("pump_pin", node0)
             with self.assertRaises(FileExistsError):
                 provision.generate(args)
+
+    def test_hub_can_start_without_nodes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            args = Namespace(hub_mac=provision.mac("02:00:00:00:00:01"), node_mac=[],
+                country="01", channel=6, wifi_ssid="", wifi_password="", pins=None,
+                web=True, output=Path(directory) / "hub-only")
+            provision.generate(args)
+            with (args.output / "hub.csv").open() as source:
+                rows = {row["key"]: row["value"] for row in csv.DictReader(source)}
+            self.assertEqual(rows["count"], "0")
+            self.assertNotIn("p0lmk", rows)
+            self.assertFalse((args.output / "node-0.csv").exists())
 
     def test_reject_unsafe_pin_assignments(self):
         for value in ("2,3,4", "0,0,4", "0,18,4", "0,3,8", "5,3,4"):
