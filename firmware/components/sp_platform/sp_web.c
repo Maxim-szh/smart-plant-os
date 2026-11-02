@@ -7,6 +7,7 @@
 #include "esp_https_server.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "lwip/sockets.h"
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "nvs.h"
@@ -64,14 +65,14 @@ bool sp_web_ap(unsigned channel) {
     nvs_handle_t h;
     if (nvs_open("web", NVS_READONLY, &h) != ESP_OK)
         return false;
-    char *ap = setting(h, "ap_pass"), *admin = setting(h, "admin");
+    char *admin = setting(h, "admin");
     nvs_close(h);
     size_t admin_len = admin ? strlen(admin) : 0;
-    bool valid = ap && admin && strlen(ap) >= 12 && strlen(ap) <= 63 && (admin_len == 32 || admin_len == 64);
+    bool valid = admin && (admin_len == 32 || admin_len == 64);
     if (valid) {
         wifi_config_t c = {0};
         snprintf((char *)c.ap.ssid, sizeof(c.ap.ssid), "SmartPlantOS");
-        snprintf((char *)c.ap.password, sizeof(c.ap.password), "%s", ap);
+        snprintf((char *)c.ap.password, sizeof(c.ap.password), "%s", SP_SETUP_AP_PASSWORD);
         c.ap.channel = channel;
         c.ap.max_connection = 3;
         c.ap.authmode = WIFI_AUTH_WPA2_PSK;
@@ -80,7 +81,6 @@ bool sp_web_ap(unsigned channel) {
         if (valid)
             snprintf(password, sizeof(password), "%s", admin);
     }
-    free(ap);
     free(admin);
     if (!valid)
         (void)esp_wifi_set_mode(WIFI_MODE_STA);
@@ -123,6 +123,17 @@ static bool body(httpd_req_t *r, char *out) {
     out[n] = 0;
     return true;
 }
+/* Decide by the accepted socket, never by an untrusted Host header.
+ * The setup AP always serves the wizard, including during recovery. */
+static bool home_interface(httpd_req_t *r) {
+    struct sockaddr_in local = {0};
+    socklen_t length = sizeof(local);
+    esp_netif_ip_info_t ip = {0};
+    esp_netif_t *sta = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+    return sta && esp_netif_get_ip_info(sta, &ip) == ESP_OK && ip.ip.addr &&
+           getsockname(httpd_req_to_sockfd(r), (struct sockaddr *)&local, &length) == 0 &&
+           local.sin_family == AF_INET && local.sin_addr.s_addr == ip.ip.addr;
+}
 static esp_err_t handle(httpd_req_t *r) {
     httpd_resp_set_hdr(r, "Cache-Control", "no-store");
     httpd_resp_set_hdr(r, "X-Content-Type-Options", "nosniff");
@@ -138,6 +149,11 @@ static esp_err_t handle(httpd_req_t *r) {
         return httpd_resp_send(r, (const char *)setup_js_start, setup_js_end - setup_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/")) {
+        if (!home_interface(r)) {
+            httpd_resp_set_status(r, "303 See Other");
+            httpd_resp_set_hdr(r, "Location", "/setup");
+            return httpd_resp_sendstr(r, "");
+        }
         httpd_resp_set_type(r, "text/html; charset=utf-8");
         return httpd_resp_send(r, (const char *)page_start, page_end - page_start);
     }

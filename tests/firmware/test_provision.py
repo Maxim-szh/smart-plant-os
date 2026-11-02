@@ -27,7 +27,7 @@ class ProvisionTests(unittest.TestCase):
             access = json.loads((args.output / "access.json").read_text())
             self.assertEqual(len(access["admin_password"]), 64)
             self.assertEqual(access["home_wifi_ssid"], "Plant-WiFi")
-            self.assertIn("setup_wifi_password", access)
+            self.assertEqual(access["setup_wifi_password"], "smartplantos")
             self.assertEqual(stat.S_IMODE((args.output / "access.json").stat().st_mode), 0o600)
             with (args.output / "hub.csv").open() as source:
                 rows = {row["key"]: row["value"] for row in csv.DictReader(source)}

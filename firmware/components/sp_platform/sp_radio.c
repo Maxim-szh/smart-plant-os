@@ -1,6 +1,7 @@
 #include "sp_internal.h"
 #include "sp_web.h"
 #include "sp_setup.h"
+#include "sp_ap_policy.h"
 #include <stdio.h>
 #include <string.h>
 #include "esp_event.h"
@@ -47,6 +48,30 @@ static wifi_config_t previous_network;
 static bool network_trial, previous_enabled;
 static uint64_t network_deadline;
 static const char *network_phase = "idle";
+static bool setup_ap_available;
+static sp_ap_policy_t ap_policy;
+static uint64_t ap_check_at, ap_forced_until;
+static void update_setup_ap(void) {
+    if (!setup_ap_available || !wifi_events)
+        return;
+    uint64_t now = (uint64_t)esp_timer_get_time() / 1000;
+    if (now < ap_check_at)
+        return;
+    ap_check_at = now + 200;
+    bool connected = (xEventGroupGetBits(wifi_events) & WIFI_CONNECTED_BIT) != 0;
+    bool enable = sp_ap_policy_step(&ap_policy, now, connected, network_trial || now < ap_forced_until);
+    wifi_mode_t current;
+    if (esp_wifi_get_mode(&current) != ESP_OK)
+        return;
+    wifi_mode_t wanted = enable ? WIFI_MODE_APSTA : WIFI_MODE_STA;
+    if (current != wanted) {
+        esp_err_t err = esp_wifi_set_mode(wanted);
+        if (err == ESP_OK)
+            printf("Setup AP %s; home Wi-Fi connected=%u\n", enable ? "enabled" : "disabled", connected);
+        else
+            printf("Setup AP mode change failed error=%s\n", esp_err_to_name(err));
+    }
+}
 
 static const char *wifi_disconnect_reason(uint8_t reason) {
     switch (reason) {
@@ -221,8 +246,8 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     TRY(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     /* Engineering firmware uses STA radio without joining an access point. */
     TRY(esp_wifi_set_mode(WIFI_MODE_STA));
-    if (id->hub)
-        (void)sp_web_ap(id->channel);
+    setup_ap_available = id->hub && sp_web_ap(id->channel);
+    sp_ap_policy_init(&ap_policy);
     /* Follow the connected router's regulatory domain; without it, use the provisioned safe fallback. */
     wifi_country_t country = {.schan = 1, .nchan = 11, .policy = WIFI_COUNTRY_POLICY_AUTO};
     memcpy(country.cc, id->country, 3);
@@ -285,7 +310,7 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
             xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
             (void)esp_wifi_disconnect();
             vTaskDelay(pdMS_TO_TICKS(100));
-            TRY(esp_wifi_set_mode(WIFI_MODE_APSTA));
+            TRY(esp_wifi_set_mode(setup_ap_available ? WIFI_MODE_APSTA : WIFI_MODE_STA));
             TRY(esp_wifi_set_channel(id->channel, WIFI_SECOND_CHAN_NONE));
         }
     } else {
@@ -361,17 +386,15 @@ void sp_radio_process(void) {
                 memset(&previous_network, 0, sizeof(previous_network));
             }
         }
-        if (!wifi_events || !(xEventGroupGetBits(wifi_events) & WIFI_CHANNEL_UNSUPPORTED_BIT))
-            return;
-        xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
-        (void)esp_wifi_disconnect();
-        vTaskDelay(pdMS_TO_TICKS(100));
-        if (esp_wifi_set_mode(WIFI_MODE_APSTA) != ESP_OK ||
-            esp_wifi_set_channel(identity->channel, WIFI_SECOND_CHAN_NONE) != ESP_OK)
-            puts("Could not restore standalone channel; reboot required");
-        else
-            printf("Home Wi-Fi disabled; standalone AP and ESP-NOW restored on channel=%u\n",
-                   identity->channel);
+        if (wifi_events && (xEventGroupGetBits(wifi_events) & WIFI_CHANNEL_UNSUPPORTED_BIT)) {
+            xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
+            (void)esp_wifi_disconnect();
+            vTaskDelay(pdMS_TO_TICKS(100));
+            if (esp_wifi_set_mode(setup_ap_available ? WIFI_MODE_APSTA : WIFI_MODE_STA) != ESP_OK ||
+                esp_wifi_set_channel(identity->channel, WIFI_SECOND_CHAN_NONE) != ESP_OK)
+                puts("Could not restore standalone channel; reboot required");
+        }
+        update_setup_ap();
         return;
     }
     uint64_t now = (uint64_t)esp_timer_get_time() / 1000;
@@ -503,6 +526,10 @@ void sp_radio_network_json(cJSON *o) {
     uint8_t channel = 0;
     wifi_second_chan_t secondary;
     (void)esp_wifi_get_channel(&channel, &secondary);
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    (void)esp_wifi_get_mode(&mode);
+    cJSON_AddBoolToObject(o, "setup_ap_enabled",
+                          setup_ap_available && (mode == WIFI_MODE_APSTA || mode == WIFI_MODE_AP));
     cJSON_AddBoolToObject(o, "wifi_connected", connected);
     cJSON_AddStringToObject(o, "wifi_phase",
                             network_trial                                 ? "connecting"
@@ -568,4 +595,11 @@ uint8_t sp_radio_channel(void) {
     return esp_wifi_get_channel(&channel, &secondary) == ESP_OK && channel >= 1 && channel <= 11 ? channel
            : identity ? identity->channel
                       : 6;
+}
+
+bool sp_radio_setup_window(void) {
+    if (!radio_ok || !identity || !identity->hub || !setup_ap_available)
+        return false;
+    ap_forced_until = (uint64_t)esp_timer_get_time() / 1000 + 300000;
+    return true;
 }

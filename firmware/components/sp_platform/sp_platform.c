@@ -171,6 +171,11 @@ static void command(char *line) {
         }
         return;
     }
+    if (argc == 1 && !strcmp(args[0], "setup-ap")) {
+        puts(sp_radio_setup_window() ? "OK setup-ap: recovery window opened"
+                                     : "ERR setup-ap: Hub provisioning required");
+        return;
+    }
     uint64_t value;
     if (argc == 2 && !strcmp(args[0], "time") && number(args[1], &value)) {
         bool ok = value >= SP_MIN_EPOCH_MS && value <= SP_MAX_EPOCH_MS;

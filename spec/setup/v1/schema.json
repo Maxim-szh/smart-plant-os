@@ -154,6 +154,9 @@
               }
             }
           }
+        },
+        "setup_ap_enabled": {
+          "type": "boolean"
         }
       }
     },
