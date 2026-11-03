@@ -2,6 +2,8 @@
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c]));
 const IC={
+ code:'M8 7l-5 5 5 5M16 7l5 5-5 5M14 4l-4 16',
+ plug:'M8 3v5M16 3v5M6 8h12v3a6 6 0 01-6 6v4M6 11h12',
  window:'M5 21V10a7 7 0 0114 0v11M5 21h14M12 3v18M5 11h14',
  care:'M4 7h9M17 7h3M4 17h3M11 17h9M13 5v4M7 15v4',
  list:'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
@@ -27,7 +29,7 @@ const EX={sun:'<circle cx="12" cy="12" r="4"/>',clock:'<circle cx="12" cy="12" r
 const ic=(n,s=22)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${IC[n]}"/>${EX[n]||''}</svg>`;
 
 const API=window.SPApi;
-const R={view:'garden',filter:'',detailTab:'now',settingsTab:'main',eventFilter:'all',eventDevice:'all',ui:{theme:'system',units:'C',motion:'auto'},nodes:[],catalog:[],records:new Map(),authorized:false,loading:true,selected:null,error:'',timer:null,refreshing:false,busy:false,calibration:null};
+const R={view:'garden',carePanel:null,detailTab:'now',settingsTab:'main',eventFilter:'all',eventDevice:'all',ui:{theme:'system',units:'C',motion:'auto'},nodes:[],catalog:[],records:new Map(),authorized:false,loading:true,selected:null,error:'',timer:null,refreshing:false,busy:false,calibration:null};
 const quality={missing:'Нет данных',uncalibrated:'Нужна калибровка',ok:'Актуальные данные',fault:'Ошибка датчика',stale:'Устаревшие данные'};
 const kinds={soil_index:'Влажность грунта',water_present:'Вода в баке',air_temperature:'Температура воздуха',air_humidity:'Влажность воздуха',illuminance:'Освещённость',battery_voltage:'Напряжение батареи',water_flow:'Расход воды'};
 const units={percent:'%',boolean:'',degC:'°C',lux:'лк',V:'В','mL/s':'мл/с'};
@@ -43,7 +45,7 @@ const V=window.SPViews.create({state:R,record:nodeRecord,escape:esc,ic,soil:soil
 function gardenView(){return V.garden();}
 function detailView(){return V.detail();}
 function settingsView(){return V.settings();}
-function render(){const focused=document.activeElement?.id==='plant-search',caret=focused?document.activeElement.selectionStart:0;nav();$('#app-notice').textContent=R.error;if(R.loading){$('#view').innerHTML='<section class="live-empty"><h1 class="disp">Открываем ваш сад…</h1></section>';return;}$('#view').innerHTML=!R.authorized?sessionView():R.view==='settings'?settingsView():R.view==='detail'?detailView():R.view==='care'?V.care():R.view==='events'?V.events():gardenView();bindLogin();updateCalibration();if(focused&&$('#plant-search')){$('#plant-search').focus({preventScroll:true});$('#plant-search').setSelectionRange(caret,caret);}}
+function render(){nav();$('#app-notice').textContent=R.error;if(R.loading){$('#view').innerHTML='<section class="live-empty"><h1 class="disp">Открываем ваш сад…</h1></section>';return;}$('#view').innerHTML=!R.authorized?sessionView():R.view==='settings'?settingsView():R.view==='detail'?detailView():R.view==='care'?V.care():R.view==='events'?V.events():gardenView();bindLogin();updateCalibration();}
 async function refresh(){if(R.refreshing)return;clearTimeout(R.timer);R.refreshing=true;
  try{const registry=await API.request('/nodes');R.authorized=true;R.error='';const old=R.nodes;R.nodes=registry.nodes;if(!R.nodes.some(n=>n.device_id===R.selected))R.selected=R.nodes[0]?.device_id||null;
   const catalog=await API.request('/plants');R.catalog=catalog.plants;
@@ -86,7 +88,9 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');
  if(a==='settings-tab'){R.settingsTab=b.dataset.tab;render();}
  if(a==='event-filter'){R.eventFilter=b.dataset.filter;render();}
  if(a==='event-device'){R.eventDevice=b.dataset.device;render();}
- if(a==='care-plant'){R.selected=b.dataset.device;render();refresh();}
+ if(a==='care-plant'){R.selected=b.dataset.device;R.carePanel=null;render();refresh();}
+ if(a==='care-panel'&&['smart','manual','schedule','program'].includes(b.dataset.panel)){R.carePanel=b.dataset.panel;render();}
+ if(a==='integrations')sheet('Интеграции',`<p class="live-help">Подключённых интеграций пока нет. Поддержка Home Assistant и внешнего хранения запланирована.</p><p class="note">Когда интеграции появятся, их можно будет подключить здесь.</p>`);
  if(a==='edit-care')editCare();if(a==='appearance')appearance();
  if(a==='wizard')wizard();if(a==='sensors')sensorPanel();if(a==='calibrate')calibration();if(a==='setup-complete')completeSetup();
  if(a==='capture-dry'||a==='capture-wet'){const raw=currentRaw();if(raw!==null)R.calibration[a==='capture-dry'?'dry':'wet']=raw;updateCalibration();}
@@ -106,7 +110,6 @@ const notice=document.createElement('p');notice.id='app-notice';notice.className
 render();refresh();
 
 function replacePlant(id){const plant=R.catalog.find(p=>p.plant_id===id);if(!plant)return;const fresh=R.nodes.filter(n=>n.setup_stage===0);sheet('Другой контроллер',`<p>Имя, комната и идентичность растения сохранятся. Датчики и насос новой платы нужно настроить заново.</p>${fresh.length?fresh.map(n=>`<button class="row" data-replace-device="${esc(n.device_id)}"><div><b>${esc(n.display_name)}</b><div class="sub">${esc(n.device_id)}</div></div>Выбрать</button>`).join(''):'<p class="live-help">Сначала добавьте новый C3, затем вернитесь сюда, не завершая его настройку как отдельного растения.</p>'}`);$('#sheet').querySelectorAll('[data-replace-device]').forEach(b=>b.onclick=()=>mutate(async()=>{await API.request(`/plants/${plant.plant_id}/controller`,'POST',{schema_version:1,revision:plant.revision,device_id:b.dataset.replaceDevice});$('#sheet').close();await refresh();}));}
-document.addEventListener('input',e=>{if(e.target.id==='plant-search'){R.filter=e.target.value;render();}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&R.authorized)refresh();});
 window.addEventListener('offline',()=>{R.error='Браузер потерял подключение к сети. Команды не ставятся в очередь.';render();});
 window.addEventListener('online',()=>{if(R.authorized)refresh();});
