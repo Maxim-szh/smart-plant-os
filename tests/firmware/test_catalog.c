@@ -13,6 +13,7 @@ static entry_t entries[8];
 static bool fail_commit;
 static entry_t staged;
 static cJSON *response;
+static int response_status;
 static const uint8_t device[6] = {1, 2, 3, 4, 5, 6};
 static char current_ns[16];
 esp_err_t nvs_open(const char *ns, int mode, nvs_handle_t *h) {
@@ -75,7 +76,7 @@ esp_err_t nvs_commit(nvs_handle_t h) {
 void sp_web_reply(void *ctx, uint32_t id, int status, cJSON *o) {
     (void)ctx;
     (void)id;
-    assert(status == 200);
+    response_status = status;
     cJSON_Delete(response);
     response = o;
 }
@@ -165,6 +166,111 @@ int main(void) {
     row = cJSON_GetArrayItem(cJSON_GetObjectItem(response, "plants"), 0);
     assert(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(row, "device_id")), "spo-0708090a0b0c"));
     assert(cJSON_GetArraySize(cJSON_GetObjectItem(row, "controller_history")) == 2);
+    /* Backup contains metadata only and restores atomically without radio bindings. */
+    sp_api_request_t export = {.id = 3, .method = "GET", .path = "/api/v1/backup"};
+    assert(sp_catalog_handle(&api, &export));
+    assert(response_status == 200);
+    char *exported = cJSON_PrintUnformatted(response);
+    assert(!strstr(exported, "device_id") && !strstr(exported, "app_key") && !strstr(exported, "revision") &&
+           !strstr(exported, "calibration"));
+    free(exported);
+    cJSON *backup = cJSON_Duplicate(response, true), *plants = cJSON_GetObjectItem(backup, "plants"),
+          *first = cJSON_GetArrayItem(plants, 0);
+    cJSON_ReplaceItemInObject(first, "name", cJSON_CreateString("Restored name"));
+    cJSON_ReplaceItemInObject(first, "room", cJSON_CreateString("Bedroom"));
+    sp_api_request_t preview = {.id = 4, .method = "POST", .path = "/api/v1/backup/preview"};
+    cJSON *body = cJSON_CreateObject();
+    cJSON_AddItemToObject(body, "backup", cJSON_Duplicate(backup, true));
+    char *text = cJSON_PrintUnformatted(body);
+    snprintf(preview.body, sizeof(preview.body), "%s", text);
+    free(text);
+    cJSON_Delete(body);
+    assert(sp_catalog_handle(&api, &preview) && response_status == 200);
+    char snapshot[65];
+    snprintf(snapshot, sizeof(snapshot), "%s",
+             cJSON_GetStringValue(cJSON_GetObjectItem(response, "snapshot")));
+    assert(cJSON_GetNumberValue(cJSON_GetObjectItem(cJSON_GetObjectItem(response, "summary"), "updated")) ==
+           1);
+    sp_api_request_t restore = {.id = 5, .method = "POST", .path = "/api/v1/backup/restore"};
+    body = cJSON_CreateObject();
+    cJSON_AddItemToObject(body, "backup", cJSON_Duplicate(backup, true));
+    cJSON_AddStringToObject(body, "snapshot", snapshot);
+    cJSON_AddBoolToObject(body, "confirm", true);
+    text = cJSON_PrintUnformatted(body);
+    snprintf(restore.body, sizeof(restore.body), "%s", text);
+    free(text);
+    sp_plant_meta_t concurrent = api.nodes[0].plant;
+    concurrent.revision++;
+    assert(sp_catalog_save(replacement, &concurrent));
+    assert(sp_catalog_handle(&api, &restore) && response_status == 409);
+    assert(sp_catalog_handle(&api, &preview) && response_status == 200);
+    cJSON_ReplaceItemInObject(
+        body, "snapshot",
+        cJSON_CreateString(cJSON_GetStringValue(cJSON_GetObjectItem(response, "snapshot"))));
+    text = cJSON_PrintUnformatted(body);
+    snprintf(restore.body, sizeof(restore.body), "%s", text);
+    free(text);
+    cJSON_Delete(body);
+    fail_commit = true;
+    assert(sp_catalog_handle(&api, &restore) && response_status == 503);
+    fail_commit = false;
+    assert(!strcmp(api.nodes[0].plant.name, "Monstera"));
+    assert(sp_catalog_handle(&api, &restore) && response_status == 200);
+    assert(!strcmp(api.nodes[0].plant.name, "Restored name"));
+    assert(!memcmp(api.nodes[0].device, replacement, 6));
+    assert(!memcmp(api.nodes[0].plant.plant, old.plant, 16));
+    /* Unknown fields cannot smuggle keys or controller bindings into an import. */
+    cJSON_AddStringToObject(first, "device_id", "spo-010203040506");
+    body = cJSON_CreateObject();
+    cJSON_AddItemToObject(body, "backup", cJSON_Duplicate(backup, true));
+    text = cJSON_PrintUnformatted(body);
+    snprintf(preview.body, sizeof(preview.body), "%s", text);
+    free(text);
+    cJSON_Delete(body);
+    assert(sp_catalog_handle(&api, &preview) && response_status == 400);
+    cJSON_DeleteItemFromObject(first, "device_id");
+    /* New plants import unbound, even on a different Hub. */
+    cJSON_ReplaceItemInObject(first, "plant_id", cJSON_CreateString("11020304-0506-4008-800a-0b0c0d0e0f10"));
+    body = cJSON_CreateObject();
+    cJSON_AddItemToObject(body, "backup", cJSON_Duplicate(backup, true));
+    text = cJSON_PrintUnformatted(body);
+    snprintf(preview.body, sizeof(preview.body), "%s", text);
+    free(text);
+    assert(sp_catalog_handle(&api, &preview) && response_status == 200);
+    cJSON_AddStringToObject(body, "snapshot",
+                            cJSON_GetStringValue(cJSON_GetObjectItem(response, "snapshot")));
+    cJSON_AddBoolToObject(body, "confirm", true);
+    text = cJSON_PrintUnformatted(body);
+    snprintf(restore.body, sizeof(restore.body), "%s", text);
+    free(text);
+    cJSON_Delete(body);
+    assert(sp_catalog_handle(&api, &restore) && response_status == 200);
+    assert(sp_catalog_handle(&api, &q));
+    assert(cJSON_GetArraySize(cJSON_GetObjectItem(response, "plants")) == 2);
+    row = cJSON_GetArrayItem(cJSON_GetObjectItem(response, "plants"), 1);
+    assert(cJSON_IsNull(cJSON_GetObjectItem(row, "device_id")));
+    cJSON_Delete(backup);
+    /* A full restored catalog must still accept a genuinely fresh controller without a placeholder row. */
+    for (unsigned i = 0; i < 18; i++) {
+        uint8_t d[6] = {20, (uint8_t)i, 1, 2, 3, 4};
+        sp_plant_meta_t m = {.version = 2,
+                             .plant = {20, (uint8_t)i, 1, 2, 3, 4, 0x40, 1, 0x80, 1, 2, 3, 4, 5, 6, 7},
+                             .name = "Capacity test"};
+        assert(sp_catalog_save(d, &m));
+    }
+    api.count = 2;
+    memset(&api.nodes[1], 0, sizeof(api.nodes[1]));
+    const uint8_t fresh_device[6] = {30, 1, 2, 3, 4, 5};
+    memcpy(api.nodes[1].device, fresh_device, 6);
+    sp_api_request_t full_bind = {
+        .method = "POST",
+        .path = "/api/v1/plants/11020304-0506-4008-800a-0b0c0d0e0f10/controller",
+        .body = "{\"schema_version\":1,\"revision\":0,\"device_id\":\"spo-1e0102030405\"}"};
+    assert(sp_catalog_handle(&api, &full_bind) && response_status == 200);
+    assert(api.nodes[1].have_plant);
+    assert(!strcmp(api.nodes[1].plant.name, "Restored name"));
+    assert(sp_catalog_handle(&api, &q));
+    assert(cJSON_GetArraySize(cJSON_GetObjectItem(response, "plants")) == 20);
     next.setup_stage = 4;
     assert(!sp_catalog_save(device, &next));
     cJSON_Delete(response);

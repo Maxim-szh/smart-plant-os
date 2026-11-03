@@ -1,11 +1,14 @@
 #include "sp_update.h"
 #include "sp_update_wire.h"
 #include "sp_image.h"
+#include "sp_setup.h"
+#include "sp_update_record.h"
 #include "sp_maintenance.h"
 #include "sp_pairing.h"
 #include "sp_release.h"
 #include "sp_web.h"
 #include "esp_ota_ops.h"
+#include "esp_image_format.h"
 #include "esp_flash.h"
 #include "esp_timer.h"
 #include "esp_system.h"
@@ -25,28 +28,97 @@ static esp_timer_handle_t guard;
 static const esp_partition_t *partition;
 static esp_ota_handle_t handle;
 static mbedtls_sha256_context sha;
-static uint8_t session[16], expected_hash[32], prefix[128], out_data[SP_UPDATE_DATA];
+static uint8_t session[16], expected_hash[32], prefix[128], out_data[SP_UPDATE_DATA], target_device[6];
 static uint32_t total, received, remote_offset, old_boot;
 static unsigned target, profile, attempts, out_type, out_len;
 static const char *phase = "idle", *error = "";
 static char version[32];
-typedef struct {
-    uint32_t version, address;
-    uint8_t session[16], hash[32];
-} update_record_t;
-static update_record_t committed;
+static sp_update_record_t committed;
 static bool committed_loaded;
 static bool load_record(void) {
     size_t size = sizeof(committed);
-    return nvs_get_blob(owner->runtime, "ota_commit", &committed, &size) == ESP_OK &&
-           size == sizeof(committed) && committed.version == 1;
+    if (nvs_get_blob(owner->runtime, "ota_commit", &committed, &size) != ESP_OK)
+        return false;
+    if (size == sizeof(committed) && sp_update_record_valid(&committed))
+        return true;
+    /* Old Node firmware writes v1 before booting a new image. Authenticate that legacy
+       receipt against the exact running file before using it for the post-boot ACK. */
+    const esp_partition_t *running = esp_ota_get_running_partition();
+    if (size != 56 || committed.version != 1 || !running || running->address != committed.address)
+        return false;
+    esp_partition_pos_t position = {.offset = running->address, .size = running->size};
+    esp_image_metadata_t metadata;
+    esp_app_desc_t desc;
+    if (esp_image_verify(ESP_IMAGE_VERIFY_SILENT, &position, &metadata) != ESP_OK ||
+        metadata.image_len > running->size || esp_ota_get_partition_description(running, &desc) != ESP_OK)
+        return false;
+    mbedtls_sha256_context context;
+    mbedtls_sha256_init(&context);
+    int e = mbedtls_sha256_starts(&context, 0);
+    uint8_t bytes[512], hash[32];
+    for (uint32_t offset = 0; !e && offset < metadata.image_len;) {
+        size_t n = metadata.image_len - offset;
+        if (n > sizeof(bytes))
+            n = sizeof(bytes);
+        if (esp_partition_read(running, offset, bytes, n) != ESP_OK) {
+            e = -1;
+            break;
+        }
+        e = mbedtls_sha256_update(&context, bytes, n);
+        offset += (uint32_t)n;
+    }
+    if (!e)
+        e = mbedtls_sha256_finish(&context, hash);
+    mbedtls_sha256_free(&context);
+    return !e && sp_update_record_promote_legacy(&committed, size, hash, desc.app_elf_sha256);
 }
+
 static bool save_record(void) {
-    committed = (update_record_t){.version = 1, .address = partition->address};
-    memcpy(committed.session, session, 16);
-    memcpy(committed.hash, expected_hash, 32);
-    return nvs_set_blob(owner->runtime, "ota_commit", &committed, sizeof(committed)) == ESP_OK &&
-           nvs_commit(owner->runtime) == ESP_OK;
+    esp_app_desc_t desc;
+    if (esp_ota_get_partition_description(partition, &desc) != ESP_OK)
+        return false;
+    sp_update_record_t next = {.version = 2, .address = partition->address};
+    memcpy(next.session, session, 16);
+    memcpy(next.hash, expected_hash, 32);
+    memcpy(next.elf, desc.app_elf_sha256, 32);
+    if (!sp_update_record_valid(&next) ||
+        nvs_set_blob(owner->runtime, "ota_commit", &next, sizeof(next)) != ESP_OK ||
+        nvs_commit(owner->runtime) != ESP_OK)
+        return false;
+    committed = next;
+    committed_loaded = true;
+    return true;
+}
+static unsigned committed_evidence(void) {
+    if (!committed_loaded)
+        return SP_UPDATE_EVIDENCE_NONE;
+    const esp_partition_t *running = esp_ota_get_running_partition(), *candidate = NULL;
+    esp_app_desc_t running_desc, candidate_desc;
+    esp_ota_img_states_t running_state = ESP_OTA_IMG_UNDEFINED, candidate_state = ESP_OTA_IMG_UNDEFINED;
+    esp_partition_iterator_t iterator =
+        esp_partition_find(ESP_PARTITION_TYPE_APP, ESP_PARTITION_SUBTYPE_ANY, NULL);
+    while (iterator) {
+        const esp_partition_t *p = esp_partition_get(iterator);
+        if (p->address == committed.address) {
+            candidate = p;
+            break;
+        }
+        iterator = esp_partition_next(iterator);
+    }
+    if (iterator)
+        esp_partition_iterator_release(iterator);
+    bool have_running = running && esp_ota_get_partition_description(running, &running_desc) == ESP_OK,
+         have_candidate =
+             candidate && esp_ota_get_partition_description(candidate, &candidate_desc) == ESP_OK;
+    if (running)
+        (void)esp_ota_get_state_partition(running, &running_state);
+    if (candidate)
+        (void)esp_ota_get_state_partition(candidate, &candidate_state);
+    return sp_update_record_evidence(
+        &committed, running ? running->address : 0, have_running ? running_desc.app_elf_sha256 : NULL,
+        running_state == ESP_OTA_IMG_PENDING_VERIFY, running_state == ESP_OTA_IMG_VALID,
+        have_candidate ? candidate_desc.app_elf_sha256 : NULL,
+        candidate_state == ESP_OTA_IMG_ABORTED || candidate_state == ESP_OTA_IMG_INVALID);
 }
 
 static uint64_t now(void) {
@@ -114,7 +186,8 @@ static void fail(const char *why) {
     error = why;
 }
 static bool local_ready(void) {
-    return !sp_maintenance_busy() && !sp_pairing_pending() && (!is_idle || is_idle(NULL)) &&
+    return !sp_maintenance_busy() && !sp_pairing_pending() && !sp_radio_network_busy() &&
+           (!is_idle || is_idle(NULL)) &&
            (!core || (core->storage_ok && core->active_slot < 0 && !core->soak_pending &&
                       !core->saved.config.automatic));
 }
@@ -362,17 +435,14 @@ static void reply(const sp_api_request_t *q, int status, const char *why) {
         cJSON_AddNumberToObject(o, "schema_version", 1);
     sp_web_reply(NULL, q->id, status, o);
 }
-static void status_reply(const sp_api_request_t *q) {
+cJSON *sp_update_status_json(void) {
     cJSON *o = cJSON_CreateObject();
     cJSON_AddNumberToObject(o, "schema_version", 1);
-    const esp_partition_t *running = esp_ota_get_running_partition();
-    const char *last = "none";
-    if (committed_loaded && !active) {
-        if (!strcmp(phase, "idle"))
-            memcpy(session, committed.session, 16);
-        last = running && running->address == committed.address ? verifying ? "verifying" : "validated"
-                                                                : "rolled_back";
-    }
+    unsigned evidence = committed_evidence();
+    const char *last = !active && evidence == SP_UPDATE_EVIDENCE_VERIFYING     ? "verifying"
+                       : !active && evidence == SP_UPDATE_EVIDENCE_VALIDATED   ? "validated"
+                       : !active && evidence == SP_UPDATE_EVIDENCE_ROLLED_BACK ? "rolled_back"
+                                                                               : "none";
     cJSON_AddStringToObject(o, "last_result", last);
     cJSON_AddStringToObject(o, "phase", phase);
     cJSON_AddStringToObject(o, "error", error);
@@ -392,10 +462,32 @@ static void status_reply(const sp_api_request_t *q) {
     }
     cJSON_AddStringToObject(o, "profile", prof);
     char id[37];
-    sp_api_uuid(session, id);
+    bool saved = committed_loaded && evidence != SP_UPDATE_EVIDENCE_NONE && !active && !strcmp(phase, "idle");
+    sp_api_uuid(saved ? committed.session : session, id);
     cJSON_AddStringToObject(o, "session_id", id);
-    sp_web_reply(NULL, q->id, 200, o);
+    if (total || saved) {
+        char hash[65];
+        const uint8_t *raw = saved ? committed.hash : expected_hash;
+        for (unsigned i = 0; i < 32; i++)
+            snprintf(hash + 2 * i, 3, "%02x", raw[i]);
+        cJSON_AddStringToObject(o, "image_sha256", hash);
+        if (saved || profile)
+            cJSON_AddStringToObject(o, "target_device_id", "hub");
+        else {
+            char device[17];
+            sp_api_device_id(target_device, device);
+            cJSON_AddStringToObject(o, "target_device_id", device);
+        }
+    } else {
+        cJSON_AddNullToObject(o, "image_sha256");
+        cJSON_AddNullToObject(o, "target_device_id");
+    }
+    return o;
 }
+static void status_reply(const sp_api_request_t *q) {
+    sp_web_reply(NULL, q->id, 200, sp_update_status_json());
+}
+
 bool sp_update_handle(const sp_api_request_t *q) {
     if (!owner || !owner->hub)
         return false;
@@ -433,7 +525,7 @@ bool sp_update_handle(const sp_api_request_t *q) {
         const char *prof = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "profile"));
         double bytes = cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(o, "size"));
         size_t n = 0;
-        uint8_t hash[32], head[128];
+        uint8_t hash[32], head[128], requested_session[16];
         unsigned selected = prof && !strcmp(prof, "c3")      ? 0
                             : prof && !strcmp(prof, "n8r2")  ? 1
                             : prof && !strcmp(prof, "n16r8") ? 2
@@ -456,7 +548,7 @@ bool sp_update_handle(const sp_api_request_t *q) {
                  !hex(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "header")), head, 128, &n) ||
                  n != 128 ||
                  !sp_api_parse_uuid(cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "session_id")),
-                                    session))
+                                    requested_session))
             why = "invalid_manifest";
         else if ((selected == 0 && (slot >= owner->count || !api ||
                                     !sp_registry_online(&api->nodes[slot].registry, api->now) ||
@@ -470,7 +562,12 @@ bool sp_update_handle(const sp_api_request_t *q) {
                 !sp_image_header(head, selected, version))
                 why = "incompatible_image";
             else {
+                memcpy(session, requested_session, 16);
                 target = slot;
+                if (selected == 0)
+                    memcpy(target_device, owner->peers[slot].device, 6);
+                else
+                    memset(target_device, 0, 6);
                 profile = selected;
                 total = (uint32_t)bytes;
                 memcpy(expected_hash, hash, 32);
@@ -478,9 +575,10 @@ bool sp_update_handle(const sp_api_request_t *q) {
                 partition = selected
                                 ? esp_ota_get_next_update_partition(NULL)
                                 : esp_partition_find_first(ESP_PARTITION_TYPE_DATA, 0x40, "update_stage");
-                if (!local_begin())
+                if (!local_begin()) {
+                    fail("begin_failed");
                     why = "begin_failed";
-                else
+                } else
                     code = 202;
             }
         }
@@ -569,10 +667,10 @@ void sp_update_tick(void) {
     if (!owner->hub && !active && validated_at && owner->count && link_seen && ms >= validation_ack_at &&
         ms - validated_at < 120000) {
         validation_ack_at = ms + 3000;
-        if (committed_loaded) {
-            const esp_partition_t *running = esp_ota_get_running_partition();
+        unsigned evidence = committed_evidence();
+        if (evidence == SP_UPDATE_EVIDENCE_VALIDATED || evidence == SP_UPDATE_EVIDENCE_ROLLED_BACK) {
             memcpy(session, committed.session, 16);
-            ack(0, running && running->address == committed.address ? 0 : 3, 4);
+            ack(0, evidence == SP_UPDATE_EVIDENCE_VALIDATED ? 0 : 3, 4);
         }
     }
     if (!active)

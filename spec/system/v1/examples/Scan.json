@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "phase": "completed",
+  "available": true,
+  "networks": [
+    {
+      "ssid": "ExampleWiFi",
+      "rssi_dbm": -55,
+      "channel": 6,
+      "supported": true
+    }
+  ]
+}

@@ -29,7 +29,8 @@ enum {
     SP_CONFIG_GET = 12,
     SP_SENSOR = 13,
     SP_MANAGE = 14,
-    SP_MANAGE_RESULT = 15
+    SP_MANAGE_RESULT = 15,
+    SP_HEALTH = 16
 };
 /* Keys 0..23 are unsigned integers. 24..27 are byte strings. */
 enum {

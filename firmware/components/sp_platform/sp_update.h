@@ -6,6 +6,7 @@ void sp_update_boot_guard(void);
 void sp_update_init(sp_identity_t *, sp_api_t *, sp_core_t *, bool (*idle)(void *), bool startup_ready);
 void sp_update_link_seen(unsigned peer);
 void sp_update_tick(void);
+cJSON *sp_update_status_json(void);
 bool sp_update_handle(const sp_api_request_t *);
 bool sp_update_receive(unsigned peer, const uint8_t *, size_t);
 bool sp_update_busy(void);

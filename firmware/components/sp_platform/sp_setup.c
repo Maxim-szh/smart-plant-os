@@ -82,6 +82,10 @@ bool sp_setup_handle(sp_identity_t *id, sp_api_t *api, const sp_api_request_t *q
         sp_web_reply(NULL, q->id, 200, o);
         return true;
     }
+    if (!strcmp(q->method, "POST") && sp_radio_network_busy()) {
+        reply(q, 409, "setup_busy");
+        return true;
+    }
     if (strcmp(q->method, "POST")) {
         reply(q, 404, "not_found");
         return true;

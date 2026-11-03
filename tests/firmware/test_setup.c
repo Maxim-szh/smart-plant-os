@@ -19,6 +19,9 @@ esp_err_t sp_pairing_begin(const uint8_t device[6]) {
 static cJSON *output;
 static int status, wifi_calls, pair_calls;
 static esp_err_t result;
+bool sp_radio_network_busy(void) {
+    return false;
+}
 uint8_t sp_radio_channel(void) {
     return 6;
 }

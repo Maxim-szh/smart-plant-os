@@ -160,6 +160,26 @@
         },
         "setup_ap_enabled": {
           "type": "boolean"
+        },
+        "rssi_dbm": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": -127,
+          "maximum": 0
+        },
+        "last_disconnect_reason": {
+          "enum": [
+            "NONE",
+            "AP_NOT_FOUND",
+            "AUTH_FAIL",
+            "HANDSHAKE_TIMEOUT",
+            "ASSOC_FAIL",
+            "BEACON_TIMEOUT",
+            "AUTH_EXPIRED",
+            "OTHER"
+          ]
         }
       }
     },

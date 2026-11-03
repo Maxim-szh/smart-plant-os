@@ -8,6 +8,8 @@
 #include "sp_catalog.h"
 #include "sp_maintenance.h"
 #include "sp_update.h"
+#include "sp_system.h"
+#include "esp_system.h"
 #include <fcntl.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -73,6 +75,43 @@ static bool maintenance_remove(void *ctx, unsigned slot) {
 static uint64_t now_ms(void) {
     return (uint64_t)esp_timer_get_time() / 1000;
 }
+static unsigned reset_kind(void) {
+    switch (esp_reset_reason()) {
+    case ESP_RST_POWERON:
+        return 1;
+    case ESP_RST_SW:
+        return 2;
+    case ESP_RST_PANIC:
+        return 3;
+    case ESP_RST_INT_WDT:
+        return 4;
+    case ESP_RST_TASK_WDT:
+        return 5;
+    case ESP_RST_WDT:
+        return 6;
+    case ESP_RST_DEEPSLEEP:
+        return 7;
+    case ESP_RST_BROWNOUT:
+        return 8;
+    case ESP_RST_USB:
+        return 9;
+    case ESP_RST_UNKNOWN:
+        return 0;
+    default:
+        return 10;
+    }
+}
+static const sp_system_io_t system_io = {.now_ms = now_ms,
+                                         .free_heap = esp_get_free_heap_size,
+                                         .min_heap = esp_get_minimum_free_heap_size,
+                                         .reset_reason = reset_kind,
+                                         .idle = maintenance_idle,
+                                         .network_json = sp_radio_network_json,
+                                         .radio_json = sp_radio_diagnostics_json,
+                                         .update_json = sp_update_status_json,
+                                         .scan_begin = sp_radio_scan_begin,
+                                         .scan_json = sp_radio_scan_json,
+                                         .recovery_open = sp_radio_setup_window};
 static uint64_t utc_ms(uint64_t now) {
     return hub_utc ? hub_utc + now - hub_mono : 0;
 }
@@ -118,7 +157,7 @@ static void hello(unsigned peer) {
     sp_message_init(&m, SP_HELLO);
     sp_message_bytes(&m, SP_K_DEVICE, identity.self);
     sp_message_bytes(&m, SP_K_PLANT, identity.plant);
-    sp_message_set(&m, SP_K_FLAGS, identity.hub ? 0 : (sp_board_capabilities() | 32 | 16u));
+    sp_message_set(&m, SP_K_FLAGS, identity.hub ? 0 : (sp_board_capabilities() | 32 | 16u | 64u));
     sp_message_set(&m, SP_K_REVISION, 1); /* hardware descriptor version */
     sp_message_set(&m, SP_K_RPC, SP_FIRMWARE_NUMBER);
     (void)sp_radio_send(peer, &m);
@@ -322,8 +361,14 @@ static void hub_receive(const sp_received_t *r, uint64_t now) {
         return;
     if (api && m->value[0] == SP_HELLO && sp_message_has(m, SP_K_PLANT))
         (void)sp_catalog_claim(&api->nodes[i], m->bytes[SP_K_PLANT - 24]);
-    if (api)
+    if (api) {
         sp_api_receive(api, i, identity.peers[i].boot, m);
+        if (r->have_rssi) {
+            api->nodes[i].have_rssi = true;
+            api->nodes[i].rssi = r->rssi;
+            api->nodes[i].rssi_at_ms = now;
+        }
+    }
     if (m->value[0] == SP_CONFIG && pending[i].active && pending[i].request.value[0] == SP_CONFIG_GET)
         pending[i].active = false;
     if (observed_boot[i] != identity.peers[i].boot) {
@@ -373,7 +418,7 @@ void sp_platform_run(bool hub) {
     bool boot_healthy = true;
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
-    printf("Smart Plant %s 0.2.0-abi1 engineering; STA MAC %02x:%02x:%02x:%02x:%02x:%02x\n",
+    printf("Smart Plant %s 0.3.0-abi1 engineering; STA MAC %02x:%02x:%02x:%02x:%02x:%02x\n",
            hub ? "Hub" : "Node", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     /* Never erase NVS automatically: doing so would reset dedupe, limits and AEAD epochs. */
     esp_err_t err = nvs_flash_init();
@@ -462,6 +507,7 @@ void sp_platform_run(bool hub) {
         (void)fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
     uint64_t periodic_at = 0, last_command_at = 0, sensor_at = 0, discovery_at = 0;
+    uint64_t health_at = 0;
     unsigned sensor_slot = 0;
     unsigned periodic_peer = 0;
     for (;;) {
@@ -477,8 +523,9 @@ void sp_platform_run(bool hub) {
             }
             sp_api_tick(api, now, utc_ms(now));
             if (web_request && sp_web_take(web_request) && !sp_update_handle(web_request) &&
-                !sp_maintenance_handle(web_request) && !sp_setup_handle(&identity, api, web_request) &&
-                !sp_catalog_handle(api, web_request))
+                !sp_maintenance_handle(web_request) &&
+                !sp_system_handle(&identity, api, web_request, &system_io) &&
+                !sp_setup_handle(&identity, api, web_request) && !sp_catalog_handle(api, web_request))
                 sp_api_handle(api, web_request);
         }
         if (!hub) {
@@ -521,6 +568,16 @@ void sp_platform_run(bool hub) {
                 if (!sp_registry_online(&registry[i], now))
                     hello(i);
             discovery_at = now + 500;
+        }
+        if (!hub && identity.count && now >= health_at) {
+            sp_message_t m;
+            sp_radio_health_message(&m);
+            sp_message_set(&m, 7, reset_kind());
+            sp_message_set(&m, 8, esp_get_free_heap_size());
+            sp_message_set(&m, 9, esp_get_minimum_free_heap_size());
+            sp_message_set(&m, 14, now);
+            (void)sp_radio_send(0, &m);
+            health_at = now + 15000;
         }
         if (!hub && sensors.count && now >= sensor_at) {
             sp_message_t m;

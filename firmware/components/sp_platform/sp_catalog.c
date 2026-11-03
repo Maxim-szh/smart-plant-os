@@ -1,6 +1,9 @@
 #include "sp_catalog.h"
 #include "sp_web.h"
+#include "sp_text.h"
+#include "mbedtls/sha256.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 typedef struct {
     sp_plant_meta_t meta;
@@ -225,22 +228,34 @@ static bool replace_binding(sp_api_t *api, const uint8_t plant[16], const char *
         if (!strcmp(id, device))
             node = i;
     }
-    if (target == catalog->count || source == catalog->count || node == api->count || source == target ||
+    if (target == catalog->count || node == api->count || source == target ||
         nonzero(catalog->rows[target].device, 6) || catalog->rows[target].meta.revision != revision ||
-        revision == UINT32_MAX || catalog->rows[source].meta.setup_stage != 0 ||
-        catalog->rows[source].meta.revision != 0)
+        revision == UINT32_MAX)
         return false;
+    bool represented = source < catalog->count;
+    if (represented) {
+        if (catalog->rows[source].meta.setup_stage != 0 || catalog->rows[source].meta.revision != 0)
+            return false;
+    } else {
+        if (api->nodes[node].have_plant)
+            return false;
+        for (unsigned i = 0; i < catalog->binding_count; i++)
+            if (!memcmp(catalog->bindings[i].device, api->nodes[node].device, 6))
+                return false;
+    }
     catalog_t *next = malloc(sizeof(*next));
     if (!next)
         return false;
     *next = *catalog;
-    memcpy(next->rows[target].device, next->rows[source].device, 6);
+    memcpy(next->rows[target].device, api->nodes[node].device, 6);
     next->rows[target].meta.revision++;
     next->rows[target].meta.setup_stage = 2;
     sp_plant_meta_t meta = next->rows[target].meta;
     bool ok = bind_device(next, next->rows[target].device, meta.plant, true);
-    memmove(&next->rows[source], &next->rows[source + 1], (next->count - source - 1) * sizeof(row_t));
-    memset(&next->rows[--next->count], 0, sizeof(row_t));
+    if (represented) {
+        memmove(&next->rows[source], &next->rows[source + 1], (next->count - source - 1) * sizeof(row_t));
+        memset(&next->rows[--next->count], 0, sizeof(row_t));
+    }
     ok = ok && commit(next);
     free(next);
     if (ok) {
@@ -249,7 +264,211 @@ static bool replace_binding(sp_api_t *api, const uint8_t plant[16], const char *
     }
     return ok;
 }
+static bool snapshot(char out[65]) {
+    uint8_t hash[32];
+    if (mbedtls_sha256((const unsigned char *)catalog, sizeof(*catalog), hash, 0))
+        return false;
+    static const char hex[] = "0123456789abcdef";
+    for (unsigned i = 0; i < 32; i++) {
+        out[2 * i] = hex[hash[i] >> 4];
+        out[2 * i + 1] = hex[hash[i] & 15];
+    }
+    out[64] = 0;
+    return true;
+}
+static void backup_error(const sp_api_request_t *q, int status, const char *reason) {
+    sp_web_reply(NULL, q->id, status, sp_api_error(reason, reason));
+}
+static bool import_row(const cJSON *o, sp_plant_meta_t *meta) {
+    if (!cJSON_IsObject(o) || cJSON_GetArraySize(o) != 4)
+        return false;
+    const char *id = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "plant_id"));
+    const char *name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "name"));
+    const char *room = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "room"));
+    const cJSON *species = cJSON_GetObjectItemCaseSensitive(o, "species_id");
+    const char *type = cJSON_GetStringValue(species);
+    if (!sp_api_parse_uuid(id, meta->plant) || !sp_text_valid(name, 1, 80) || !sp_text_valid(room, 0, 80) ||
+        (!cJSON_IsNull(species) && !sp_text_valid(type, 1, 40)))
+        return false;
+    bool named = false;
+    for (const char *p = name; *p; p++)
+        if (*p != ' ')
+            named = true;
+    if (!named)
+        return false;
+    if (type)
+        for (const char *p = type; *p; p++)
+            if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-'))
+                return false;
+    meta->version = 2;
+    meta->setup_stage = 2;
+    snprintf(meta->name, sizeof(meta->name), "%s", name);
+    snprintf(meta->room, sizeof(meta->room), "%s", room);
+    if (type)
+        snprintf(meta->species, sizeof(meta->species), "%s", type);
+    return true;
+}
+static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
+    if (strncmp(q->path, "/api/v1/backup", 14))
+        return false;
+    if (!catalog) {
+        backup_error(q, 503, "catalog_unavailable");
+        return true;
+    }
+    if (!strcmp(q->path, "/api/v1/backup") && !strcmp(q->method, "GET")) {
+        cJSON *out = cJSON_CreateObject();
+        cJSON_AddStringToObject(out, "format", "smartplantos.settings");
+        cJSON_AddNumberToObject(out, "format_version", 1);
+        cJSON *rows = cJSON_AddArrayToObject(out, "plants");
+        for (unsigned i = 0; i < catalog->count; i++) {
+            const sp_plant_meta_t *m = &catalog->rows[i].meta;
+            char id[37];
+            sp_api_uuid(m->plant, id);
+            cJSON *row = cJSON_CreateObject();
+            cJSON_AddStringToObject(row, "plant_id", id);
+            cJSON_AddStringToObject(row, "name", m->name);
+            cJSON_AddStringToObject(row, "room", m->room);
+            if (m->species[0])
+                cJSON_AddStringToObject(row, "species_id", m->species);
+            else
+                cJSON_AddNullToObject(row, "species_id");
+            cJSON_AddItemToArray(rows, row);
+        }
+        sp_web_reply(NULL, q->id, 200, out);
+        return true;
+    }
+    bool preview = !strcmp(q->path, "/api/v1/backup/preview"),
+         restore = !strcmp(q->path, "/api/v1/backup/restore");
+    if ((!preview && !restore) || strcmp(q->method, "POST")) {
+        backup_error(q, 404, "not_found");
+        return true;
+    }
+    cJSON *body = cJSON_ParseWithOpts(q->body, NULL, true),
+          *file = cJSON_GetObjectItemCaseSensitive(body, "backup"),
+          *plants = cJSON_GetObjectItemCaseSensitive(file, "plants");
+    const char *format = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(file, "format"));
+    bool ok = cJSON_IsObject(body) && cJSON_GetArraySize(body) == (preview ? 1 : 3) &&
+              !strstr(q->body, "\\u0000") && cJSON_IsObject(file) && cJSON_GetArraySize(file) == 3 &&
+              format && !strcmp(format, "smartplantos.settings") &&
+              cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(file, "format_version")) == 1 &&
+              cJSON_IsArray(plants) && cJSON_GetArraySize(plants) <= (int)SP_PLANT_MAX;
+    char expected[65];
+    if (!snapshot(expected)) {
+        cJSON_Delete(body);
+        backup_error(q, 503, "snapshot_unavailable");
+        return true;
+    }
+    if (ok && restore) {
+        const char *provided = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(body, "snapshot"));
+        if (!provided || strcmp(expected, provided) ||
+            !cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(body, "confirm"))) {
+            cJSON_Delete(body);
+            backup_error(q, 409, "backup_preview_expired");
+            return true;
+        }
+    }
+    catalog_t *next = ok ? malloc(sizeof(*next)) : NULL;
+    if (ok && !next) {
+        cJSON_Delete(body);
+        backup_error(q, 503, "busy");
+        return true;
+    }
+    if (next)
+        *next = *catalog;
+    cJSON *out = cJSON_CreateObject(), *changes = cJSON_AddArrayToObject(out, "changes");
+    unsigned created = 0, updated = 0, unchanged = 0;
+    uint8_t ids[SP_PLANT_MAX][16];
+    unsigned seen = 0;
+    cJSON *item;
+    cJSON_ArrayForEach(item, plants) {
+        if (!ok)
+            break;
+        sp_plant_meta_t meta = {0};
+        ok = import_row(item, &meta);
+        if (!ok)
+            break;
+        for (unsigned i = 0; i < seen; i++)
+            if (!memcmp(ids[i], meta.plant, 16))
+                ok = false;
+        if (!ok)
+            break;
+        memcpy(ids[seen++], meta.plant, 16);
+        unsigned slot = next->count;
+        for (unsigned i = 0; i < next->count; i++)
+            if (!memcmp(next->rows[i].meta.plant, meta.plant, 16))
+                slot = i;
+        bool exists = slot < next->count, changed = !exists ||
+                                                    strcmp(next->rows[slot].meta.name, meta.name) ||
+                                                    strcmp(next->rows[slot].meta.room, meta.room) ||
+                                                    strcmp(next->rows[slot].meta.species, meta.species);
+        if ((!exists && next->count == SP_PLANT_MAX) ||
+            (exists && changed && next->rows[slot].meta.revision == UINT32_MAX)) {
+            ok = false;
+            break;
+        }
+        cJSON *change = cJSON_CreateObject();
+        char id[37];
+        sp_api_uuid(meta.plant, id);
+        cJSON_AddStringToObject(change, "plant_id", id);
+        cJSON_AddStringToObject(change, "name", meta.name);
+        cJSON_AddStringToObject(change, "room", meta.room);
+        cJSON_AddStringToObject(change, "action", !exists ? "create" : changed ? "update" : "unchanged");
+        cJSON_AddBoolToObject(change, "has_controller", exists && nonzero(next->rows[slot].device, 6));
+        if (exists) {
+            cJSON_AddStringToObject(change, "previous_name", next->rows[slot].meta.name);
+            cJSON_AddStringToObject(change, "previous_room", next->rows[slot].meta.room);
+        } else {
+            cJSON_AddNullToObject(change, "previous_name");
+            cJSON_AddNullToObject(change, "previous_room");
+        }
+        cJSON_AddItemToArray(changes, change);
+        if (!exists) {
+            next->rows[next->count++].meta = meta;
+            created++;
+        } else if (changed) {
+            sp_plant_meta_t *m = &next->rows[slot].meta;
+            snprintf(m->name, sizeof(m->name), "%s", meta.name);
+            snprintf(m->room, sizeof(m->room), "%s", meta.room);
+            snprintf(m->species, sizeof(m->species), "%s", meta.species);
+            m->revision++;
+            updated++;
+        } else
+            unchanged++;
+    }
+    if (ok && restore && (created || updated) && !commit(next)) {
+        free(next);
+        cJSON_Delete(out);
+        cJSON_Delete(body);
+        backup_error(q, 503, "storage_fault");
+        return true;
+    }
+    if (ok && restore)
+        for (unsigned i = 0; i < api->count; i++)
+            for (unsigned j = 0; j < catalog->count; j++)
+                if (nonzero(catalog->rows[j].device, 6) &&
+                    !memcmp(api->nodes[i].device, catalog->rows[j].device, 6)) {
+                    api->nodes[i].plant = catalog->rows[j].meta;
+                    api->nodes[i].have_plant = true;
+                }
+    free(next);
+    cJSON_Delete(body);
+    if (!ok) {
+        cJSON_Delete(out);
+        backup_error(q, 400, "backup_invalid");
+        return true;
+    }
+    cJSON_AddNumberToObject(out, "schema_version", 1);
+    cJSON_AddStringToObject(out, "snapshot", expected);
+    cJSON *summary = cJSON_AddObjectToObject(out, "summary");
+    cJSON_AddNumberToObject(summary, "created", created);
+    cJSON_AddNumberToObject(summary, "updated", updated);
+    cJSON_AddNumberToObject(summary, "unchanged", unchanged);
+    sp_web_reply(NULL, q->id, 200, out);
+    return true;
+}
 bool sp_catalog_handle(sp_api_t *api, const sp_api_request_t *q) {
+    if (backup_handle(api, q))
+        return true;
     const char *prefix = "/api/v1/plants/";
     if (!strncmp(q->path, prefix, strlen(prefix)) && !strcmp(q->method, "POST")) {
         const char *tail = q->path + strlen(prefix);

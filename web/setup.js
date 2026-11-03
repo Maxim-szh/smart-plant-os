@@ -53,7 +53,7 @@ async function refresh() {
     if (data.wifi_connected && /^\d{1,3}(\.\d{1,3}){3}$/.test(data.ip)) {
       const a = document.createElement('a'); a.href = `https://${data.ip}/`; a.textContent = data.ip; ip.append(a);
     } else ip.textContent = '—';
-    $('#wifi-button').disabled = data.wifi_phase === 'connecting';
+    $('#wifi-button').disabled = busy || data.wifi_phase === 'connecting';$('#wifi-scan').disabled=busy||data.wifi_phase==='connecting';
     $('#nodes').replaceChildren(...data.nodes.map(node => {const li = document.createElement('li');li.textContent = node.device_id;return li;}));
   } catch(e) {if (token) message('Нет ответа от Hub. Если меняли сеть, подключитесь к SmartPlantOS заново. Повторное сохранение не выполняется автоматически.');}
   if (token) timer = setTimeout(refresh, 3000);
@@ -105,3 +105,7 @@ $('#logout').onclick = () => action($('#logout'),async () => {try {await request
 session();
 
 $("#open-updates").onclick=()=>window.SmartPlantUpdates.open("hub");
+
+$('#wifi-scan').onclick=async()=>{if(busy)return;await action($('#wifi-scan'),async()=>{
+ $('#wifi-button').disabled=true;message('Ищем сети 2,4 ГГц…');const networks=await window.SPWifi.scan({request,active:()=>!!token});if(!networks)return;const picker=$('#wifi-networks');picker.replaceChildren();const first=document.createElement('option');first.value='';first.textContent='Выберите сеть';picker.append(first);for(const network of networks){const option=document.createElement('option');option.value=network.ssid;option.textContent=network.ssid+' · '+network.rssi_dbm+' dBm'+(network.supported?'':' · не поддерживается');option.disabled=!network.supported;picker.append(option);}$('#wifi-network-picker').hidden=false;message(networks.length?'Выберите сеть или введите название вручную.':'Сети не найдены. Введите название вручную.');});$('#wifi-button').disabled=false;};
+$('#wifi-networks').onchange=e=>{if(e.target.value){$('#ssid').value=e.target.value;$('#wifi-password').focus();}};
