@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "note": "Qualitative reference only. No automatic watering parameters. Stage is selected by the owner.",
+  "groups": {
+    "fruit": "Плодовые",
+    "flower": "Цветущие",
+    "leaf": "Лиственные",
+    "succ": "Суккуленты"
+  },
+  "stages": {
+    "fruit": [
+      [
+        "seed",
+        "Росток"
+      ],
+      [
+        "grow",
+        "Рост"
+      ],
+      [
+        "flower",
+        "Цветение"
+      ],
+      [
+        "fruit",
+        "Плодоношение"
+      ]
+    ],
+    "flower": [
+      [
+        "grow",
+        "Рост"
+      ],
+      [
+        "flower",
+        "Цветение"
+      ],
+      [
+        "rest",
+        "Покой"
+      ]
+    ],
+    "leaf": [
+      [
+        "seed",
+        "Молодое"
+      ],
+      [
+        "adult",
+        "Взрослое"
+      ],
+      [
+        "rest",
+        "Покой"
+      ]
+    ],
+    "succ": [
+      [
+        "grow",
+        "Рост"
+      ],
+      [
+        "adult",
+        "Взрослое"
+      ],
+      [
+        "rest",
+        "Покой"
+      ]
+    ]
+  },
+  "aliases": {
+    "tomato": "tomato-cherry",
+    "pepper": "pepper-chili"
+  },
+  "plants": [
+    {
+      "id": "tomato-cherry",
+      "name": "Томат черри",
+      "latin": "Solanum lycopersicum",
+      "group": "fruit",
+      "illustration": "tomato",
+      "light": "Хорошо освещённое место.",
+      "substrate": "Поливайте равномерно, проверяя грунт; горшку нужен дренаж.",
+      "source": "https://www.rhs.org.uk/advice/grow-your-own/containers/may-edible-container-idea"
+    },
+    {
+      "id": "pepper-chili",
+      "name": "Перец острый (чили)",
+      "latin": "Capsicum annuum",
+      "group": "fruit",
+      "illustration": "pepper",
+      "light": "Хорошо освещённое место.",
+      "substrate": "Поливайте равномерно, проверяя грунт; горшку нужен дренаж.",
+      "source": "https://www.rhs.org.uk/advice/grow-your-own/containers/may-edible-container-idea"
+    },
+    {
+      "id": "lemon",
+      "name": "Лимон",
+      "latin": "Citrus limon",
+      "group": "fruit",
+      "illustration": "lemon",
+      "light": "Солнечное место.",
+      "substrate": "Учитывайте сезон и условия содержания; горшку нужен дренаж.",
+      "source": "https://www.rhs.org.uk/fruit/citrus/grow-your-own"
+    },
+    {
+      "id": "orchid",
+      "name": "Орхидея фаленопсис",
+      "latin": "Phalaenopsis",
+      "group": "flower",
+      "illustration": "orchid",
+      "light": "Яркий свет без сильного прямого солнца.",
+      "substrate": "Нужен воздушный субстрат для орхидей. Не держите корни постоянно в воде.",
+      "source": "https://www.rhs.org.uk/plants/phalaenopsis"
+    },
+    {
+      "id": "pelargonium",
+      "name": "Герань (пеларгония)",
+      "latin": "Pelargonium",
+      "group": "flower",
+      "illustration": "geranium",
+      "light": "Условия освещения уточняйте для своего сорта.",
+      "substrate": "Не оставляйте воду в поддоне; потребность в поливе зависит от сезона.",
+      "source": "https://www.missouribotanicalgarden.org/gardens-gardening/your-garden/help-for-the-home-gardener/advice-tips-resources/visual-guides/how-to-water-indoor-plants"
+    },
+    {
+      "id": "monstera",
+      "name": "Монстера",
+      "latin": "Monstera deliciosa",
+      "group": "leaf",
+      "illustration": "monstera",
+      "light": "Яркий рассеянный свет.",
+      "substrate": "Давайте верхнему слою грунта немного подсохнуть; избегайте застоя воды.",
+      "source": "https://www.rhs.org.uk/plants/types/houseplants/monsteras-and-more"
+    },
+    {
+      "id": "ficus-elastica",
+      "name": "Фикус эластика",
+      "latin": "Ficus elastica",
+      "group": "leaf",
+      "illustration": "ficus",
+      "light": "Условия освещения уточняйте для своего сорта.",
+      "substrate": "Проверяйте влажность грунта вручную, особенно после пересадки.",
+      "source": "https://www.missouribotanicalgarden.org/gardens-gardening/your-garden/help-for-the-home-gardener/advice-tips-resources/visual-guides/how-to-water-indoor-plants"
+    },
+    {
+      "id": "sansevieria",
+      "name": "Сансевиерия",
+      "latin": "Dracaena trifasciata",
+      "group": "leaf",
+      "illustration": "snake",
+      "light": "Подберите освещение под условия содержания.",
+      "substrate": "Проверяйте просыхание грунта перед поливом; не оставляйте воду в кашпо.",
+      "source": "https://www.missouribotanicalgarden.org/gardens-gardening/your-garden/help-for-the-home-gardener/advice-tips-resources/visual-guides/how-to-water-indoor-plants"
+    },
+    {
+      "id": "basil",
+      "name": "Базилик",
+      "latin": "Ocimum basilicum",
+      "group": "leaf",
+      "illustration": "herb",
+      "light": "Светлое защищённое место.",
+      "substrate": "Следите за влажностью субстрата, особенно в маленьком горшке.",
+      "source": "https://schoolgardening.rhs.org.uk/resources/info-sheet/easy-herbs-to-grow-in-school.aspx"
+    },
+    {
+      "id": "aloe",
+      "name": "Алоэ вера",
+      "latin": "Aloe vera",
+      "group": "succ",
+      "illustration": "aloe",
+      "light": "Светлое место.",
+      "substrate": "Давайте субстрату просыхать. Переувлажнение опасно.",
+      "source": "https://www.rhs.org.uk/plants/types/cacti-succulents/houseplants/growing-guide"
+    }
+  ]
+}

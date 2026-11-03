@@ -1,1 +1,18 @@
-{"schema_version":1,"plants":[]}
+{
+  "schema_version": 1,
+  "plants": [
+    {
+      "plant_id": "01020304-0506-4008-800a-0b0c0d0e0f10",
+      "device_id": "spo-010203040506",
+      "name": "Мой томат",
+      "room": "Кухня",
+      "species_id": "tomato-cherry",
+      "growth_stage": "flower",
+      "revision": 5,
+      "setup_stage": 3,
+      "controller_history": [
+        "spo-010203040506"
+      ]
+    }
+  ]
+}

@@ -102,7 +102,7 @@ int main(void) {
     assert(nvs_set_blob(h, "010203040506", &old, sizeof(old)) == ESP_OK);
     assert(nvs_commit(h) == ESP_OK);
     assert(sp_catalog_load(&id, &api));
-    assert(api.nodes[0].have_plant && api.nodes[0].plant.version == 2);
+    assert(api.nodes[0].have_plant && api.nodes[0].plant.version == 3);
     assert(api.nodes[0].plant.revision == 4 && !memcmp(api.nodes[0].plant.plant, old.plant, 16));
     sp_plant_meta_t next = api.nodes[0].plant;
     snprintf(next.name, sizeof(next.name), "Monstera");
@@ -134,7 +134,7 @@ int main(void) {
     assert(!memcmp(&old, &preserved, sizeof(old)));
     /* A fresh controller replaces the archived binding without replacing plant identity. */
     const uint8_t replacement[6] = {7, 8, 9, 10, 11, 12};
-    sp_plant_meta_t fresh = {.version = 2,
+    sp_plant_meta_t fresh = {.version = 3,
                              .plant = {7, 8, 9, 10, 11, 12, 0x40, 1, 0x80, 1, 2, 3, 4, 5, 6, 7},
                              .name = "Fresh controller"};
     assert(sp_catalog_save(replacement, &fresh));
@@ -253,7 +253,7 @@ int main(void) {
     /* A full restored catalog must still accept a genuinely fresh controller without a placeholder row. */
     for (unsigned i = 0; i < 18; i++) {
         uint8_t d[6] = {20, (uint8_t)i, 1, 2, 3, 4};
-        sp_plant_meta_t m = {.version = 2,
+        sp_plant_meta_t m = {.version = 3,
                              .plant = {20, (uint8_t)i, 1, 2, 3, 4, 0x40, 1, 0x80, 1, 2, 3, 4, 5, 6, 7},
                              .name = "Capacity test"};
         assert(sp_catalog_save(d, &m));
@@ -273,6 +273,94 @@ int main(void) {
     assert(cJSON_GetArraySize(cJSON_GetObjectItem(response, "plants")) == 20);
     next.setup_stage = 4;
     assert(!sp_catalog_save(device, &next));
+    /* A deployed catalog/state_v1 is migrated atomically, without rewriting its bytes. */
+    typedef struct {
+        sp_plant_meta_v2_t meta;
+        uint8_t device[6];
+    } legacy_row_t;
+    typedef struct {
+        uint32_t version, count, binding_count;
+        legacy_row_t rows[20];
+        struct {
+            uint8_t device[6], plant[16];
+        } bindings[40];
+    } legacy_catalog_t;
+    legacy_catalog_t legacy = {.version = 1, .count = 1, .binding_count = 1};
+    legacy.rows[0].meta = (sp_plant_meta_v2_t){.version = 2,
+                                               .revision = 12,
+                                               .name = "Legacy catalog",
+                                               .species = "monstera",
+                                               .room = "Living room",
+                                               .setup_stage = 3};
+    memcpy(legacy.rows[0].meta.plant, old.plant, 16);
+    memcpy(legacy.rows[0].device, device, 6);
+    memcpy(legacy.bindings[0].device, device, 6);
+    memcpy(legacy.bindings[0].plant, old.plant, 16);
+    for (unsigned i = 0; i < 8; i++)
+        if (!strcmp(entries[i].ns, "catalog"))
+            entries[i].used = false;
+    assert(nvs_open("catalog", NVS_READWRITE, &h) == ESP_OK);
+    assert(nvs_set_blob(h, "state_v1", &legacy, sizeof(legacy)) == ESP_OK);
+    assert(nvs_commit(h) == ESP_OK);
+    fixture(&id, &api);
+    fail_commit = true;
+    assert(!sp_catalog_load(&id, &api));
+    fail_commit = false;
+    fixture(&id, &api);
+    assert(sp_catalog_load(&id, &api));
+    assert(api.nodes[0].plant.revision == 12 && api.nodes[0].plant.version == 3 &&
+           !api.nodes[0].plant.growth_stage[0]);
+    next = api.nodes[0].plant;
+    strcpy(next.growth_stage, "adult");
+    assert(sp_catalog_save(device, &next));
+    fixture(&id, &api);
+    assert(sp_catalog_load(&id, &api));
+    assert(!strcmp(api.nodes[0].plant.growth_stage, "adult"));
+    strcpy(next.growth_stage, "fruit");
+    assert(!sp_catalog_save(device, &next));
+    legacy_catalog_t preserved_catalog;
+    size_t preserved_size = sizeof(preserved_catalog);
+    assert(nvs_open("catalog", NVS_READONLY, &h) == ESP_OK);
+    assert(nvs_get_blob(h, "state_v1", &preserved_catalog, &preserved_size) == ESP_OK);
+    assert(!memcmp(&legacy, &preserved_catalog, sizeof(legacy)));
+    assert(sp_catalog_handle(&api, &export));
+    cJSON *exported_row = cJSON_GetArrayItem(cJSON_GetObjectItem(response, "plants"), 0);
+    assert(cJSON_GetNumberValue(cJSON_GetObjectItem(response, "format_version")) == 2);
+    assert(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(exported_row, "growth_stage")), "adult"));
+    /* Worst-case escaped UTF-8-sized metadata still round-trips within HTTP bounds. */
+    for (unsigned i = 0; i < 20; i++) {
+        sp_plant_meta_t large = {.version = 3, .setup_stage = 3};
+        uint8_t owner[6] = {40, (uint8_t)i, 1, 2, 3, 4};
+        if (!i) {
+            memcpy(large.plant, old.plant, 16);
+            memcpy(owner, device, 6);
+        } else {
+            large.plant[0] = 40;
+            large.plant[1] = (uint8_t)i;
+            large.plant[6] = 0x40;
+            large.plant[8] = 0x80;
+        }
+        memset(large.name, '"', 80);
+        memset(large.room, '\\', 80);
+        memset(large.species, 'a', 40);
+        strcpy(large.growth_stage, "flower");
+        assert(sp_catalog_save(owner, &large));
+    }
+    assert(sp_catalog_handle(&api, &export));
+    char *worst_export = cJSON_PrintUnformatted(response);
+    assert(strlen(worst_export) > 8192 && strlen(worst_export) < SP_API_BODY_MAX - 128);
+    body = cJSON_CreateObject();
+    cJSON_AddItemToObject(body, "backup", cJSON_Parse(worst_export));
+    free(worst_export);
+    text = cJSON_PrintUnformatted(body);
+    assert(strlen(text) < sizeof(preview.body));
+    snprintf(preview.body, sizeof(preview.body), "%s", text);
+    free(text);
+    cJSON_Delete(body);
+    assert(sp_catalog_handle(&api, &preview) && response_status == 200);
+    text = cJSON_PrintUnformatted(response);
+    assert(strlen(text) < SP_API_REPLY_MAX);
+    free(text);
     cJSON_Delete(response);
     puts("PASS: metadata v1 migration, durable room/setup state, failed commit, archive and legacy "
          "preservation");

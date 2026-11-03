@@ -1,6 +1,7 @@
 #include "sp_catalog.h"
 #include "sp_web.h"
 #include "sp_text.h"
+#include "sp_profile.h"
 #include "mbedtls/sha256.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -17,6 +18,16 @@ typedef struct {
     row_t rows[SP_PLANT_MAX];
     binding_t bindings[40];
 } catalog_t;
+typedef struct {
+    sp_plant_meta_v2_t meta;
+    uint8_t device[6];
+} row_v1_t;
+typedef struct {
+    uint32_t version, count, binding_count;
+    row_v1_t rows[SP_PLANT_MAX];
+    binding_t bindings[40];
+} catalog_v1_t;
+_Static_assert(sizeof(sp_plant_meta_v2_t) == 228, "Legacy plant metadata layout must not change");
 static catalog_t *catalog;
 static bool nonzero(const uint8_t *p, size_t n) {
     unsigned v = 0;
@@ -25,12 +36,13 @@ static bool nonzero(const uint8_t *p, size_t n) {
     return v != 0;
 }
 static bool valid_meta(const sp_plant_meta_t *m) {
-    return m->version == 2 && nonzero(m->plant, 16) && memchr(m->name, 0, sizeof(m->name)) && m->name[0] &&
+    return m->version == 3 && nonzero(m->plant, 16) && memchr(m->name, 0, sizeof(m->name)) && m->name[0] &&
            memchr(m->species, 0, sizeof(m->species)) && memchr(m->room, 0, sizeof(m->room)) &&
-           m->setup_stage <= 3;
+           m->setup_stage <= 3 && memchr(m->growth_stage, 0, sizeof(m->growth_stage)) &&
+           sp_growth_valid(m->species, m->growth_stage);
 }
 static bool valid(const catalog_t *c) {
-    if (c->version != 1 || c->count > SP_PLANT_MAX || c->binding_count > 40)
+    if (c->version != 2 || c->count > SP_PLANT_MAX || c->binding_count > 40)
         return false;
     for (unsigned i = 0; i < c->count; i++) {
         if (!valid_meta(&c->rows[i].meta))
@@ -76,7 +88,7 @@ static bool commit(catalog_t *next) {
     nvs_handle_t h;
     if (nvs_open("catalog", NVS_READWRITE, &h) != ESP_OK)
         return false;
-    bool ok = nvs_set_blob(h, "state_v1", next, sizeof(*next)) == ESP_OK && nvs_commit(h) == ESP_OK;
+    bool ok = nvs_set_blob(h, "state_v2", next, sizeof(*next)) == ESP_OK && nvs_commit(h) == ESP_OK;
     nvs_close(h);
     if (ok)
         *catalog = *next;
@@ -90,20 +102,58 @@ bool sp_catalog_load(sp_identity_t *id, sp_api_t *api) {
     catalog = calloc(1, sizeof(*catalog));
     if (!catalog)
         goto fail;
-    catalog->version = 1;
+    catalog->version = 2;
     nvs_handle_t h;
     esp_err_t e = nvs_open("catalog", NVS_READONLY, &h);
     if (e == ESP_OK) {
         size_t n = sizeof(*catalog);
-        e = nvs_get_blob(h, "state_v1", catalog, &n);
+        e = nvs_get_blob(h, "state_v2", catalog, &n);
+        bool migrated = false;
+        if (e == ESP_ERR_NVS_NOT_FOUND) {
+            catalog_v1_t *old = calloc(1, sizeof(*old));
+            if (!old) {
+                nvs_close(h);
+                goto fail;
+            }
+            size_t old_size = sizeof(*old);
+            e = nvs_get_blob(h, "state_v1", old, &old_size);
+            if (e == ESP_OK) {
+                if (old_size != sizeof(*old) || old->version != 1 || old->count > SP_PLANT_MAX ||
+                    old->binding_count > 40) {
+                    free(old);
+                    nvs_close(h);
+                    goto fail;
+                }
+                memset(catalog, 0, sizeof(*catalog));
+                catalog->version = 2;
+                catalog->count = old->count;
+                catalog->binding_count = old->binding_count;
+                memcpy(catalog->bindings, old->bindings, sizeof(old->bindings));
+                for (unsigned i = 0; i < old->count; i++) {
+                    if (old->rows[i].meta.version != 2) {
+                        free(old);
+                        nvs_close(h);
+                        goto fail;
+                    }
+                    memcpy(&catalog->rows[i].meta, &old->rows[i].meta, sizeof(sp_plant_meta_v2_t));
+                    catalog->rows[i].meta.version = 3;
+                    memcpy(catalog->rows[i].device, old->rows[i].device, 6);
+                }
+                n = sizeof(*catalog);
+                migrated = true;
+            }
+            free(old);
+        }
         nvs_close(h);
+        if (migrated && (!valid(catalog) || !commit(catalog)))
+            goto fail;
         if (e != ESP_ERR_NVS_NOT_FOUND && (e != ESP_OK || n != sizeof(*catalog) || !valid(catalog)))
             goto fail;
     } else if (e != ESP_ERR_NVS_NOT_FOUND)
         goto fail;
     if (e == ESP_ERR_NVS_NOT_FOUND) {
         memset(catalog, 0, sizeof(*catalog));
-        catalog->version = 1;
+        catalog->version = 2;
         for (unsigned i = 0; i < id->count; i++) {
             char key[17];
             sp_api_device_id(id->peers[i].device, key);
@@ -119,7 +169,7 @@ bool sp_catalog_load(sp_identity_t *id, sp_api_t *api) {
                 !memchr(old.name, 0, sizeof(old.name)) || !memchr(old.species, 0, sizeof(old.species)))
                 goto fail;
             row_t *r = &catalog->rows[catalog->count++];
-            r->meta.version = 2;
+            r->meta.version = 3;
             r->meta.revision = old.revision;
             memcpy(r->meta.plant, old.plant, 16);
             memcpy(r->meta.name, old.name, sizeof(old.name));
@@ -279,8 +329,8 @@ static bool snapshot(char out[65]) {
 static void backup_error(const sp_api_request_t *q, int status, const char *reason) {
     sp_web_reply(NULL, q->id, status, sp_api_error(reason, reason));
 }
-static bool import_row(const cJSON *o, sp_plant_meta_t *meta) {
-    if (!cJSON_IsObject(o) || cJSON_GetArraySize(o) != 4)
+static bool import_row(const cJSON *o, sp_plant_meta_t *meta, unsigned format_version) {
+    if (!cJSON_IsObject(o) || cJSON_GetArraySize(o) != (format_version == 2 ? 5 : 4))
         return false;
     const char *id = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "plant_id"));
     const char *name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(o, "name"));
@@ -300,7 +350,14 @@ static bool import_row(const cJSON *o, sp_plant_meta_t *meta) {
         for (const char *p = type; *p; p++)
             if (!((*p >= 'a' && *p <= 'z') || (*p >= '0' && *p <= '9') || *p == '-'))
                 return false;
-    meta->version = 2;
+    if (format_version == 2) {
+        const cJSON *g = cJSON_GetObjectItemCaseSensitive(o, "growth_stage");
+        const char *stage = cJSON_IsNull(g) ? "" : cJSON_GetStringValue(g);
+        if (!stage || !sp_text_valid(stage, 0, 8) || !sp_growth_valid(type, stage))
+            return false;
+        snprintf(meta->growth_stage, sizeof(meta->growth_stage), "%s", stage);
+    }
+    meta->version = 3;
     meta->setup_stage = 2;
     snprintf(meta->name, sizeof(meta->name), "%s", name);
     snprintf(meta->room, sizeof(meta->room), "%s", room);
@@ -318,7 +375,7 @@ static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
     if (!strcmp(q->path, "/api/v1/backup") && !strcmp(q->method, "GET")) {
         cJSON *out = cJSON_CreateObject();
         cJSON_AddStringToObject(out, "format", "smartplantos.settings");
-        cJSON_AddNumberToObject(out, "format_version", 1);
+        cJSON_AddNumberToObject(out, "format_version", 2);
         cJSON *rows = cJSON_AddArrayToObject(out, "plants");
         for (unsigned i = 0; i < catalog->count; i++) {
             const sp_plant_meta_t *m = &catalog->rows[i].meta;
@@ -332,6 +389,10 @@ static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
                 cJSON_AddStringToObject(row, "species_id", m->species);
             else
                 cJSON_AddNullToObject(row, "species_id");
+            if (m->growth_stage[0])
+                cJSON_AddStringToObject(row, "growth_stage", m->growth_stage);
+            else
+                cJSON_AddNullToObject(row, "growth_stage");
             cJSON_AddItemToArray(rows, row);
         }
         sp_web_reply(NULL, q->id, 200, out);
@@ -347,11 +408,12 @@ static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
           *file = cJSON_GetObjectItemCaseSensitive(body, "backup"),
           *plants = cJSON_GetObjectItemCaseSensitive(file, "plants");
     const char *format = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(file, "format"));
+    double file_version = cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(file, "format_version"));
     bool ok = cJSON_IsObject(body) && cJSON_GetArraySize(body) == (preview ? 1 : 3) &&
               !strstr(q->body, "\\u0000") && cJSON_IsObject(file) && cJSON_GetArraySize(file) == 3 &&
               format && !strcmp(format, "smartplantos.settings") &&
-              cJSON_GetNumberValue(cJSON_GetObjectItemCaseSensitive(file, "format_version")) == 1 &&
-              cJSON_IsArray(plants) && cJSON_GetArraySize(plants) <= (int)SP_PLANT_MAX;
+              (file_version == 1 || file_version == 2) && cJSON_IsArray(plants) &&
+              cJSON_GetArraySize(plants) <= (int)SP_PLANT_MAX;
     char expected[65];
     if (!snapshot(expected)) {
         cJSON_Delete(body);
@@ -384,7 +446,7 @@ static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
         if (!ok)
             break;
         sp_plant_meta_t meta = {0};
-        ok = import_row(item, &meta);
+        ok = import_row(item, &meta, (unsigned)file_version);
         if (!ok)
             break;
         for (unsigned i = 0; i < seen; i++)
@@ -397,10 +459,13 @@ static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
         for (unsigned i = 0; i < next->count; i++)
             if (!memcmp(next->rows[i].meta.plant, meta.plant, 16))
                 slot = i;
-        bool exists = slot < next->count, changed = !exists ||
-                                                    strcmp(next->rows[slot].meta.name, meta.name) ||
-                                                    strcmp(next->rows[slot].meta.room, meta.room) ||
-                                                    strcmp(next->rows[slot].meta.species, meta.species);
+        bool exists = slot < next->count;
+        if (exists && file_version == 1 && !strcmp(next->rows[slot].meta.species, meta.species))
+            snprintf(meta.growth_stage, sizeof(meta.growth_stage), "%s", next->rows[slot].meta.growth_stage);
+        bool changed = !exists || strcmp(next->rows[slot].meta.name, meta.name) ||
+                       strcmp(next->rows[slot].meta.room, meta.room) ||
+                       strcmp(next->rows[slot].meta.species, meta.species) ||
+                       strcmp(next->rows[slot].meta.growth_stage, meta.growth_stage);
         if ((!exists && next->count == SP_PLANT_MAX) ||
             (exists && changed && next->rows[slot].meta.revision == UINT32_MAX)) {
             ok = false;
@@ -412,14 +477,32 @@ static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
         cJSON_AddStringToObject(change, "plant_id", id);
         cJSON_AddStringToObject(change, "name", meta.name);
         cJSON_AddStringToObject(change, "room", meta.room);
+        if (meta.species[0])
+            cJSON_AddStringToObject(change, "species_id", meta.species);
+        else
+            cJSON_AddNullToObject(change, "species_id");
+        if (meta.growth_stage[0])
+            cJSON_AddStringToObject(change, "growth_stage", meta.growth_stage);
+        else
+            cJSON_AddNullToObject(change, "growth_stage");
         cJSON_AddStringToObject(change, "action", !exists ? "create" : changed ? "update" : "unchanged");
         cJSON_AddBoolToObject(change, "has_controller", exists && nonzero(next->rows[slot].device, 6));
         if (exists) {
             cJSON_AddStringToObject(change, "previous_name", next->rows[slot].meta.name);
             cJSON_AddStringToObject(change, "previous_room", next->rows[slot].meta.room);
+            if (next->rows[slot].meta.species[0])
+                cJSON_AddStringToObject(change, "previous_species_id", next->rows[slot].meta.species);
+            else
+                cJSON_AddNullToObject(change, "previous_species_id");
+            if (next->rows[slot].meta.growth_stage[0])
+                cJSON_AddStringToObject(change, "previous_growth_stage", next->rows[slot].meta.growth_stage);
+            else
+                cJSON_AddNullToObject(change, "previous_growth_stage");
         } else {
             cJSON_AddNullToObject(change, "previous_name");
             cJSON_AddNullToObject(change, "previous_room");
+            cJSON_AddNullToObject(change, "previous_species_id");
+            cJSON_AddNullToObject(change, "previous_growth_stage");
         }
         cJSON_AddItemToArray(changes, change);
         if (!exists) {
@@ -430,6 +513,7 @@ static bool backup_handle(sp_api_t *api, const sp_api_request_t *q) {
             snprintf(m->name, sizeof(m->name), "%s", meta.name);
             snprintf(m->room, sizeof(m->room), "%s", meta.room);
             snprintf(m->species, sizeof(m->species), "%s", meta.species);
+            snprintf(m->growth_stage, sizeof(m->growth_stage), "%s", meta.growth_stage);
             m->revision++;
             updated++;
         } else
@@ -526,6 +610,10 @@ bool sp_catalog_handle(sp_api_t *api, const sp_api_request_t *q) {
             cJSON_AddStringToObject(p, "species_id", r->meta.species);
         else
             cJSON_AddNullToObject(p, "species_id");
+        if (r->meta.growth_stage[0])
+            cJSON_AddStringToObject(p, "growth_stage", r->meta.growth_stage);
+        else
+            cJSON_AddNullToObject(p, "growth_stage");
         cJSON_AddNumberToObject(p, "revision", r->meta.revision);
         cJSON_AddNumberToObject(p, "setup_stage", r->meta.setup_stage);
         cJSON *history = cJSON_AddArrayToObject(p, "controller_history");

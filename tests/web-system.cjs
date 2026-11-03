@@ -5,7 +5,7 @@ const {chromium}=require('playwright'),fs=require('node:fs'),assert=require('nod
  const diagnostics=JSON.parse(fs.readFileSync('spec/system/v1/examples/Diagnostics.json'));diagnostics.devices=[{device_id:id,online:true,last_telemetry_age_ms:10,firmware_version:'0.3.0',rssi_dbm:-45,rssi_age_ms:10,health:null}];
  const file={format:'smartplantos.settings',format_version:1,plants:[{plant_id:plant,name:'Фикус',room:'Кухня',species_id:null}]};
  await page.route('**/*',async route=>{const req=route.request(),u=new URL(req.url()),p=u.pathname;const asset=p==='/'?'index.html':p.slice(1);
-  if(['network.js','index.html','demo.html','api.js','app.js','views.js','system.js','updates.js','pairing.js','demo.js','style.css','manifest.webmanifest','icon-192.png','icon-512.png','apple-touch-icon.png'].includes(asset)){
+  if(['network.js','index.html','demo.html','api.js','app.js','plant-data.js','plants.js','views.js','system.js','updates.js','pairing.js','demo.js','style.css','manifest.webmanifest','icon-192.png','icon-512.png','apple-touch-icon.png'].includes(asset)){
    const type=asset.endsWith('.js')?'application/javascript; charset=utf-8':asset.endsWith('.css')?'text/css; charset=utf-8':asset.endsWith('.png')?'image/png':asset.endsWith('.webmanifest')?'application/manifest+json':'text/html; charset=utf-8';
    const headers=asset==='demo.html'?{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'"}:{'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self'"};return route.fulfill({contentType:type,headers,body:fs.readFileSync('web/'+asset)});
   }

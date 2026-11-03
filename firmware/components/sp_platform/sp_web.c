@@ -46,6 +46,10 @@ extern const uint8_t icon_512_png_start[] asm("_binary_icon_512_png_start");
 extern const uint8_t icon_512_png_end[] asm("_binary_icon_512_png_end");
 extern const uint8_t apple_touch_icon_png_start[] asm("_binary_apple_touch_icon_png_start");
 extern const uint8_t apple_touch_icon_png_end[] asm("_binary_apple_touch_icon_png_end");
+extern const uint8_t plant_data_js_start[] asm("_binary_plant_data_js_start");
+extern const uint8_t plant_data_js_end[] asm("_binary_plant_data_js_end");
+extern const uint8_t plants_js_start[] asm("_binary_plants_js_start");
+extern const uint8_t plants_js_end[] asm("_binary_plants_js_end");
 extern const uint8_t views_js_start[] asm("_binary_views_js_start");
 extern const uint8_t views_js_end[] asm("_binary_views_js_end");
 extern const uint8_t network_js_start[] asm("_binary_network_js_start");
@@ -235,6 +239,8 @@ static esp_err_t handle(httpd_req_t *r) {
     if(r->method==HTTP_GET&&!strcmp(r->uri,"/icon-192.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)icon_192_png_start,icon_192_png_end-icon_192_png_start);}
     if(r->method==HTTP_GET&&!strcmp(r->uri,"/icon-512.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)icon_512_png_start,icon_512_png_end-icon_512_png_start);}
     if(r->method==HTTP_GET&&!strcmp(r->uri,"/apple-touch-icon.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)apple_touch_icon_png_start,apple_touch_icon_png_end-apple_touch_icon_png_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/plant-data.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)plant_data_js_start,plant_data_js_end-plant_data_js_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/plants.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)plants_js_start,plants_js_end-plants_js_start);}
     if(r->method==HTTP_GET&&!strcmp(r->uri,"/views.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)views_js_start,views_js_end-views_js_start);}
     if(r->method==HTTP_GET&&!strcmp(r->uri,"/network.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)network_js_start,network_js_end-network_js_start);}
     if (!origin_allowed(r))

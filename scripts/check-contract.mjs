@@ -10,6 +10,8 @@ addFormats(ajv);
 ajv.addSchema(schema);
 
 const examples = [
+  ['plant-profile.json', 'PlantMetadata'],
+  ['plant-catalog.json', 'PlantCatalog'],
   ['device.json', 'Device'],
   ['state.json', 'State'],
   ['state-clock-unset.json', 'State'],

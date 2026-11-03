@@ -1550,6 +1550,17 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 3
+        },
+        "growth_stage": {
+          "enum": [
+            null,
+            "seed",
+            "grow",
+            "flower",
+            "fruit",
+            "adult",
+            "rest"
+          ]
         }
       },
       "dependentRequired": {
@@ -1558,6 +1569,10 @@
         ],
         "setup_stage": [
           "room"
+        ],
+        "growth_stage": [
+          "room",
+          "setup_stage"
         ]
       }
     },
@@ -1633,6 +1648,17 @@
                 "items": {
                   "$ref": "#/$defs/deviceId"
                 }
+              },
+              "growth_stage": {
+                "enum": [
+                  null,
+                  "seed",
+                  "grow",
+                  "flower",
+                  "fruit",
+                  "adult",
+                  "rest"
+                ]
               }
             }
           }

@@ -15,7 +15,10 @@
           "const": "smartplantos.settings"
         },
         "format_version": {
-          "const": 1
+          "enum": [
+            1,
+            2
+          ]
         },
         "plants": {
           "type": "array",
@@ -53,11 +56,57 @@
                     "type": "null"
                   }
                 ]
+              },
+              "growth_stage": {
+                "enum": [
+                  null,
+                  "seed",
+                  "grow",
+                  "flower",
+                  "fruit",
+                  "adult",
+                  "rest"
+                ]
               }
             }
           }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "format_version": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "plants": {
+                "items": {
+                  "required": [
+                    "growth_stage"
+                  ]
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "plants": {
+                "items": {
+                  "not": {
+                    "required": [
+                      "growth_stage"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "BackupPreviewRequest": {
       "type": "object",
@@ -67,61 +116,7 @@
       ],
       "properties": {
         "backup": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "format",
-            "format_version",
-            "plants"
-          ],
-          "properties": {
-            "format": {
-              "const": "smartplantos.settings"
-            },
-            "format_version": {
-              "const": 1
-            },
-            "plants": {
-              "type": "array",
-              "maxItems": 20,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "plant_id",
-                  "name",
-                  "room",
-                  "species_id"
-                ],
-                "properties": {
-                  "plant_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80
-                  },
-                  "room": {
-                    "type": "string",
-                    "maxLength": 80
-                  },
-                  "species_id": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "pattern": "^[a-z0-9-]{1,40}$"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/Backup"
         }
       }
     },
@@ -135,61 +130,7 @@
       ],
       "properties": {
         "backup": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "format",
-            "format_version",
-            "plants"
-          ],
-          "properties": {
-            "format": {
-              "const": "smartplantos.settings"
-            },
-            "format_version": {
-              "const": 1
-            },
-            "plants": {
-              "type": "array",
-              "maxItems": 20,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "plant_id",
-                  "name",
-                  "room",
-                  "species_id"
-                ],
-                "properties": {
-                  "plant_id": {
-                    "type": "string",
-                    "format": "uuid"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80
-                  },
-                  "room": {
-                    "type": "string",
-                    "maxLength": 80
-                  },
-                  "species_id": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "pattern": "^[a-z0-9-]{1,40}$"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  }
-                }
-              }
-            }
-          }
+          "$ref": "#/$defs/Backup"
         },
         "snapshot": {
           "type": "string",
@@ -298,6 +239,44 @@
                     "type": "null"
                   }
                 ]
+              },
+              "growth_stage": {
+                "enum": [
+                  null,
+                  "seed",
+                  "grow",
+                  "flower",
+                  "fruit",
+                  "adult",
+                  "rest"
+                ]
+              },
+              "previous_growth_stage": {
+                "enum": [
+                  null,
+                  "seed",
+                  "grow",
+                  "flower",
+                  "fruit",
+                  "adult",
+                  "rest"
+                ]
+              },
+              "species_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40,
+                "pattern": "^[a-z0-9-]+$"
+              },
+              "previous_species_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 40,
+                "pattern": "^[a-z0-9-]+$"
               }
             }
           }

@@ -1,5 +1,6 @@
 #include "sp_api.h"
 #include "sp_text.h"
+#include "sp_profile.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -345,7 +346,7 @@ void sp_api_receive(sp_api_t *a, unsigned peer, uint32_t boot, const sp_message_
         n->firmware_number = n->hardware_known ? (uint32_t)m->value[SP_K_RPC] : 0;
         if (!n->have_plant) {
             memcpy(n->plant.plant, m->bytes[3], 16);
-            n->plant.version = 2;
+            n->plant.version = 3;
             if (!n->plant.name[0])
                 snprintf(n->plant.name, sizeof(n->plant.name), "Plant %02x%02x", n->device[4], n->device[5]);
             n->have_plant = !a->io.save_plant || a->io.save_plant(a->io.ctx, n->device, &n->plant);
@@ -683,14 +684,21 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         goto done;
     }
     if (put && !strcmp(route, "plant")) {
-        static const char *const ks[] = {"schema_version", "revision", "name",
-                                         "species_id",     "room",     "setup_stage"};
-        bool extended = cJSON_HasObjectItem(body, "room") || cJSON_HasObjectItem(body, "setup_stage");
+        static const char *const ks[] = {"schema_version", "revision",    "name",        "species_id",
+                                         "room",           "setup_stage", "growth_stage"};
+        bool with_growth = cJSON_HasObjectItem(body, "growth_stage");
+        bool extended =
+            with_growth || cJSON_HasObjectItem(body, "room") || cJSON_HasObjectItem(body, "setup_stage");
         const char *room = extended ? text(body, "room") : n->plant.room;
         uint64_t stage = n->plant.setup_stage;
         uint64_t rev, v;
         const char *name = text(body, "name"), *species = text(body, "species_id");
-        if (!keys(body, ks, extended ? 6 : 4) || !sp_text_valid(room, 0, 80) ||
+        const cJSON *growth_item = cJSON_GetObjectItemCaseSensitive(body, "growth_stage");
+        const char *growth =
+            with_growth ? (cJSON_IsNull(growth_item) ? "" : cJSON_GetStringValue(growth_item))
+                        : (strcmp(n->plant.species, species ? species : "") ? "" : n->plant.growth_stage);
+        if (!growth || !sp_text_valid(growth, 0, 8) || !sp_growth_valid(species, growth) ||
+            !keys(body, ks, extended ? (with_growth ? 7 : 6) : 4) || !sp_text_valid(room, 0, 80) ||
             (extended && !integer(body, "setup_stage", 0, 3, &stage)) ||
             !integer(body, "schema_version", 1, 1, &v) ||
             !integer(body, "revision", 0, UINT32_MAX - 1, &rev) || !sp_text_valid(name, 1, 80) ||
@@ -711,8 +719,9 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         }
         sp_plant_meta_t next = n->plant;
         next.revision++;
-        next.version = 2;
+        next.version = 3;
         next.setup_stage = (uint8_t)stage;
+        snprintf(next.growth_stage, sizeof(next.growth_stage), "%s", growth);
         snprintf(next.room, sizeof(next.room), "%s", room);
         snprintf(next.name, sizeof(next.name), "%s", name);
         snprintf(next.species, sizeof(next.species), "%s", species ? species : "");
@@ -727,6 +736,7 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         str(o, "species_id", next.species[0] ? next.species : NULL);
         str(o, "room", next.room);
         num(o, "setup_stage", next.setup_stage);
+        str(o, "growth_stage", next.growth_stage[0] ? next.growth_stage : NULL);
         reply(a, r->id, 200, o);
         goto done;
     }
@@ -737,6 +747,7 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         str(o, "species_id", n->plant.species[0] ? n->plant.species : NULL);
         str(o, "room", n->plant.room);
         num(o, "setup_stage", n->plant.setup_stage);
+        str(o, "growth_stage", n->plant.growth_stage[0] ? n->plant.growth_stage : NULL);
         reply(a, r->id, 200, o);
         goto done;
     }
