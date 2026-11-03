@@ -222,6 +222,27 @@
             "validated",
             "rolled_back"
           ]
+        },
+        "image_sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "target_device_id": {
+          "anyOf": [
+            {
+              "const": "hub"
+            },
+            {
+              "type": "string",
+              "pattern": "^spo-[a-f0-9]{12}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

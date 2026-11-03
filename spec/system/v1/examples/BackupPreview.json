@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "snapshot": "0000000000000000000000000000000000000000000000000000000000000000",
+  "summary": {
+    "created": 1,
+    "updated": 0,
+    "unchanged": 0
+  },
+  "changes": [
+    {
+      "plant_id": "01020304-0506-4008-800a-0b0c0d0e0f10",
+      "name": "Монстера",
+      "room": "Гостиная",
+      "action": "create",
+      "has_controller": false,
+      "previous_name": null,
+      "previous_room": null
+    }
+  ]
+}

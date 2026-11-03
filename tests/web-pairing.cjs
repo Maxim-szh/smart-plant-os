@@ -13,7 +13,7 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
   const req=route.request(),path=new URL(req.url()).pathname;
   const csp=path==='/demo.html'?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'":"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self'";
   if(path==='/'||path==='/demo.html')return route.fulfill({contentType:'text/html',headers:{'Content-Security-Policy':csp},body:fs.readFileSync(path==='/'?'web/index.html':'web/demo.html','utf8')});
-  if(['/updates.js','/api.js','/app.js','/pairing.js','/demo.js','/style.css'].includes(path))return route.fulfill({contentType:path.endsWith('.css')?'text/css':'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
+  if(['/network.js','/views.js','/system.js','/updates.js','/api.js','/app.js','/pairing.js','/demo.js','/style.css'].includes(path))return route.fulfill({contentType:path.endsWith('.css')?'text/css':'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
   if(!path.startsWith('/api/v1/'))return route.fulfill({status:404,body:''});
   if(demo)apiInDemo++;
   if(path==='/api/v1/session'&&req.method()==='POST'){
@@ -39,7 +39,7 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
  await page.goto('https://smartplant.test/');await page.locator('#owner-login').waitFor();
  assert.equal(await page.locator('.pcard').count(),0);assert(!(await page.locator('#view').textContent()).includes('Черри'));
  await page.locator('#owner-key').fill('a'.repeat(64));await page.locator('#owner-login button').click();
- await page.locator('.live-empty').waitFor();assert.equal(await page.locator('.pcard').count(),0);
+ await page.locator('.addcard').waitFor();assert.equal(await page.locator('.pcard').count(),0);
  await page.locator('[data-action=add]').first().click();await page.locator('#connect-search').waitFor();assert(await page.locator('#connect-login').isHidden());
  await page.locator('#connect-search').click();await page.locator('#connect-candidates button').click();assert.equal(searches,1);
  await page.waitForFunction(()=>document.querySelector('#connect-message').textContent.includes('Согласуем'));assert.equal(connects,1);
@@ -52,7 +52,7 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
  await page.waitForFunction(()=>document.querySelector('#calibration-raw')?.textContent==='1000');await page.locator('[data-action=capture-wet]').click();await page.locator('[data-action=save-calibration]').click();
  await page.waitForFunction(()=>document.querySelector('#sheet-message').textContent.includes('Калибровка сохранена'));assert.equal(calibrations,1);
  await page.locator('#sheet [data-action=close]').click();online=false;
- await page.waitForFunction(()=>document.querySelector('#view').textContent.includes('Контроллер не на связи'));
+ await page.waitForFunction(()=>document.querySelector('#view').textContent.includes('Данные сейчас не обновляются'));
  await page.locator('[data-action=sensors]').click();assert(await page.locator('[data-action=calibrate]').isDisabled());await page.locator('#sheet [data-action=close]').click();
  await page.locator('#tabbar [data-view=garden]').click();assert((await page.locator('#view').textContent()).includes('Монстера'));assert((await page.locator('#view').textContent()).includes('42%'));
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await page.screenshot({path:'/tmp/smartplant-real-garden-mobile.png',fullPage:true});

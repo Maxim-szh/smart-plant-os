@@ -36,6 +36,20 @@ extern const uint8_t demo_js_start[] asm("_binary_demo_js_start");
 extern const uint8_t demo_js_end[] asm("_binary_demo_js_end");
 extern const uint8_t updates_start[] asm("_binary_updates_js_start");
 extern const uint8_t updates_end[] asm("_binary_updates_js_end");
+extern const uint8_t system_js_start[] asm("_binary_system_js_start");
+extern const uint8_t system_js_end[] asm("_binary_system_js_end");
+extern const uint8_t manifest_webmanifest_start[] asm("_binary_manifest_webmanifest_start");
+extern const uint8_t manifest_webmanifest_end[] asm("_binary_manifest_webmanifest_end");
+extern const uint8_t icon_192_png_start[] asm("_binary_icon_192_png_start");
+extern const uint8_t icon_192_png_end[] asm("_binary_icon_192_png_end");
+extern const uint8_t icon_512_png_start[] asm("_binary_icon_512_png_start");
+extern const uint8_t icon_512_png_end[] asm("_binary_icon_512_png_end");
+extern const uint8_t apple_touch_icon_png_start[] asm("_binary_apple_touch_icon_png_start");
+extern const uint8_t apple_touch_icon_png_end[] asm("_binary_apple_touch_icon_png_end");
+extern const uint8_t views_js_start[] asm("_binary_views_js_start");
+extern const uint8_t views_js_end[] asm("_binary_views_js_end");
+extern const uint8_t network_js_start[] asm("_binary_network_js_start");
+extern const uint8_t network_js_end[] asm("_binary_network_js_end");
 static QueueHandle_t incoming, outgoing;
 static char password[65], token[65];
 static int64_t expires, attempt_window;
@@ -216,6 +230,13 @@ static esp_err_t handle(httpd_req_t *r) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
         return httpd_resp_send(r, (const char *)updates_start, updates_end - updates_start);
     }
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/system.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)system_js_start,system_js_end-system_js_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/manifest.webmanifest")){httpd_resp_set_type(r,"application/manifest+json; charset=utf-8");return httpd_resp_send(r,(const char *)manifest_webmanifest_start,manifest_webmanifest_end-manifest_webmanifest_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/icon-192.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)icon_192_png_start,icon_192_png_end-icon_192_png_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/icon-512.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)icon_512_png_start,icon_512_png_end-icon_512_png_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/apple-touch-icon.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)apple_touch_icon_png_start,apple_touch_icon_png_end-apple_touch_icon_png_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/views.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)views_js_start,views_js_end-views_js_start);}
+    if(r->method==HTTP_GET&&!strcmp(r->uri,"/network.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)network_js_start,network_js_end-network_js_start);}
     if (!origin_allowed(r))
         return fail(r, 403, "origin_rejected");
     if (r->method != HTTP_GET && r->method != HTTP_DELETE) {

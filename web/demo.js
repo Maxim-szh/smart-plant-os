@@ -778,3 +778,13 @@ document.addEventListener('pointerup',end);document.addEventListener('pointercan
 })();
 P('tomato').auto=false;P('tomato').st='grow';PLANTS.forEach(applyStage);PLANTS.forEach(syncStage);setThemeIcon();render();
 setTimeout(()=>{S.booting=false;render(true);enter()},700);
+/* Examples stay in the isolated demo document; no API or device commands. */
+const demoRender=render;
+render=function(keepScroll){
+ demoRender(keepScroll);
+ if(S.exampleUpdating){const note=document.createElement('section');note.className='demo-scenario-note';note.setAttribute('role','status');note.innerHTML='<h2>Пример обновления</h2><p>Передаём прошивку контроллеру. После передачи приложение дождётся перезапуска и проверки новой версии.</p><progress max="100" value="36" aria-label="Вымышленный ход обновления"></progress><p class="live-help">36% — демонстрация интерфейса. Настоящие платы не обновляются.</p>';$('#view').prepend(note);document.querySelectorAll('[data-act="water"]').forEach(b=>b.disabled=true);}
+};
+$('#demo-scenario').addEventListener('change',e=>{
+ const mode=e.target.value;S.booting=false;Object.assign(S.flags,{offline:mode==='offline',sensor:mode==='sensor',tank:false,emptyHist:false});S.exampleUpdating=mode==='updating';
+ $('#demo-scenario-description').textContent=({normal:'Все данные и действия здесь вымышленные.',offline:'Пример потери связи: показываются последние данные, а не новые измерения.',sensor:'Пример ошибки датчика: неизвестное значение не превращается в ноль.',updating:'Пример обновления: передача файла и проверка запуска — разные этапы.'})[mode];render(true);
+});

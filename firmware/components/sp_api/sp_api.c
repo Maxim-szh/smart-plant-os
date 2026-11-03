@@ -1,4 +1,5 @@
 #include "sp_api.h"
+#include "sp_text.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -196,6 +197,7 @@ static cJSON *device_json(const sp_api_t *a, const sp_api_node_t *n) {
     cJSON_AddBoolToObject(cap, "soil_configured", n->hardware_known && (n->hardware_flags & 1));
     cJSON_AddBoolToObject(cap, "identify", false);
     cJSON_AddBoolToObject(cap, "detach", n->hardware_known && (n->hardware_flags & 32));
+    cJSON_AddBoolToObject(cap, "diagnostics", n->hardware_known && (n->hardware_flags & 64));
     cJSON_AddBoolToObject(cap, "ota", n->hardware_known && (n->hardware_flags & 16));
     str(cap, "water_volume", "estimated");
     str(cap, "event_history", "local_bounded");
@@ -328,6 +330,8 @@ void sp_api_receive(sp_api_t *a, unsigned peer, uint32_t boot, const sp_message_
         sp_api_timeout(a, peer);
         n->registry.have_state = false;
         n->have_config = false;
+        n->health.known = false;
+        n->have_rssi = false;
         n->hardware_known = false;
         n->hardware_flags = 0;
         memset(n->have_sensor, 0, sizeof(n->have_sensor));
@@ -346,6 +350,28 @@ void sp_api_receive(sp_api_t *a, unsigned peer, uint32_t boot, const sp_message_
                 snprintf(n->plant.name, sizeof(n->plant.name), "Plant %02x%02x", n->device[4], n->device[5]);
             n->have_plant = !a->io.save_plant || a->io.save_plant(a->io.ctx, n->device, &n->plant);
         }
+        return;
+    }
+    if (kind == SP_HEALTH) {
+        const unsigned keys[] = {0, 1, 7, 8, 9, 10, 11, 12, 14, 23};
+        uint32_t mask = 0;
+        for (unsigned i = 0; i < sizeof(keys) / sizeof(keys[0]); i++)
+            mask |= 1u << keys[i];
+        if (m->present != mask || m->value[1] != 1 || m->value[7] > 10 || m->value[8] > UINT32_MAX ||
+            m->value[9] > UINT32_MAX || m->value[10] > UINT32_MAX || m->value[11] > UINT32_MAX ||
+            m->value[12] > UINT32_MAX || m->value[23] > 1 || m->value[14] > UINT64_C(9007199254740991) ||
+            m->value[9] > m->value[8])
+            return;
+        n->health.known = true;
+        n->health.radio_enabled = m->value[23];
+        n->health.reset_reason = m->value[7];
+        n->health.free_heap = m->value[8];
+        n->health.min_heap = m->value[9];
+        n->health.rx_valid = m->value[10];
+        n->health.rx_auth = m->value[11];
+        n->health.tx_timeouts = m->value[12];
+        n->health.uptime_ms = m->value[14];
+        n->health.received_ms = a->now;
         return;
     }
     if (kind == SP_STATE) {
@@ -664,12 +690,12 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         uint64_t stage = n->plant.setup_stage;
         uint64_t rev, v;
         const char *name = text(body, "name"), *species = text(body, "species_id");
-        if (!keys(body, ks, extended ? 6 : 4) || !room || strlen(room) > 80 ||
+        if (!keys(body, ks, extended ? 6 : 4) || !sp_text_valid(room, 0, 80) ||
             (extended && !integer(body, "setup_stage", 0, 3, &stage)) ||
             !integer(body, "schema_version", 1, 1, &v) ||
-            !integer(body, "revision", 0, UINT32_MAX - 1, &rev) || !name || !name[0] || strlen(name) > 80 ||
+            !integer(body, "revision", 0, UINT32_MAX - 1, &rev) || !sp_text_valid(name, 1, 80) ||
             (!species && !cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(body, "species_id"))) ||
-            (species && (!species[0] || strlen(species) > 40))) {
+            (species && !sp_text_valid(species, 1, 40))) {
             error(a, r->id, 422, "plant_invalid");
             goto done;
         }

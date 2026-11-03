@@ -213,7 +213,7 @@ bool sp_maintenance_handle(const sp_api_request_t *q) {
     }
     if (sp_maintenance_busy() && strncmp(q->path, "/api/v1/maintenance", 19)) {
         bool read = !strcmp(q->method, "GET");
-        bool cached = read && (!strcmp(q->path, "/api/v1/nodes") || !strcmp(q->path, "/api/v1/plants") ||
+        bool cached = read && (!strcmp(q->path,"/api/v1/diagnostics") || !strcmp(q->path, "/api/v1/nodes") || !strcmp(q->path, "/api/v1/plants") ||
                                strstr(q->path, "/state") || strstr(q->path, "/device") ||
                                strstr(q->path, "/plant") || !strcmp(q->path, "/api/v1/setup"));
         if (!cached) {

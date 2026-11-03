@@ -142,6 +142,7 @@ int main(void) {
     assert(status == 200);
     assert(!cJSON_IsTrue(cJSON_GetObjectItem(cJSON_GetObjectItem(response,"availability"),"online")));
     assert(cJSON_IsNull(cJSON_GetObjectItem(cJSON_GetObjectItem(response,"soil"),"soil_index_pct")));
+    sp_message_init(&m,SP_HEALTH);const unsigned health_keys[]={1,7,8,9,10,11,12,14,23};const uint64_t health_values[]={1,9,123456,100000,24,0,0,15000,1};for(unsigned i=0;i<9;i++)sp_message_set(&m,health_keys[i],health_values[i]);sp_api_receive(&api,0,1,&m);assert(api.nodes[0].health.known&&api.nodes[0].health.reset_reason==9&&api.nodes[0].health.uptime_ms==15000);sp_message_set(&m,7,255);sp_api_receive(&api,0,1,&m);assert(api.nodes[0].health.reset_reason==9);sp_message_init(&m,SP_HELLO);sp_api_receive(&api,0,2,&m);assert(!api.nodes[0].health.known);
     cJSON_Delete(response);
     return 0;
 }

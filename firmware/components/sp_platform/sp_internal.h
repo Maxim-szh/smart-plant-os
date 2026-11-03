@@ -10,6 +10,8 @@ typedef struct {
     uint8_t mac[6], device[6], lmk[16], app_key[16];
     uint32_t boot, rx_sequence;
 } sp_peer_t;
+_Static_assert(sizeof(sp_peer_t) == 52,
+               "Peer layout belongs to pairing/hub_v1; volatile metrics stay separate");
 typedef struct {
     bool hub;
     uint8_t self[6], plant[16], pmk[16], channel, count;
@@ -21,6 +23,8 @@ typedef struct {
 typedef struct {
     unsigned peer;
     sp_message_t message;
+    bool have_rssi;
+    int8_t rssi;
 } sp_received_t;
 /* Single application task owns identity, transport send/receive and the core. */
 esp_err_t sp_radio_start(sp_identity_t *);

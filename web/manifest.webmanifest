@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Smart Plant OS",
+  "short_name": "Smart Plant",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F0F2EC",
+  "theme_color": "#2C6A4F",
+  "description": "Ваши растения и устройства в домашней сети",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

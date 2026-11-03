@@ -4,7 +4,7 @@
 #include "sp_sensors.h"
 #include "cJSON.h"
 
-#define SP_API_BODY_MAX 2048u
+#define SP_API_BODY_MAX 8192u
 #define SP_API_REPLY_MAX 16384u
 typedef struct {
     uint32_t id;
@@ -25,8 +25,16 @@ typedef struct {
     uint8_t device[6];
     sp_plant_meta_t plant;
     bool have_plant, have_config;
+    struct {
+        bool known, radio_enabled;
+        uint8_t reset_reason;
+        uint32_t free_heap, min_heap, rx_valid, rx_auth, tx_timeouts;
+        uint64_t uptime_ms, received_ms;
+    } health;
     uint32_t boot, hardware_flags, firmware_number;
-    bool hardware_known;
+    bool hardware_known, have_rssi;
+    int8_t rssi;
+    uint64_t rssi_at_ms;
     sp_registry_entry_t registry;
     sp_config_t config;
     sp_sensor_driver_t sensors[SP_SENSOR_MAX];

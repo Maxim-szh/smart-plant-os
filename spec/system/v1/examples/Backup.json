@@ -1,0 +1,12 @@
+{
+  "format": "smartplantos.settings",
+  "format_version": 1,
+  "plants": [
+    {
+      "plant_id": "01020304-0506-4008-800a-0b0c0d0e0f10",
+      "name": "Монстера",
+      "room": "Гостиная",
+      "species_id": null
+    }
+  ]
+}

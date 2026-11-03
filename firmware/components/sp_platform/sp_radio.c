@@ -5,6 +5,7 @@
 #include "sp_ap_policy.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "esp_event.h"
 #include "esp_netif.h"
 #include "esp_now.h"
@@ -18,11 +19,14 @@
 #include "sp_crypto.h"
 #include "sp_pairing.h"
 #include "sp_epochs.h"
+#include "sp_text.h"
 #include "esp_random.h"
 
 typedef struct {
     uint8_t mac[6], bytes[SP_WIRE_MAX];
     size_t len;
+    int8_t rssi;
+    bool have_rssi;
 } rx_packet_t;
 static QueueHandle_t rx_queue;
 static SemaphoreHandle_t tx_done;
@@ -31,6 +35,64 @@ static sp_identity_t *identity;
 static bool radio_ok;
 static unsigned rx_packets, rx_unknown, rx_header, rx_auth, rx_valid, tx_attempts, tx_ok;
 static uint64_t diagnostic_at;
+static unsigned tx_timeouts;
+static volatile uint8_t last_disconnect;
+#define WIFI_SCAN_DONE_BIT BIT2
+static bool scan_active, scan_available;
+static uint64_t scan_deadline, scan_next_at;
+static const char *scan_phase = "idle";
+static unsigned scan_count;
+static struct {
+    char ssid[33];
+    int rssi;
+    unsigned channel;
+    bool supported;
+} scans[20];
+static void scan_tick(void) {
+    if (!scan_active)
+        return;
+    if (xEventGroupGetBits(wifi_events) & WIFI_SCAN_DONE_BIT) {
+        xEventGroupClearBits(wifi_events, WIFI_SCAN_DONE_BIT);
+        uint16_t count = 20;
+        wifi_ap_record_t *records = calloc(count, sizeof(*records));
+        scan_count = 0;
+        if (!records || esp_wifi_scan_get_ap_records(&count, records) != ESP_OK) {
+            scan_phase = "failed";
+            (void)esp_wifi_clear_ap_list();
+        } else {
+            for (unsigned i = 0; i < count; i++) {
+                char ssid[33] = {0};
+                memcpy(ssid, records[i].ssid, 32);
+                if (!sp_text_valid(ssid, 1, 32))
+                    continue;
+                bool duplicate = false;
+                for (unsigned j = 0; j < scan_count; j++)
+                    if (!strcmp(scans[j].ssid, ssid))
+                        duplicate = true;
+                if (duplicate)
+                    continue;
+                snprintf(scans[scan_count].ssid, 33, "%s", ssid);
+                scans[scan_count].rssi = records[i].rssi;
+                scans[scan_count].channel = records[i].primary;
+                scans[scan_count].supported = records[i].primary >= 1 && records[i].primary <= 11 &&
+                                              (records[i].authmode == WIFI_AUTH_WPA2_PSK ||
+                                               records[i].authmode == WIFI_AUTH_WPA_WPA2_PSK ||
+                                               records[i].authmode == WIFI_AUTH_WPA2_WPA3_PSK);
+                scan_count++;
+            }
+            scan_phase = "completed";
+            scan_available = true;
+        }
+        free(records);
+        scan_active = false;
+    } else if ((uint64_t)esp_timer_get_time() / 1000 >= scan_deadline) {
+        (void)esp_wifi_scan_stop();
+        (void)esp_wifi_clear_ap_list();
+        scan_active = false;
+        scan_phase = "failed";
+    }
+}
+
 static volatile bool home_wifi_enabled;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_CHANNEL_UNSUPPORTED_BIT BIT1
@@ -105,6 +167,10 @@ static const char *wifi_disconnect_reason(uint8_t reason) {
 
 static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data) {
     (void)arg;
+    if (base == WIFI_EVENT && id == WIFI_EVENT_SCAN_DONE) {
+        xEventGroupSetBits(wifi_events, WIFI_SCAN_DONE_BIT);
+        return;
+    }
     if (base == IP_EVENT && id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = data;
         wifi_ap_record_t ap = {0};
@@ -126,6 +192,8 @@ static void wifi_event(void *arg, esp_event_base_t base, int32_t id, void *data)
         }
     } else if (base == WIFI_EVENT && id == WIFI_EVENT_STA_DISCONNECTED && home_wifi_enabled) {
         wifi_event_sta_disconnected_t *event = data;
+        if (event)
+            last_disconnect = event->reason;
         if (event)
             printf("Home Wi-Fi disconnected reason=%u (%s) ssid=%s rssi=%d; retrying\n", event->reason,
                    wifi_disconnect_reason(event->reason), event->ssid, event->rssi);
@@ -255,7 +323,9 @@ bool sp_identity_load(sp_identity_t *id, bool hub) {
 static void on_receive(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
     if (!info || !data || len < 5 || len > SP_WIRE_MAX)
         return;
-    rx_packet_t p = {.len = (size_t)len};
+    rx_packet_t p = {.len = (size_t)len,
+                     .have_rssi = info->rx_ctrl != NULL,
+                     .rssi = info->rx_ctrl ? info->rx_ctrl->rssi : 0};
     memcpy(p.mac, info->src_addr, 6);
     memcpy(p.bytes, data, (size_t)len);
     (void)xQueueSend(rx_queue, &p, 0); /* Bounded; no crypto, storage or GPIO in Wi-Fi callbacks. */
@@ -339,6 +409,7 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
     if (!wifi_events)
         return ESP_ERR_NO_MEM;
     TRY(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_event, NULL));
+    TRY(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_event, NULL));
     TRY(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, wifi_event, NULL));
     TRY(esp_wifi_start());
     TRY(esp_wifi_set_ps(WIFI_PS_NONE));
@@ -384,6 +455,8 @@ esp_err_t sp_radio_start(sp_identity_t *id) {
 #undef TRY
 }
 void sp_radio_process(void) {
+    if (identity && identity->hub && wifi_events)
+        scan_tick();
     uint64_t diagnostic_now = (uint64_t)esp_timer_get_time() / 1000;
     if (identity && identity->count && diagnostic_now < 120000 && diagnostic_now >= diagnostic_at) {
         diagnostic_at = diagnostic_now + 5000;
@@ -490,6 +563,7 @@ bool sp_radio_send(unsigned peer, const sp_message_t *m) {
        rather than misattributing a late callback to the next physical command. */
     if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE) {
         printf("radio_tx_callback_timeout role=%u; transport disabled\n", identity->hub);
+        tx_timeouts++;
         radio_ok = false;
     }
     if (radio_ok)
@@ -501,8 +575,10 @@ bool sp_radio_update_send(unsigned peer, const uint8_t *data, size_t len) {
         return false;
     if (esp_now_send(identity->peers[peer].mac, data, len) != ESP_OK)
         return false;
-    if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE)
+    if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE) {
+        tx_timeouts++;
         radio_ok = false;
+    }
     return radio_ok;
 }
 bool sp_radio_receive(sp_received_t *out) {
@@ -549,6 +625,8 @@ bool sp_radio_receive(sp_received_t *out) {
         p->boot = h.boot;
     }
     p->rx_sequence = h.sequence;
+    out->have_rssi = packet.have_rssi;
+    out->rssi = packet.rssi;
     if (!identity->hub) {
         uint8_t current = 0;
         wifi_second_chan_t secondary;
@@ -567,9 +645,9 @@ bool sp_radio_receive(sp_received_t *out) {
 }
 
 esp_err_t sp_radio_network_begin(const char *ssid, const char *password) {
-    if (!identity || !identity->hub || !radio_ok || network_trial)
+    if (!identity || !identity->hub || !radio_ok || network_trial || scan_active)
         return ESP_ERR_INVALID_STATE;
-    if (!ssid || !password || !ssid[0] || strlen(ssid) > 32 || strlen(password) < 8 || strlen(password) > 63)
+    if (!sp_text_valid(ssid, 1, 32) || !password || strlen(password) < 8 || strlen(password) > 63)
         return ESP_ERR_INVALID_ARG;
     if (esp_wifi_get_config(WIFI_IF_STA, &previous_network) != ESP_OK)
         return ESP_FAIL;
@@ -582,6 +660,7 @@ esp_err_t sp_radio_network_begin(const char *ssid, const char *password) {
     xEventGroupClearBits(wifi_events, WIFI_CONNECTED_BIT | WIFI_CHANNEL_UNSUPPORTED_BIT);
     vTaskDelay(pdMS_TO_TICKS(100));
     wifi_config_t sta = {0};
+    sta.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
     memcpy(sta.sta.ssid, ssid, strlen(ssid));
     memcpy(sta.sta.password, password, strlen(password));
     network_trial = true;
@@ -625,6 +704,12 @@ void sp_radio_network_json(cJSON *o) {
     cJSON_AddStringToObject(o, "ssid", ssid);
     cJSON_AddStringToObject(o, "ip", ip);
     cJSON_AddNumberToObject(o, "channel", channel);
+    if (connected)
+        cJSON_AddNumberToObject(o, "rssi_dbm", ap.rssi);
+    else
+        cJSON_AddNullToObject(o, "rssi_dbm");
+    cJSON_AddStringToObject(o, "last_disconnect_reason",
+                            last_disconnect ? wifi_disconnect_reason(last_disconnect) : "NONE");
 }
 esp_err_t sp_radio_add_peer(const sp_peer_t *peer) {
     if (!identity || !radio_ok || identity->count >= SP_PEER_MAX || (!identity->hub && identity->count) ||
@@ -710,6 +795,7 @@ bool sp_radio_pair_send(const uint8_t *data, size_t size) {
         return false;
     if (xSemaphoreTake(tx_done, pdMS_TO_TICKS(100)) != pdTRUE) {
         printf("radio_tx_callback_timeout role=%u; transport disabled\n", identity->hub);
+        tx_timeouts++;
         radio_ok = false;
     }
     return radio_ok;
@@ -802,4 +888,61 @@ esp_err_t sp_radio_remove_peer(unsigned slot) {
             (identity->count - slot - 1) * sizeof(sp_peer_t));
     memset(&identity->peers[--identity->count], 0, sizeof(sp_peer_t));
     return ESP_OK;
+}
+
+esp_err_t sp_radio_scan_begin(void) {
+    uint64_t now = (uint64_t)esp_timer_get_time() / 1000;
+    if (!identity || !identity->hub || !radio_ok || network_trial || scan_active || now < scan_next_at)
+        return ESP_ERR_INVALID_STATE;
+    wifi_scan_config_t config = {
+        .show_hidden = false, .scan_type = WIFI_SCAN_TYPE_ACTIVE, .scan_time.active = {.min = 30, .max = 60}};
+    xEventGroupClearBits(wifi_events, WIFI_SCAN_DONE_BIT);
+    esp_err_t e = esp_wifi_scan_start(&config, false);
+    if (e != ESP_OK)
+        return e;
+    scan_active = true;
+    scan_available = false;
+    scan_count = 0;
+    scan_phase = "scanning";
+    scan_deadline = now + 20000;
+    scan_next_at = now + 30000;
+    return ESP_OK;
+}
+void sp_radio_scan_json(cJSON *o) {
+    cJSON_AddNumberToObject(o, "schema_version", 1);
+    cJSON_AddStringToObject(o, "phase", scan_phase);
+    cJSON_AddBoolToObject(o, "available", scan_available);
+    cJSON *rows = cJSON_AddArrayToObject(o, "networks");
+    for (unsigned i = 0; i < scan_count; i++) {
+        cJSON *r = cJSON_CreateObject();
+        cJSON_AddStringToObject(r, "ssid", scans[i].ssid);
+        cJSON_AddNumberToObject(r, "rssi_dbm", scans[i].rssi);
+        cJSON_AddNumberToObject(r, "channel", scans[i].channel);
+        cJSON_AddBoolToObject(r, "supported", scans[i].supported);
+        cJSON_AddItemToArray(rows, r);
+    }
+}
+void sp_radio_diagnostics_json(cJSON *o) {
+    cJSON_AddBoolToObject(o, "enabled", radio_ok);
+    cJSON_AddNumberToObject(o, "channel", sp_radio_channel());
+    cJSON_AddNumberToObject(o, "received_packets", rx_packets);
+    cJSON_AddNumberToObject(o, "unknown_packets", rx_unknown);
+    cJSON_AddNumberToObject(o, "header_rejections", rx_header);
+    cJSON_AddNumberToObject(o, "authentication_rejections", rx_auth);
+    cJSON_AddNumberToObject(o, "accepted_messages", rx_valid);
+    cJSON_AddNumberToObject(o, "tx_attempts", tx_attempts);
+    cJSON_AddNumberToObject(o, "tx_completed", tx_ok);
+    cJSON_AddNumberToObject(o, "tx_callback_timeouts", tx_timeouts);
+}
+void sp_radio_health_message(sp_message_t *m) {
+    sp_message_init(m, SP_HEALTH);
+    sp_message_set(m, 1, 1);
+    sp_message_set(m, 10, rx_valid);
+    sp_message_set(m, 11, rx_auth);
+    sp_message_set(m, 12, tx_timeouts);
+    sp_message_set(m, 23, radio_ok);
+}
+
+bool sp_radio_network_busy(void) {
+    return scan_active || network_trial;
 }

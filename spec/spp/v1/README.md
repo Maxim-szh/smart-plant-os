@@ -100,3 +100,7 @@ Capability bits HELLO: bit0 soil, bit1 tank, bit2 pump. Профиль Node об
 ## Расширение обслуживания 0.2.0
 
 HELLO descriptor, SENSOR calibration, MANAGE14/MANAGE_RESULT15 и отдельный SPU1 описаны в [контракте обслуживания](../../maintenance/v1/README.md). SPU1 не является CBOR-фрагментацией SPP и использует отдельный ключевой домен. Старые версии сначала обновляются по USB.
+
+## Диагностика0.3
+
+HEALTH kind16, HELLO capability bit64 и нормализованные причины перезапуска описаны в [контракте локальных служб](../../system/v1/README.md). Новый вектор health входит в vectors.json. Старый Node не обязан поддерживать этот тип; неизвестное состояние не отображается как исправное.

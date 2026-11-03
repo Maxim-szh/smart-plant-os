@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "format": "smartplantos.diagnostics",
+  "generated_uptime_ms": 50000,
+  "hub": {
+    "device_id": "spo-010203040506",
+    "firmware_version": "0.3.0-abi1",
+    "uptime_ms": 50000,
+    "reset_reason": "usb",
+    "free_heap_bytes": 123456,
+    "minimum_free_heap_bytes": 100000
+  },
+  "network": {
+    "wifi_connected": true,
+    "wifi_phase": "connected",
+    "channel": 6,
+    "rssi_dbm": -49,
+    "last_disconnect_reason": "NONE",
+    "setup_ap_enabled": false
+  },
+  "radio": {
+    "enabled": true,
+    "channel": 6,
+    "received_packets": 0,
+    "unknown_packets": 0,
+    "header_rejections": 0,
+    "authentication_rejections": 0,
+    "accepted_messages": 0,
+    "tx_attempts": 0,
+    "tx_completed": 0,
+    "tx_callback_timeouts": 0
+  },
+  "update": {
+    "phase": "idle",
+    "error": "",
+    "active": false,
+    "verifying": false,
+    "validated": true,
+    "received_bytes": 0,
+    "total_bytes": 0,
+    "firmware_version": "0.3.0-abi1",
+    "data_abi": 1,
+    "profile": "n8r2",
+    "layout": "ota-v1",
+    "session_id": "00000000-0000-0000-0000-000000000000",
+    "last_result": "none",
+    "image_sha256": null,
+    "target_device_id": null
+  },
+  "devices": []
+}

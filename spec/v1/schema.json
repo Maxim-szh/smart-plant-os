@@ -140,6 +140,9 @@
             },
             "detach": {
               "type": "boolean"
+            },
+            "diagnostics": {
+              "type": "boolean"
             }
           }
         }
