@@ -4,8 +4,8 @@
 #include "sp_sensors.h"
 #include "cJSON.h"
 
-#define SP_API_BODY_MAX 8192u
-#define SP_API_REPLY_MAX 16384u
+#define SP_API_BODY_MAX 12288u
+#define SP_API_REPLY_MAX 24576u
 typedef struct {
     uint32_t id;
     char method[8], path[180], if_match[16], body[SP_API_BODY_MAX + 1];
@@ -20,6 +20,13 @@ typedef struct {
     uint8_t plant[16];
     char name[81], species[41], room[81];
     uint8_t setup_stage;
+} sp_plant_meta_v2_t;
+typedef struct {
+    uint32_t version, revision;
+    uint8_t plant[16];
+    char name[81], species[41], room[81];
+    uint8_t setup_stage;
+    char growth_stage[9];
 } sp_plant_meta_t;
 typedef struct {
     uint8_t device[6];

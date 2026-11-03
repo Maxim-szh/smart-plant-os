@@ -7,14 +7,15 @@ static sp_api_t api;
 static sp_core_t core;
 static sp_message_t sent;
 static cJSON *response;
-static unsigned calls;
+static unsigned calls, radio_sends;
 static int status;
-static bool metadata_writable=true;
+static bool metadata_writable = true;
 static const uint8_t command[16] = {1, 2, 3, 4, 5, 6, 0x40, 8, 0x80, 10, 11, 12, 13, 14, 15, 16};
 static bool send_message(void *ctx, unsigned peer, const sp_message_t *m) {
     (void)ctx;
     assert(peer == 0);
     sent = *m;
+    radio_sends++;
     calls++;
     return true;
 }
@@ -133,16 +134,55 @@ int main(void) {
     assert(!status);
     sp_api_timeout(&api, 0);
     assert(status == 503);
-    metadata_writable=false;
+    metadata_writable = false;
     request("PUT", "plant", "{\"schema_version\":1,\"revision\":0,\"name\":\"test\",\"species_id\":null}");
     assert(status == 503);
     assert(strcmp(api.nodes[0].plant.name, "test"));
     sp_api_tick(&api, 25000, SP_MIN_EPOCH_MS + 25000);
     request("GET", "state", NULL);
     assert(status == 200);
-    assert(!cJSON_IsTrue(cJSON_GetObjectItem(cJSON_GetObjectItem(response,"availability"),"online")));
-    assert(cJSON_IsNull(cJSON_GetObjectItem(cJSON_GetObjectItem(response,"soil"),"soil_index_pct")));
-    sp_message_init(&m,SP_HEALTH);const unsigned health_keys[]={1,7,8,9,10,11,12,14,23};const uint64_t health_values[]={1,9,123456,100000,24,0,0,15000,1};for(unsigned i=0;i<9;i++)sp_message_set(&m,health_keys[i],health_values[i]);sp_api_receive(&api,0,1,&m);assert(api.nodes[0].health.known&&api.nodes[0].health.reset_reason==9&&api.nodes[0].health.uptime_ms==15000);sp_message_set(&m,7,255);sp_api_receive(&api,0,1,&m);assert(api.nodes[0].health.reset_reason==9);sp_message_init(&m,SP_HELLO);sp_api_receive(&api,0,2,&m);assert(!api.nodes[0].health.known);
+    assert(!cJSON_IsTrue(cJSON_GetObjectItem(cJSON_GetObjectItem(response, "availability"), "online")));
+    assert(cJSON_IsNull(cJSON_GetObjectItem(cJSON_GetObjectItem(response, "soil"), "soil_index_pct")));
+    sp_message_init(&m, SP_HEALTH);
+    const unsigned health_keys[] = {1, 7, 8, 9, 10, 11, 12, 14, 23};
+    const uint64_t health_values[] = {1, 9, 123456, 100000, 24, 0, 0, 15000, 1};
+    for (unsigned i = 0; i < 9; i++)
+        sp_message_set(&m, health_keys[i], health_values[i]);
+    sp_api_receive(&api, 0, 1, &m);
+    assert(api.nodes[0].health.known && api.nodes[0].health.reset_reason == 9 &&
+           api.nodes[0].health.uptime_ms == 15000);
+    sp_message_set(&m, 7, 255);
+    sp_api_receive(&api, 0, 1, &m);
+    assert(api.nodes[0].health.reset_reason == 9);
+    sp_message_init(&m, SP_HELLO);
+    sp_api_receive(&api, 0, 2, &m);
+    assert(!api.nodes[0].health.known);
+    metadata_writable = true;
+    const unsigned radio_calls = radio_sends;
+    const sp_persist_t safety_before = core.saved;
+    char profile_body[512];
+    snprintf(profile_body, sizeof(profile_body),
+             "{\"schema_version\":1,\"revision\":%u,\"name\":\"My "
+             "tomato\",\"species_id\":\"tomato-cherry\",\"room\":\"Kitchen\",\"setup_stage\":3,\"growth_"
+             "stage\":\"flower\"}",
+             api.nodes[0].plant.revision);
+    request("PUT", "plant", profile_body);
+    assert(status == 200 && !strcmp(api.nodes[0].plant.growth_stage, "flower"));
+    assert(radio_sends == radio_calls && !memcmp(&core.saved, &safety_before, sizeof(safety_before)));
+    request("PUT", "plant", profile_body);
+    assert(status == 409);
+    snprintf(profile_body, sizeof(profile_body),
+             "{\"schema_version\":1,\"revision\":%u,\"name\":\"Monstera\",\"species_id\":\"monstera\","
+             "\"room\":\"Kitchen\",\"setup_stage\":3,\"growth_stage\":\"fruit\"}",
+             api.nodes[0].plant.revision);
+    request("PUT", "plant", profile_body);
+    assert(status == 422 && !strcmp(api.nodes[0].plant.growth_stage, "flower"));
+    snprintf(profile_body, sizeof(profile_body),
+             "{\"schema_version\":1,\"revision\":%u,\"name\":\"Monstera\",\"species_id\":\"monstera\"}",
+             api.nodes[0].plant.revision);
+    request("PUT", "plant", profile_body);
+    assert(status == 200 && !api.nodes[0].plant.growth_stage[0]);
+    assert(radio_sends == radio_calls && !memcmp(&core.saved, &safety_before, sizeof(safety_before)));
     cJSON_Delete(response);
     return 0;
 }

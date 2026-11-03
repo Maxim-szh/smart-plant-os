@@ -10,7 +10,7 @@
 
 ## Реализованный стендовый профиль
 
-Все маршруты, кроме входа и статических файлов, требуют `Authorization: Bearer TOKEN`. `POST /api/v1/session` принимает `{"password":"64 hex из USB-комплекта"}` и возвращает `{schema_version:1,token,expires_in:900}`. `DELETE /api/v1/session` завершает сессию. Новая сессия заменяет предыдущую. Максимальный JSON-запрос — 8192 bytes; изменяющие запросы требуют `Content-Type: application/json`; браузерные API-запросы разрешают только тот же HTTPS-origin, с которого обслужена страница.
+Все маршруты, кроме входа и статических файлов, требуют `Authorization: Bearer TOKEN`. `POST /api/v1/session` принимает `{"password":"64 hex из USB-комплекта"}` и возвращает `{schema_version:1,token,expires_in:900}`. `DELETE /api/v1/session` завершает сессию. Новая сессия заменяет предыдущую. Максимальный JSON-запрос — 12288 bytes; изменяющие запросы требуют `Content-Type: application/json`; браузерные API-запросы разрешают только тот же HTTPS-origin, с которого обслужена страница.
 
 `POST /api/v1/time` принимает `{schema_version:1,utc_ms:<целое UTC ms>}`, допустимый диапазон — SP_MIN_EPOCH_MS..SP_MAX_EPOCH_MS из ядра. Ответ `{schema_version:1,clock_state:"synced"}`; после установки времени скачок более 5 s отклоняется с 409. Время Node обновляется последующими радиопакетами, а не в момент ответа HTTP.
 
