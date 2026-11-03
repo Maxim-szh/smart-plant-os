@@ -1452,6 +1452,14 @@
         "password": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        },
+        "remember": {
+          "type": "boolean"
+        },
+        "device_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
         }
       }
     },
@@ -1468,13 +1476,61 @@
           "const": 1
         },
         "token": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "expires_in": {
-          "const": 900
+          "enum": [
+            900,
+            31536000
+          ]
+        },
+        "trusted": {
+          "type": "boolean"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "trusted"
+            ],
+            "properties": {
+              "trusted": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "token": {
+                "type": "null"
+              },
+              "expires_in": {
+                "const": 31536000
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "token": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "expires_in": {
+                "const": 900
+              }
+            }
+          }
+        }
+      ]
     },
     "TimeRequest": {
       "type": "object",
@@ -1664,6 +1720,38 @@
           }
         }
       }
+    },
+    "TimeStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "clock_state": {
+          "enum": [
+            "unset",
+            "synced"
+          ]
+        },
+        "utc_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1704067200000,
+              "maximum": 4102444800000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "clock_state",
+        "utc_ms"
+      ]
     }
   }
 }

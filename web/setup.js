@@ -16,7 +16,7 @@ function setStep(step) {
   }
 }
 async function request(path, method = 'GET', body) {
-  const headers = {}; if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = {}; if (token && token !== 'cookie') headers.Authorization = `Bearer ${token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 9000);
   try {
@@ -73,7 +73,7 @@ $('#access-file').onchange = async () => {
 };
 $('#login-form').onsubmit = e => {e.preventDefault();action($('#login-button'), async () => {
   const password = $('#admin').value; $('#admin').value = '';
-  token = (await request('/session','POST',{password})).token; session();message('Устройство подтверждено. Проверяем настройки сети…');await refresh();
+  token = (await request('/session','POST',{password,remember:$('#remember-browser').checked,device_name:/iPhone|iPad|Android/i.test(navigator.userAgent)?'Мой телефон':'Мой компьютер'})).token||'cookie'; session();message('Устройство подтверждено. Проверяем настройки сети…');await refresh();
 });};
 $('#wifi-form').onsubmit = e => {e.preventDefault();action($('#wifi-button'), async () => {
   const ssid = $('#ssid').value, password = $('#wifi-password').value;
@@ -101,7 +101,7 @@ $('#pair-form').onsubmit = e => {e.preventDefault();action($('#pair-button'),asy
   await request('/setup/peers','POST',data);message('Контроллер добавлен. Его связь и состояние доступны в API Hub.');await refresh();
 });};
 $('#change-wifi').onclick = () => {changingWifi = true; $('#network-panel').hidden = false; $('#ready-panel').hidden = true; $('#management').hidden = true; setStep('wifi'); $('#ssid').focus();};
-$('#logout').onclick = () => action($('#logout'),async () => {try {await request('/session','DELETE');} finally {token='';session();message('Сеанс завершён.');}});
+$('#logout').onclick = () => action($('#logout'),async () => {await request('/session','DELETE');token='';session();message('Доступ этого браузера отозван.');});
 session();
 
 $("#open-updates").onclick=()=>window.SmartPlantUpdates.open("hub");
@@ -109,3 +109,5 @@ $("#open-updates").onclick=()=>window.SmartPlantUpdates.open("hub");
 $('#wifi-scan').onclick=async()=>{if(busy)return;await action($('#wifi-scan'),async()=>{
  $('#wifi-button').disabled=true;message('Ищем сети 2,4 ГГц…');const networks=await window.SPWifi.scan({request,active:()=>!!token});if(!networks)return;const picker=$('#wifi-networks');picker.replaceChildren();const first=document.createElement('option');first.value='';first.textContent='Выберите сеть';picker.append(first);for(const network of networks){const option=document.createElement('option');option.value=network.ssid;option.textContent=network.ssid+' · '+network.rssi_dbm+' dBm'+(network.supported?'':' · не поддерживается');option.disabled=!network.supported;picker.append(option);}$('#wifi-network-picker').hidden=false;message(networks.length?'Выберите сеть или введите название вручную.':'Сети не найдены. Введите название вручную.');});$('#wifi-button').disabled=false;};
 $('#wifi-networks').onchange=e=>{if(e.target.value){$('#ssid').value=e.target.value;$('#wifi-password').focus();}};
+
+request('/setup').then(()=>{if(!token){token='cookie';session();refresh();}}).catch(()=>{});

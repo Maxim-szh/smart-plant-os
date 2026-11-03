@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "persistent_available": true,
+  "devices": [
+    {
+      "id": "0123456789abcdef",
+      "name": "Мой телефон",
+      "trusted": true,
+      "current": true,
+      "expires_in": null
+    }
+  ]
+}

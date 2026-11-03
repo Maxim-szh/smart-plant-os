@@ -1,4 +1,6 @@
 #include "sp_web.h"
+#include "sp_sessions.h"
+#include "sp_text.h"
 #include "sp_web_address.h"
 #include "sdkconfig.h"
 #include <stdlib.h>
@@ -48,6 +50,8 @@ extern const uint8_t apple_touch_icon_png_start[] asm("_binary_apple_touch_icon_
 extern const uint8_t apple_touch_icon_png_end[] asm("_binary_apple_touch_icon_png_end");
 extern const uint8_t plant_data_js_start[] asm("_binary_plant_data_js_start");
 extern const uint8_t plant_data_js_end[] asm("_binary_plant_data_js_end");
+extern const uint8_t garden_js_start[] asm("_binary_garden_js_start");
+extern const uint8_t garden_js_end[] asm("_binary_garden_js_end");
 extern const uint8_t plants_js_start[] asm("_binary_plants_js_start");
 extern const uint8_t plants_js_end[] asm("_binary_plants_js_end");
 extern const uint8_t views_js_start[] asm("_binary_views_js_start");
@@ -55,8 +59,9 @@ extern const uint8_t views_js_end[] asm("_binary_views_js_end");
 extern const uint8_t network_js_start[] asm("_binary_network_js_start");
 extern const uint8_t network_js_end[] asm("_binary_network_js_end");
 static QueueHandle_t incoming, outgoing;
-static char password[65], token[65];
-static int64_t expires, attempt_window;
+static char password[65];
+static sp_sessions_t sessions;
+static int64_t attempt_window;
 static unsigned attempts;
 static uint32_t serial;
 
@@ -176,7 +181,144 @@ static bool home_interface(httpd_req_t *r) {
 #endif
     return false;
 }
+static int browser_load(void *ctx, void *out, size_t size) {
+    (void)ctx;
+    nvs_handle_t h;
+    esp_err_t e = nvs_open("web_access", NVS_READONLY, &h);
+    if (e == ESP_ERR_NVS_NOT_FOUND)
+        return 0;
+    if (e != ESP_OK)
+        return -1;
+    size_t n = size;
+    e = nvs_get_blob(h, "state_v1", out, &n);
+    nvs_close(h);
+    return e == ESP_ERR_NVS_NOT_FOUND ? 0 : e == ESP_OK && n == size ? 1 : -1;
+}
+static bool browser_save(void *ctx, const void *data, size_t size) {
+    (void)ctx;
+    nvs_handle_t h;
+    if (nvs_open("web_access", NVS_READWRITE, &h) != ESP_OK)
+        return false;
+    bool ok = nvs_set_blob(h, "state_v1", data, size) == ESP_OK && nvs_commit(h) == ESP_OK;
+    nvs_close(h);
+    return ok;
+}
+static void browser_random(void *ctx, void *out, size_t size) {
+    (void)ctx;
+    esp_fill_random(out, size);
+}
+static int browser_auth(httpd_req_t *r, uint64_t now) {
+    char auth[80], cookie[512];
+    int slot = -1;
+    if (httpd_req_get_hdr_value_str(r, "Authorization", auth, sizeof(auth)) == ESP_OK &&
+        !strncmp(auth, "Bearer ", 7))
+        slot = sp_sessions_check(&sessions, auth + 7, now);
+    if (slot >= 0)
+        return slot;
+    if (httpd_req_get_hdr_value_str(r, "Cookie", cookie, sizeof(cookie)) != ESP_OK)
+        return -1;
+    for (char *p = cookie; *p;) {
+        while (*p == ' ' || *p == ';')
+            p++;
+        char *end = strchr(p, ';');
+        if (end)
+            *end = 0;
+        if (!strncmp(p, "sp_session=", 11))
+            slot = sp_sessions_check(&sessions, p + 11, now);
+        if (slot >= 0 || !end)
+            break;
+        p = end + 1;
+    }
+    return slot;
+}
+/* ESP-IDF retains header pointers until send; the caller owns this request-scope buffer. */
+static void browser_cookie(httpd_req_t *r, const char *secret, unsigned age, char cookie[180]) {
+    snprintf(cookie, 180, "sp_session=%s; Path=/; Max-Age=%u; HttpOnly; Secure; SameSite=Strict", secret,
+             age);
+    httpd_resp_set_hdr(r, "Set-Cookie", cookie);
+}
+static esp_err_t object_reply(httpd_req_t *r, cJSON *o) {
+    char *text = cJSON_PrintUnformatted(o);
+    cJSON_Delete(o);
+    if (!text)
+        return fail(r, 503, "busy");
+    esp_err_t e = send_json(r, 200, text);
+    free(text);
+    return e;
+}
+static esp_err_t browser_manage(httpd_req_t *r, const char *body, int current, uint64_t now,
+                                char cookie_header[180]) {
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/api/v1/sessions")) {
+        cJSON *out = cJSON_CreateObject(), *list = cJSON_AddArrayToObject(out, "devices");
+        cJSON_AddNumberToObject(out, "schema_version", 1);
+        cJSON_AddBoolToObject(out, "persistent_available", sessions.persistent_ready);
+        for (unsigned i = 0; i < SP_TRUSTED_MAX + SP_TEMP_MAX; i++) {
+            const sp_browser_grant_t *g = sp_sessions_grant(&sessions, i);
+            if (!g->id[0] || (i >= SP_TRUSTED_MAX && now >= sessions.until[i - SP_TRUSTED_MAX]))
+                continue;
+            cJSON *row = cJSON_CreateObject();
+            cJSON_AddStringToObject(row, "id", g->id);
+            cJSON_AddStringToObject(row, "name", g->name);
+            cJSON_AddBoolToObject(row, "trusted", i < SP_TRUSTED_MAX);
+            cJSON_AddBoolToObject(row, "current", (int)i == current);
+            if (i < SP_TRUSTED_MAX)
+                cJSON_AddNullToObject(row, "expires_in");
+            else
+                cJSON_AddNumberToObject(row, "expires_in", (sessions.until[i - SP_TRUSTED_MAX] - now) / 1000);
+            cJSON_AddItemToArray(list, row);
+        }
+        return object_reply(r, out);
+    }
+    if (r->method == HTTP_DELETE && !strcmp(r->uri, "/api/v1/session")) {
+        if (!sp_sessions_revoke(&sessions, (unsigned)current))
+            return fail(r, 503, "storage_fault");
+        browser_cookie(r, "", 0, cookie_header);
+        return send_json(r, 200, "{\"schema_version\":1}");
+    }
+    if (r->method == HTTP_DELETE && !strcmp(r->uri, "/api/v1/sessions")) {
+        cJSON *j = cJSON_ParseWithOpts(body, NULL, true);
+        bool confirmed = cJSON_IsObject(j) && cJSON_GetArraySize(j) == 1 &&
+                         cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(j, "confirm"));
+        cJSON_Delete(j);
+        if (!confirmed)
+            return fail(r, 422, "confirmation_required");
+        if (!sp_sessions_clear(&sessions))
+            return fail(r, 503, "storage_fault");
+        browser_cookie(r, "", 0, cookie_header);
+        return send_json(r, 200, "{\"schema_version\":1,\"current_revoked\":true}");
+    }
+    if (strncmp(r->uri, "/api/v1/sessions/", 17))
+        return fail(r, 405, "method_not_allowed");
+    const char *id = r->uri + strlen("/api/v1/sessions/");
+    unsigned slot = SP_TRUSTED_MAX + SP_TEMP_MAX;
+    for (unsigned i = 0; i < SP_TRUSTED_MAX + SP_TEMP_MAX; i++)
+        if (!strcmp(sp_sessions_grant(&sessions, i)->id, id))
+            slot = i;
+    if (slot == SP_TRUSTED_MAX + SP_TEMP_MAX)
+        return fail(r, 404, "device_not_found");
+    if (r->method == HTTP_DELETE) {
+        if (!sp_sessions_revoke(&sessions, slot))
+            return fail(r, 503, "storage_fault");
+        if ((int)slot == current)
+            browser_cookie(r, "", 0, cookie_header);
+        return send_json(r, 200,
+                         (int)slot == current ? "{\"schema_version\":1,\"current_revoked\":true}"
+                                              : "{\"schema_version\":1,\"current_revoked\":false}");
+    }
+    if (r->method == HTTP_PUT) {
+        cJSON *j = cJSON_ParseWithOpts(body, NULL, true);
+        const char *name = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j, "name"));
+        bool valid = !strstr(body, "\\u0000") && cJSON_IsObject(j) && cJSON_GetArraySize(j) == 1 && name &&
+                     sp_text_valid(name, 1, 48);
+        bool ok = valid && sp_sessions_rename(&sessions, slot, name);
+        cJSON_Delete(j);
+        return ok ? send_json(r, 200, "{\"schema_version\":1}")
+                  : fail(r, valid ? 503 : 422, valid ? "storage_fault" : "device_name_invalid");
+    }
+    return fail(r, 405, "method_not_allowed");
+}
 static esp_err_t handle(httpd_req_t *r) {
+    char cookie_header[180];
     httpd_resp_set_hdr(r, "Cache-Control", "no-store");
     httpd_resp_set_hdr(r, "X-Content-Type-Options", "nosniff");
     httpd_resp_set_hdr(r, "Content-Security-Policy",
@@ -234,15 +376,48 @@ static esp_err_t handle(httpd_req_t *r) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
         return httpd_resp_send(r, (const char *)updates_start, updates_end - updates_start);
     }
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/system.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)system_js_start,system_js_end-system_js_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/manifest.webmanifest")){httpd_resp_set_type(r,"application/manifest+json; charset=utf-8");return httpd_resp_send(r,(const char *)manifest_webmanifest_start,manifest_webmanifest_end-manifest_webmanifest_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/icon-192.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)icon_192_png_start,icon_192_png_end-icon_192_png_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/icon-512.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)icon_512_png_start,icon_512_png_end-icon_512_png_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/apple-touch-icon.png")){httpd_resp_set_type(r,"image/png");return httpd_resp_send(r,(const char *)apple_touch_icon_png_start,apple_touch_icon_png_end-apple_touch_icon_png_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/plant-data.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)plant_data_js_start,plant_data_js_end-plant_data_js_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/plants.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)plants_js_start,plants_js_end-plants_js_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/views.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)views_js_start,views_js_end-views_js_start);}
-    if(r->method==HTTP_GET&&!strcmp(r->uri,"/network.js")){httpd_resp_set_type(r,"application/javascript; charset=utf-8");return httpd_resp_send(r,(const char *)network_js_start,network_js_end-network_js_start);}
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/system.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)system_js_start, system_js_end - system_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/manifest.webmanifest")) {
+        httpd_resp_set_type(r, "application/manifest+json; charset=utf-8");
+        return httpd_resp_send(r, (const char *)manifest_webmanifest_start,
+                               manifest_webmanifest_end - manifest_webmanifest_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/icon-192.png")) {
+        httpd_resp_set_type(r, "image/png");
+        return httpd_resp_send(r, (const char *)icon_192_png_start, icon_192_png_end - icon_192_png_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/icon-512.png")) {
+        httpd_resp_set_type(r, "image/png");
+        return httpd_resp_send(r, (const char *)icon_512_png_start, icon_512_png_end - icon_512_png_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/apple-touch-icon.png")) {
+        httpd_resp_set_type(r, "image/png");
+        return httpd_resp_send(r, (const char *)apple_touch_icon_png_start,
+                               apple_touch_icon_png_end - apple_touch_icon_png_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/plant-data.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)plant_data_js_start, plant_data_js_end - plant_data_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/garden.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)garden_js_start, garden_js_end - garden_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/plants.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)plants_js_start, plants_js_end - plants_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/views.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)views_js_start, views_js_end - views_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/network.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)network_js_start, network_js_end - network_js_start);
+    }
     if (!origin_allowed(r))
         return fail(r, 403, "origin_rejected");
     if (r->method != HTTP_GET && r->method != HTTP_DELETE) {
@@ -270,53 +445,50 @@ static esp_err_t handle(httpd_req_t *r) {
         }
         cJSON *j = cJSON_ParseWithOpts(q->body, NULL, true);
         const char *p = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(j, "password"));
-        bool ok = cJSON_IsObject(j) && cJSON_GetArraySize(j) == 1 && p && equal(p, password);
+        const cJSON *remember_item = cJSON_GetObjectItemCaseSensitive(j, "remember"),
+                    *name_item = cJSON_GetObjectItemCaseSensitive(j, "device_name");
+        bool remember = cJSON_IsTrue(remember_item);
+        const char *name = name_item ? cJSON_GetStringValue(name_item) : "Мой браузер";
+        bool fields = cJSON_IsObject(j) &&
+                      cJSON_GetArraySize(j) == 1 + (remember_item ? 1 : 0) + (name_item ? 1 : 0) &&
+                      (!remember_item || cJSON_IsBool(remember_item)) && name && sp_text_valid(name, 1, 48) &&
+                      !strstr(q->body, "\\u0000");
+        bool ok = fields && p && equal(p, password);
+        if (!ok) {
+            cJSON_Delete(j);
+            free(q);
+            return fail(r, fields ? 401 : 400, fields ? "unauthorized" : "invalid_body");
+        }
+        char secret[65] = {0};
+        int slot = -1, previous = browser_auth(r, (uint64_t)now);
+        ok = sp_sessions_issue(&sessions, remember, name, previous, (uint64_t)now, secret, &slot);
         cJSON_Delete(j);
         free(q);
         if (!ok)
-            return fail(r, 401, "unauthorized");
-        uint8_t random[32];
-        esp_fill_random(random, sizeof(random));
-        for (unsigned i = 0; i < 32; i++)
-            snprintf(token + 2 * i, 3, "%02x", random[i]);
-        expires = now + 900000;
-        char cookie[160];
-        snprintf(cookie, sizeof(cookie),
-                 "sp_session=%s; Path=/; Max-Age=900; HttpOnly; Secure; SameSite=Strict", token);
-        httpd_resp_set_hdr(r, "Set-Cookie", cookie);
-        char result[150];
-        snprintf(result, sizeof(result), "{\"schema_version\":1,\"token\":\"%s\",\"expires_in\":900}", token);
-        return send_json(r, 200, result);
+            return fail(r, 503, "sessions_unavailable");
+        unsigned lifetime = remember ? SP_BROWSER_COOKIE_SECONDS : 900;
+        browser_cookie(r, secret, lifetime, cookie_header);
+        cJSON *result = cJSON_CreateObject();
+        cJSON_AddNumberToObject(result, "schema_version", 1);
+        if (remember)
+            cJSON_AddNullToObject(result, "token");
+        else
+            cJSON_AddStringToObject(result, "token", secret);
+        cJSON_AddNumberToObject(result, "expires_in", lifetime);
+        cJSON_AddBoolToObject(result, "trusted", remember);
+        memset(secret, 0, sizeof(secret));
+        return object_reply(r, result);
     }
-    char auth[80], cookie[256];
-    bool authorized = httpd_req_get_hdr_value_str(r, "Authorization", auth, sizeof(auth)) == ESP_OK &&
-                      !strncmp(auth, "Bearer ", 7) && equal(auth + 7, token);
-    if (!authorized && httpd_req_get_hdr_value_str(r, "Cookie", cookie, sizeof(cookie)) == ESP_OK) {
-        char *p = cookie;
-        while (*p) {
-            while (*p == ' ' || *p == ';')
-                p++;
-            char *end = strchr(p, ';');
-            if (end)
-                *end = 0;
-            if (!strncmp(p, "sp_session=", 11) && equal(p + 11, token))
-                authorized = true;
-            if (!end)
-                break;
-            p = end + 1;
-        }
-    }
-    if (now >= expires || !authorized) {
+    int current = browser_auth(r, (uint64_t)now);
+    if (current < 0) {
         free(q);
         return fail(r, 401, "unauthorized");
     }
-    if (r->method == HTTP_DELETE && !strcmp(r->uri, "/api/v1/session")) {
-        token[0] = 0;
-        expires = 0;
-        httpd_resp_set_hdr(r, "Set-Cookie",
-                           "sp_session=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict");
+    if (!strcmp(r->uri, "/api/v1/session") || !strcmp(r->uri, "/api/v1/sessions") ||
+        !strncmp(r->uri, "/api/v1/sessions/", 17)) {
+        esp_err_t e = browser_manage(r, q->body, current, (uint64_t)now, cookie_header);
         free(q);
-        return send_json(r, 200, "{\"schema_version\":1}");
+        return e;
     }
     if (strlen(r->uri) >= sizeof(q->path)) {
         free(q);
@@ -362,6 +534,9 @@ static esp_err_t handle(httpd_req_t *r) {
 bool sp_web_start(void) {
     if (!password[0])
         return false;
+    sp_sessions_init(
+        &sessions, password,
+        (sp_sessions_io_t){.load = browser_load, .save = browser_save, .random = browser_random});
     nvs_handle_t h;
     if (nvs_open("web", NVS_READONLY, &h) != ESP_OK)
         return false;

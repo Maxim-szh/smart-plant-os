@@ -628,3 +628,12 @@ bool sp_catalog_handle(sp_api_t *api, const sp_api_request_t *q) {
     sp_web_reply(NULL, q->id, 200, o);
     return true;
 }
+
+bool sp_catalog_contains(const uint8_t plant[16]) {
+    if (!catalog)
+        return false;
+    for (unsigned i = 0; i < catalog->count; i++)
+        if (!memcmp(catalog->rows[i].meta.plant, plant, 16))
+            return true;
+    return false;
+}

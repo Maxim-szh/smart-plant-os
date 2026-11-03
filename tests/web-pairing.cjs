@@ -13,7 +13,7 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
   const req=route.request(),path=new URL(req.url()).pathname;
   const csp=path==='/demo.html'?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'":"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self'";
   if(path==='/'||path==='/demo.html')return route.fulfill({contentType:'text/html',headers:{'Content-Security-Policy':csp},body:fs.readFileSync(path==='/'?'web/index.html':'web/demo.html','utf8')});
-  if(['/network.js','/plant-data.js','/plants.js','/views.js','/system.js','/updates.js','/api.js','/app.js','/pairing.js','/demo.js','/style.css'].includes(path))return route.fulfill({contentType:path.endsWith('.css')?'text/css':'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
+  if(['/network.js','/plant-data.js','/garden.js','/plants.js','/views.js','/system.js','/updates.js','/api.js','/app.js','/pairing.js','/demo.js','/style.css'].includes(path))return route.fulfill({contentType:path.endsWith('.css')?'text/css':'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
   if(!path.startsWith('/api/v1/'))return route.fulfill({status:404,body:''});
   if(demo)apiInDemo++;
   if(path==='/api/v1/session'&&req.method()==='POST'){
