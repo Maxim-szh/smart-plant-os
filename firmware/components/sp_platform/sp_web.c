@@ -52,6 +52,8 @@ extern const uint8_t plant_data_js_start[] asm("_binary_plant_data_js_start");
 extern const uint8_t plant_data_js_end[] asm("_binary_plant_data_js_end");
 extern const uint8_t garden_js_start[] asm("_binary_garden_js_start");
 extern const uint8_t garden_js_end[] asm("_binary_garden_js_end");
+extern const uint8_t care_js_start[] asm("_binary_care_js_start");
+extern const uint8_t care_js_end[] asm("_binary_care_js_end");
 extern const uint8_t plants_js_start[] asm("_binary_plants_js_start");
 extern const uint8_t plants_js_end[] asm("_binary_plants_js_end");
 extern const uint8_t views_js_start[] asm("_binary_views_js_start");
@@ -405,6 +407,10 @@ static esp_err_t handle(httpd_req_t *r) {
     if (r->method == HTTP_GET && !strcmp(r->uri, "/garden.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
         return httpd_resp_send(r, (const char *)garden_js_start, garden_js_end - garden_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/care.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)care_js_start, care_js_end - care_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/plants.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");

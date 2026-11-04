@@ -372,3 +372,9 @@ body[data-mode="live"] .tabbar{grid-template-columns:repeat(4,1fr)}body[data-mod
 .diary-entry{padding:16px 0;border-top:1px solid var(--border)}.diary-entry h3{font-size:16px}.diary-entry time{font-size:13px;color:var(--tx2)}.diary-entry p{margin:8px 0;overflow-wrap:anywhere}.diary-form{margin-top:18px}.garden-reminders{margin:20px 0}.garden-reminder{width:100%;text-align:left;background:var(--surface);border-radius:var(--r2);padding:12px;margin:8px 0}.history-chart{width:100%;height:auto;display:block;margin:12px 0}.history-legend{display:flex;gap:20px;color:var(--tx2);font-size:13px;margin-bottom:16px}
 
 .diary-entry>p{white-space:pre-wrap}
+
+/* Care checks reuse the garden palette and card geometry. */
+.care-review{margin:18px 0;padding:16px;border:1px solid var(--border);border-radius:var(--r,20px);background:var(--bg)}
+.care-review h3{margin:0 0 12px}.care-problem{color:var(--warn);margin:10px 0}.care-diff p{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:10px 0}.care-diff b{white-space:nowrap}
+.readiness-list{margin:18px 0}.readiness-item{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--border)}.readiness-item>div{min-width:0;flex:1}.readiness-item .note{margin:6px 0}.readiness-mark{color:var(--warn);flex:none}.readiness-mark[data-ok=true]{color:var(--pri)}
+#unsaved-dialog{max-width:480px}#unsaved-dialog .live-toolbar{flex-wrap:wrap}

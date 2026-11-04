@@ -7,7 +7,7 @@
  const stageLabel=(id,stage)=>stages(id).find(s=>s[0]===stage)?.[1]||'Стадия не указана';
  const name=id=>get(id)?.name||(id?'Другой вид':'Вид не выбран');
  function mount(o){
-  const esc=o.escape,host=o.host,meta=o.meta,draft={name:meta.name,room:meta.room||'',species_id:meta.species_id,growth_stage:o.initialStage&&stages(meta.species_id).some(s=>s[0]===o.initialStage)?o.initialStage:meta.growth_stage||null};let group=get(meta.species_id)?.group||'all',saving=false;
+  const esc=o.escape,host=o.host,meta=o.meta,draft={name:meta.name,room:meta.room||'',species_id:meta.species_id,growth_stage:o.initialStage&&stages(meta.species_id).some(s=>s[0]===o.initialStage)?o.initialStage:meta.growth_stage||null};let group=get(meta.species_id)?.group||'all',saving=false,blocked=false;
   host.innerHTML=`<form id="profile-form"><div class="fld"><label for="plant-name">Имя растения</label><input class="inp" id="plant-name" value="${esc(draft.name)}" maxlength="80" required autocomplete="off"></div><div class="fld"><label for="plant-room">Комната</label><input class="inp" id="plant-room" value="${esc(draft.room)}" maxlength="80" list="profile-rooms"><datalist id="profile-rooms">${o.rooms.map(r=>`<option value="${esc(r)}"></option>`).join('')}</datalist></div><section class="grp"><h2>Выберите растение</h2><div class="chips" id="profile-groups" role="group" aria-label="Группа растений"></div><div id="profile-picker" class="profile-picker"></div><button type="button" class="chip" data-species="" id="profile-other">Другое растение</button></section><section class="grp"><h2>Стадия роста</h2><div class="chips" id="profile-stages" role="group" aria-label="Стадия роста"></div><p class="note">Выберите стадию по внешнему виду растения. Датчики её не определяют.</p></section><section class="grp"><h2>Так будет выглядеть карточка</h2><div id="profile-preview" aria-live="polite"></div></section><p class="note">Вид и стадия не меняют настройки полива.</p><button class="btn pri big" id="profile-save">${o.continueSetup?'Сохранить и перейти к датчикам':'Сохранить растение'}</button><p class="note" id="profile-message" role="status"></p></form>`;
   const $=s=>host.querySelector(s);
   function read(){draft.name=$('#plant-name').value;draft.room=$('#plant-room').value;}
@@ -24,12 +24,12 @@
    if(b.hasAttribute('data-growth-stage')){read();draft.growth_stage=b.dataset.growthStage||null;paint();}
   };
   for(const id of ['plant-name','plant-room'])$('#'+id).oninput=()=>{read();preview();};
-  $('#profile-form').onsubmit=async e=>{e.preventDefault();if(saving)return;read();const name=draft.name.trim(),room=draft.room.trim();if(!name||new TextEncoder().encode(name).length>80||new TextEncoder().encode(room).length>80){$('#profile-message').textContent='Имя и комната должны занимать не больше 80 байт каждое.';return;}
-   saving=true;host.querySelectorAll('button,input').forEach(x=>x.disabled=true);$('#profile-message').textContent='Сохраняем на Hub…';
+  $('#profile-form').onsubmit=async e=>{e.preventDefault();if(saving||blocked)return;read();const name=draft.name.trim(),room=draft.room.trim();if(!name||new TextEncoder().encode(name).length>80||new TextEncoder().encode(room).length>80){$('#profile-message').textContent='Имя и комната должны занимать не больше 80 байт каждое.';return;}
+   saving=true;window.SPDrafts?.pending($('#profile-form'),true);host.querySelectorAll('button,input').forEach(x=>x.disabled=true);$('#profile-message').textContent='Сохраняем на Hub…';
    try{await o.api.request(`/nodes/${o.device}/plant`,'PUT',{schema_version:1,revision:meta.revision,name,room,species_id:draft.species_id,growth_stage:draft.growth_stage,setup_stage:o.continueSetup?2:meta.setup_stage||0});await o.onSaved();}
-   catch(err){$('#profile-message').textContent=err.code==='revision_conflict'?'Растение уже изменено в другом окне. Закройте редактор и откройте его снова.':o.api.message(err);}
-   finally{saving=false;host.querySelectorAll('button,input').forEach(x=>x.disabled=false);}
-  };paint();
+   catch(err){blocked=err.status===409||err.uncertain;$('#profile-message').textContent=err.code==='revision_conflict'?'Растение уже изменено в другом окне. Закройте редактор и откройте его снова.':o.api.message(err);}
+   finally{saving=false;window.SPDrafts?.pending($('#profile-form'),false);host.querySelectorAll('button,input').forEach(x=>x.disabled=false);$('#profile-save').disabled=blocked;}
+  };paint();window.SPDrafts?.watch($('#profile-form'),()=>{read();return JSON.stringify(draft);},JSON.stringify({name:meta.name,room:meta.room||'',species_id:meta.species_id,growth_stage:meta.growth_stage||null}));
  }
  window.SPPlants={get,stages,stageLabel,name,mount};
 })();

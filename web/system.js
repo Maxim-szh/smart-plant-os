@@ -33,7 +33,7 @@
   if(g!==generation||!dialog.open)return;
   try{const s=await api.request('/setup');if(g!==generation)return;
    if(s.wifi_phase==='connecting'){timer=setTimeout(()=>networkProgress(g,started),1000);return;}
-   if(s.wifi_phase==='connected'&&s.wifi_connected){el('network-status').innerHTML=grid([['Сеть',s.ssid],['Адрес',s.ip]]);message('Подключение сохранено.');el('connect').disabled=false;return;}
+   if(s.wifi_phase==='connected'&&s.wifi_connected){el('network-status').innerHTML=grid([['Сеть',s.ssid],['Адрес',s.ip]]);window.SPDrafts?.clean(dialog);message('Подключение сохранено.');el('connect').disabled=false;return;}
    message('Новую сеть подключить не удалось. Прежние настройки сохранены. Проверьте название и пароль.');el('connect').disabled=false;
   }catch(e){if(g!==generation||!dialog.open)return;if(Date.now()-started<45000){timer=setTimeout(()=>networkProgress(g,started),2000);return;}message('Старый адрес больше недоступен. Подключитесь к SmartPlantOS (пароль smartplantos), откройте https://192.168.4.1/setup и проверьте результат. Данные повторно не отправляются.');}
  }
