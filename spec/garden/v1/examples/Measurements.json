@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "plant_id": "01020304-0506-4008-800a-0b0c0d0e0f10",
+  "metric": "soil_index",
+  "unit": "percent",
+  "period": "day",
+  "storage_available": true,
+  "checkpoint_minutes": 15,
+  "clock_state": "unset",
+  "current": null,
+  "previous": null
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "entry_id": "11020304-0506-4008-800a-0b0c0d0e0f10",
+  "kind": "reminder",
+  "note": "Проверить растение после пересадки",
+  "at_ms": 1793653200000,
+  "remind_at_ms": 1793739600000,
+  "plant_id": "01020304-0506-4008-800a-0b0c0d0e0f10",
+  "seq": 1,
+  "revision": 0,
+  "done": false
+}

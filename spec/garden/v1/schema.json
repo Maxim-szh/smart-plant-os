@@ -1,0 +1,739 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smartplantos.local/spec/garden/v1/schema.json",
+  "$defs": {
+    "NewDiaryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+        },
+        "kind": {
+          "enum": [
+            "repot",
+            "fertilize",
+            "prune",
+            "move",
+            "stage",
+            "note",
+            "reminder"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 160
+        },
+        "at_ms": {
+          "type": "integer",
+          "minimum": 1704067200000,
+          "maximum": 4102444800000
+        },
+        "remind_at_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1704067200000,
+              "maximum": 4102444800000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "entry_id",
+        "kind",
+        "note",
+        "at_ms",
+        "remind_at_ms"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "reminder"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "remind_at_ms": {
+                "type": "integer",
+                "minimum": 1704067200000,
+                "maximum": 4102444800000
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "remind_at_ms": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "note"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          }
+        }
+      ]
+    },
+    "DiaryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+        },
+        "kind": {
+          "enum": [
+            "repot",
+            "fertilize",
+            "prune",
+            "move",
+            "stage",
+            "note",
+            "reminder"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 160
+        },
+        "at_ms": {
+          "type": "integer",
+          "minimum": 1704067200000,
+          "maximum": 4102444800000
+        },
+        "remind_at_ms": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1704067200000,
+              "maximum": 4102444800000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "plant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "done": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "entry_id",
+        "kind",
+        "note",
+        "at_ms",
+        "remind_at_ms",
+        "plant_id",
+        "seq",
+        "revision",
+        "done"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "reminder"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "remind_at_ms": {
+                "type": "integer",
+                "minimum": 1704067200000,
+                "maximum": 4102444800000
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "remind_at_ms": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "note"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "not": {
+                  "const": "reminder"
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "done": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "DiaryPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "entries": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/DiaryEntry"
+          }
+        },
+        "next_cursor": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "has_more": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema_version",
+        "entries",
+        "next_cursor",
+        "has_more"
+      ]
+    },
+    "UpdateReminder": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967294
+        },
+        "done": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "revision",
+        "done"
+      ]
+    },
+    "DeleteDiaryEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967294
+        }
+      },
+      "required": [
+        "revision"
+      ]
+    },
+    "Measurements": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "plant_id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+        },
+        "metric": {
+          "enum": [
+            "soil_index",
+            "air_temperature",
+            "air_humidity",
+            "illuminance"
+          ]
+        },
+        "unit": {
+          "enum": [
+            "percent",
+            "degC",
+            "lux"
+          ]
+        },
+        "period": {
+          "enum": [
+            "day",
+            "week"
+          ]
+        },
+        "storage_available": {
+          "type": "boolean"
+        },
+        "checkpoint_minutes": {
+          "const": 15
+        },
+        "clock_state": {
+          "enum": [
+            "unset",
+            "synced",
+            "rollback"
+          ]
+        },
+        "current": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "maxItems": 24,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "at_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4102444800000
+                      },
+                      "samples": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1440
+                      },
+                      "quality": {
+                        "enum": [
+                          "ok",
+                          "mixed",
+                          "missing"
+                        ]
+                      },
+                      "controller_changed": {
+                        "type": "boolean"
+                      },
+                      "value": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "min": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "max": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "at_ms",
+                      "samples",
+                      "quality",
+                      "controller_changed",
+                      "value",
+                      "min",
+                      "max"
+                    ],
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "quality": {
+                              "const": "missing"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "samples": {
+                              "const": 0
+                            },
+                            "value": {
+                              "type": "null"
+                            },
+                            "min": {
+                              "type": "null"
+                            },
+                            "max": {
+                              "type": "null"
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "samples": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1440
+                            },
+                            "value": {
+                              "type": "number"
+                            },
+                            "min": {
+                              "type": "number"
+                            },
+                            "max": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "start_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4102444800000
+                },
+                "end_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4102444800000
+                },
+                "samples": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10080
+                },
+                "mean": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "points",
+                "start_ms",
+                "end_ms",
+                "samples",
+                "mean"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previous": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "maxItems": 24,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "at_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4102444800000
+                      },
+                      "samples": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1440
+                      },
+                      "quality": {
+                        "enum": [
+                          "ok",
+                          "mixed",
+                          "missing"
+                        ]
+                      },
+                      "controller_changed": {
+                        "type": "boolean"
+                      },
+                      "value": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "min": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      },
+                      "max": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "at_ms",
+                      "samples",
+                      "quality",
+                      "controller_changed",
+                      "value",
+                      "min",
+                      "max"
+                    ],
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "quality": {
+                              "const": "missing"
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "samples": {
+                              "const": 0
+                            },
+                            "value": {
+                              "type": "null"
+                            },
+                            "min": {
+                              "type": "null"
+                            },
+                            "max": {
+                              "type": "null"
+                            }
+                          }
+                        },
+                        "else": {
+                          "properties": {
+                            "samples": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 1440
+                            },
+                            "value": {
+                              "type": "number"
+                            },
+                            "min": {
+                              "type": "number"
+                            },
+                            "max": {
+                              "type": "number"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                },
+                "start_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4102444800000
+                },
+                "end_ms": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4102444800000
+                },
+                "samples": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10080
+                },
+                "mean": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "points",
+                "start_ms",
+                "end_ms",
+                "samples",
+                "mean"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema_version",
+        "plant_id",
+        "metric",
+        "unit",
+        "period",
+        "storage_available",
+        "checkpoint_minutes",
+        "clock_state",
+        "current",
+        "previous"
+      ]
+    },
+    "BrowserDevices": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "persistent_available": {
+          "type": "boolean"
+        },
+        "devices": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{16}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 48
+              },
+              "trusted": {
+                "type": "boolean"
+              },
+              "current": {
+                "type": "boolean"
+              },
+              "expires_in": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 900
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "trusted",
+              "current",
+              "expires_in"
+            ]
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "persistent_available",
+        "devices"
+      ]
+    },
+    "RenameBrowser": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48
+        }
+      },
+      "required": [
+        "name"
+      ]
+    }
+  }
+}

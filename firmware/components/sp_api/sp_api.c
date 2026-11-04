@@ -635,6 +635,16 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
             return;
         }
     }
+    if (get && !strcmp(r->path, "/api/v1/time")) {
+        cJSON *o = obj();
+        str(o, "clock_state", a->utc ? "synced" : "unset");
+        if (a->utc)
+            num(o, "utc_ms", a->utc);
+        else
+            cJSON_AddNullToObject(o, "utc_ms");
+        reply(a, r->id, 200, o);
+        goto done;
+    }
     if (post && !strcmp(r->path, "/api/v1/time")) {
         static const char *const allowed[] = {"schema_version", "utc_ms"};
         uint64_t utc, version;

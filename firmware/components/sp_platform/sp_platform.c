@@ -9,6 +9,8 @@
 #include "sp_maintenance.h"
 #include "sp_update.h"
 #include "sp_system.h"
+#include "sp_diary.h"
+#include "sp_measurements.h"
 #include "esp_system.h"
 #include <fcntl.h>
 #include <inttypes.h>
@@ -100,6 +102,54 @@ static unsigned reset_kind(void) {
     default:
         return 10;
     }
+}
+static int garden_load(void *ctx, void *out, size_t size) {
+    (void)ctx;
+    nvs_handle_t h;
+    esp_err_t e = nvs_open("care", NVS_READONLY, &h);
+    if (e == ESP_ERR_NVS_NOT_FOUND)
+        return 0;
+    if (e != ESP_OK)
+        return -1;
+    size_t n = size;
+    e = nvs_get_blob(h, "state_v1", out, &n);
+    nvs_close(h);
+    return e == ESP_ERR_NVS_NOT_FOUND ? 0 : e == ESP_OK && n == size ? 1 : -1;
+}
+static bool garden_save(void *ctx, const void *data, size_t size) {
+    (void)ctx;
+    nvs_handle_t h;
+    if (nvs_open("care", NVS_READWRITE, &h) != ESP_OK)
+        return false;
+    bool ok = nvs_set_blob(h, "state_v1", data, size) == ESP_OK && nvs_commit(h) == ESP_OK;
+    nvs_close(h);
+    return ok;
+}
+static bool garden_plant(void *ctx, const uint8_t id[16]) {
+    (void)ctx;
+    return sp_catalog_contains(id);
+}
+static int measurements_load(void *ctx, const char *key, void *out, size_t size) {
+    (void)ctx;
+    nvs_handle_t h;
+    esp_err_t e = nvs_open("measurements", NVS_READONLY, &h);
+    if (e == ESP_ERR_NVS_NOT_FOUND)
+        return 0;
+    if (e != ESP_OK)
+        return -1;
+    size_t n = size;
+    e = nvs_get_blob(h, key, out, &n);
+    nvs_close(h);
+    return e == ESP_ERR_NVS_NOT_FOUND ? 0 : e == ESP_OK && n == size ? 1 : -1;
+}
+static bool measurements_save(void *ctx, const char *key, const void *data, size_t size) {
+    (void)ctx;
+    nvs_handle_t h;
+    if (nvs_open("measurements", NVS_READWRITE, &h) != ESP_OK)
+        return false;
+    bool ok = nvs_set_blob(h, key, data, size) == ESP_OK && nvs_commit(h) == ESP_OK;
+    nvs_close(h);
+    return ok;
 }
 static const sp_system_io_t system_io = {.now_ms = now_ms,
                                          .free_heap = esp_get_free_heap_size,
@@ -510,6 +560,12 @@ void sp_platform_run(bool hub) {
     uint64_t health_at = 0;
     unsigned sensor_slot = 0;
     unsigned periodic_peer = 0;
+    if (hub) {
+        (void)sp_diary_start(
+            (sp_diary_io_t){.load = garden_load, .save = garden_save, .plant_exists = garden_plant});
+        sp_measurements_start((sp_measurements_io_t){
+            .load = measurements_load, .save = measurements_save, .plant_exists = garden_plant});
+    }
     for (;;) {
         uint64_t now = now_ms();
         sp_radio_process();
@@ -522,10 +578,12 @@ void sp_platform_run(bool hub) {
                 memcpy(api->nodes[slot].device, identity.peers[slot].device, 6);
             }
             sp_api_tick(api, now, utc_ms(now));
+            sp_measurements_tick(api);
             if (web_request && sp_web_take(web_request) && !sp_update_handle(web_request) &&
                 !sp_maintenance_handle(web_request) &&
-                !sp_system_handle(&identity, api, web_request, &system_io) &&
-                !sp_setup_handle(&identity, api, web_request) && !sp_catalog_handle(api, web_request))
+                !sp_system_handle(&identity, api, web_request, &system_io) && !sp_diary_handle(web_request) &&
+                !sp_measurements_handle(api, web_request) && !sp_setup_handle(&identity, api, web_request) &&
+                !sp_catalog_handle(api, web_request))
                 sp_api_handle(api, web_request);
         }
         if (!hub) {

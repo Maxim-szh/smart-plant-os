@@ -1,4 +1,4 @@
-idf_component_register(SRCS "sp_platform.c" "sp_radio.c" "sp_board.c" "sp_crypto.c" "sp_web.c" "sp_setup.c" "sp_ap_policy.c" "sp_join_crypto.c" "sp_pairing.c" "sp_catalog.c" "sp_epochs.c" "sp_maintenance.c" "sp_update_wire.c" "sp_update.c" "sp_update_record.c" "sp_image.c" "sp_system.c"
+idf_component_register(SRCS "sp_platform.c" "sp_radio.c" "sp_board.c" "sp_crypto.c" "sp_web.c" "sp_setup.c" "sp_ap_policy.c" "sp_join_crypto.c" "sp_pairing.c" "sp_catalog.c" "sp_epochs.c" "sp_maintenance.c" "sp_update_wire.c" "sp_update.c" "sp_update_record.c" "sp_image.c" "sp_system.c" "sp_sessions.c" "sp_diary.c" "sp_measurements.c"
   INCLUDE_DIRS "include" PRIV_INCLUDE_DIRS "."
   REQUIRES sp_core sp_api nvs_flash esp_wifi esp_event esp_netif esp_timer esp_adc driver mbedtls esp_system esp_https_server app_update esp_partition spi_flash)
 if(IDF_TARGET STREQUAL "esp32s3")
@@ -15,6 +15,7 @@ if(IDF_TARGET STREQUAL "esp32s3")
   target_add_binary_data(${COMPONENT_LIB} "../../../web/views.js" BINARY)
   target_add_binary_data(${COMPONENT_LIB} "../../../web/plant-data.js" BINARY)
   target_add_binary_data(${COMPONENT_LIB} "../../../web/plants.js" BINARY)
+  target_add_binary_data(${COMPONENT_LIB} "../../../web/garden.js" BINARY)
   target_add_binary_data(${COMPONENT_LIB} "../../../web/manifest.webmanifest" BINARY)
   target_add_binary_data(${COMPONENT_LIB} "../../../web/icon-192.png" BINARY)
   target_add_binary_data(${COMPONENT_LIB} "../../../web/icon-512.png" BINARY)
