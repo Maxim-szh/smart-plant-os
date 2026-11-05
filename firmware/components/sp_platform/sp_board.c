@@ -1,4 +1,5 @@
 #include "sp_internal.h"
+#include "sp_soil_policy.h"
 #include "driver/gpio.h"
 #include "driver/gptimer.h"
 #include "esp_adc/adc_oneshot.h"
@@ -13,6 +14,7 @@ static gptimer_handle_t cutoff;
 static bool healthy, soil_ready, tank_ready, pump_ready;
 
 #if CONFIG_IDF_TARGET_ESP32C3
+static bool bench_active;
 static bool IRAM_ATTR cutoff_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *event, void *arg) {
     (void)timer;
     (void)event;
@@ -23,6 +25,22 @@ static bool IRAM_ATTR cutoff_isr(gptimer_handle_t timer, const gptimer_alarm_eve
 static bool allowed(int pin) {
     /* C3: exclude flash, boot straps, USB, UART and on-board LED. Board review still required. */
     return pin == 0 || pin == 1 || (pin >= 3 && pin <= 7) || pin == 10;
+}
+static bool soil_start(int pin) {
+    adc_unit_t unit;
+    if (adc_oneshot_io_to_channel(pin, &unit, &soil_channel) != ESP_OK || unit != ADC_UNIT_1)
+        return false;
+    adc_oneshot_unit_init_cfg_t ac = {.unit_id = ADC_UNIT_1};
+    adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12};
+    if (adc_oneshot_new_unit(&ac, &adc) != ESP_OK)
+        return false;
+    if (adc_oneshot_config_channel(adc, soil_channel, &cc) != ESP_OK) {
+        adc_oneshot_del_unit(adc);
+        adc = NULL;
+        return false;
+    }
+    soil_ready = true;
+    return true;
 }
 #endif
 bool sp_board_start(nvs_handle_t nvs) {
@@ -41,15 +59,8 @@ bool sp_board_start(nvs_handle_t nvs) {
         (pump_pin >= 0 && pump_pin == tank_pin))
         return false;
     if (soil >= 0) {
-        adc_unit_t unit;
-        if (adc_oneshot_io_to_channel(soil, &unit, &soil_channel) != ESP_OK || unit != ADC_UNIT_1)
+        if (!soil_start(soil))
             return false;
-        adc_oneshot_unit_init_cfg_t ac = {.unit_id = ADC_UNIT_1};
-        adc_oneshot_chan_cfg_t cc = {.atten = ADC_ATTEN_DB_12, .bitwidth = ADC_BITWIDTH_12};
-        if (adc_oneshot_new_unit(&ac, &adc) != ESP_OK ||
-            adc_oneshot_config_channel(adc, soil_channel, &cc) != ESP_OK)
-            return false;
-        soil_ready = true;
     }
     if (tank_pin >= 0) {
         gpio_config_t tank_cfg = {.pin_bit_mask = UINT64_C(1) << tank_pin,
@@ -86,6 +97,44 @@ bool sp_board_sample(uint16_t out[SP_SAMPLE_COUNT]) {
     }
     return true;
 }
+bool sp_board_bench_start(int pin) {
+#if CONFIG_IDF_TARGET_ESP32C3
+    /* A temporary input-only instrument, never an alternative pump configuration. */
+    if (bench_active || soil_ready || adc || tank_pin >= 0 || pump_pin >= 0 || !allowed(pin) || pin > 4)
+        return false;
+    if (!soil_start(pin))
+        return false;
+    bench_active = true;
+    return true;
+#else
+    (void)pin;
+    return false;
+#endif
+}
+void sp_board_bench_stop(void) {
+#if CONFIG_IDF_TARGET_ESP32C3
+    if (bench_active) {
+        adc_oneshot_del_unit(adc);
+        adc = NULL;
+        soil_ready = false;
+        bench_active = false;
+    }
+#endif
+}
+bool sp_board_bench_read(int out[SP_SAMPLE_COUNT]) {
+#if CONFIG_IDF_TARGET_ESP32C3
+    if (!bench_active)
+        return false;
+    for (unsigned i = 0; i < SP_SAMPLE_COUNT; i++) {
+        int value;
+        out[i] = adc_oneshot_read(adc, soil_channel, &value) == ESP_OK ? value : -1;
+    }
+    return true;
+#else
+    (void)out;
+    return false;
+#endif
+}
 int sp_board_tank(void) {
     return tank_ready ? !gpio_get_level(tank_pin) : -1;
 }
@@ -98,7 +147,7 @@ static bool read_soil(void *ctx, uint64_t now, sp_measurement_t *m) {
         *m = (sp_measurement_t){.quality = SP_Q_MISSING, .sampled_ms = now};
         return true;
     }
-    uint16_t raw[SP_SAMPLE_COUNT]={0};
+    uint16_t raw[SP_SAMPLE_COUNT] = {0};
     bool ok = sp_board_sample(raw);
     sp_core_sample(c, raw, ok, now);
     *m = (sp_measurement_t){.quality = c->soil.quality,
@@ -115,6 +164,18 @@ static bool read_tank(void *ctx, uint64_t now, sp_measurement_t *m) {
                             .milli_value = c->tank == 1 ? 1000 : 0,
                             .sampled_ms = now};
     return true;
+}
+void sp_board_schedule_soil(sp_sensor_registry_t *r, const sp_core_t *c, uint64_t now) {
+    for (unsigned i = 0; i < r->count; i++) {
+        sp_sensor_driver_t *d = &r->drivers[i];
+        if (d->descriptor.slot != 0 || d->descriptor.kind != SP_SENSOR_SOIL)
+            continue;
+        uint32_t interval = sp_soil_poll_interval(c, now);
+        d->descriptor.interval_ms = interval;
+        /* Shorten a pending slow wait immediately; never postpone a due sample. */
+        if (d->next_ms > now + interval)
+            d->next_ms = now + interval;
+    }
 }
 void sp_board_register_sensors(sp_sensor_registry_t *r, sp_core_t *c) {
     const sp_sensor_descriptor_t soil = {.slot = 0,

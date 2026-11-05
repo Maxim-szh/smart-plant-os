@@ -1,4 +1,5 @@
 #include "sp_core.h"
+#include "sp_soil_policy.h"
 #include <limits.h>
 #include <string.h>
 
@@ -77,7 +78,7 @@ const sp_event_t *sp_core_event_after(const sp_core_t *c, uint64_t after, bool *
     return &c->saved.events[after % SP_EVENT_SLOTS];
 }
 bool sp_core_acknowledge_fault(sp_core_t *c) {
-    if (!c->storage_ok || c->active_slot >= 0)
+    if (!c->storage_ok || c->active_slot >= 0 || c->soak_pending)
         return false;
     c->saved.response_fault = false;
     c->soak_pending = false;
@@ -183,10 +184,17 @@ void sp_core_observe_soil(sp_core_t *c, sp_quality_t quality, int pct, uint16_t 
     sp_soil_t *s = &c->soil;
     s->raw_adc = raw;
     s->spread_adc = spread;
+    bool continuous =
+        now >= s->sampled_ms && now - s->sampled_ms <= (uint64_t)c->saved.config.max_age_s * 1000;
+    if (!continuous) {
+        s->stable_samples = s->dry_samples = 0;
+        s->dry_since_ms = 0;
+    }
     s->sampled_ms = now;
     if (quality != SP_Q_OK || pct < 0 || pct > 100 || raw > 4095) {
         s->quality = (unsigned)quality <= SP_Q_STALE && quality != SP_Q_OK ? quality : SP_Q_FAULT;
         s->stable_samples = s->dry_samples = 0;
+        s->dry_since_ms = 0;
         return;
     }
     s->index_pct = (uint8_t)pct;
@@ -194,10 +202,14 @@ void sp_core_observe_soil(sp_core_t *c, sp_quality_t quality, int pct, uint16_t 
         s->stable_samples++;
     s->quality = s->stable_samples >= SP_CONFIRM_SAMPLES ? SP_Q_OK : SP_Q_STALE;
     if (s->quality == SP_Q_OK && s->index_pct < c->saved.config.threshold_pct) {
+        if (!s->dry_samples)
+            s->dry_since_ms = now;
         if (s->dry_samples < SP_CONFIRM_SAMPLES)
             s->dry_samples++;
-    } else
+    } else {
         s->dry_samples = 0;
+        s->dry_since_ms = 0;
+    }
     if (s->quality == SP_Q_OK && s->index_pct >= c->saved.config.threshold_pct + 5)
         c->dry_armed = true;
 }
@@ -235,6 +247,8 @@ sp_reason_t sp_core_can_water(const sp_core_t *c, uint16_t ml, bool automatic) {
         return SP_STORAGE_FAULT;
     if (!c->hardware_ready || !c->pump)
         return SP_HARDWARE_FAULT;
+    if (c->soak_pending)
+        return SP_BUSY;
     if (c->saved.response_fault)
         return SP_NO_RESPONSE;
     if (c->active_slot >= 0)
@@ -262,7 +276,8 @@ sp_reason_t sp_core_can_water(const sp_core_t *c, uint16_t ml, bool automatic) {
             return SP_SENSOR_FAULT;
         if (c->soil.quality == SP_Q_STALE || c->now_ms - c->soil.sampled_ms > (uint64_t)cfg->max_age_s * 1000)
             return SP_SENSOR_STALE;
-        if (!c->dry_armed || c->soil.dry_samples < SP_CONFIRM_SAMPLES)
+        if (!c->dry_armed || c->soil.dry_samples < SP_CONFIRM_SAMPLES ||
+            c->now_ms < c->soil.dry_since_ms + SP_SOIL_DRY_CONFIRM_MS)
             return SP_SOIL_NOT_DRY;
     }
     return SP_OK;
@@ -292,9 +307,15 @@ static void finish(sp_core_t *c, sp_status_t status, sp_reason_t why) {
     c->active_slot = -1;
     c->last_reason = why;
     event(c, 3, status, why, r->request.id);
-    if (status == SP_COMPLETED && c->soil.quality == SP_Q_OK && c->pre_water_index <= 95) {
+    if (status == SP_COMPLETED && c->pre_water_valid && c->pre_water_index <= 95) {
         c->soak_pending = true;
         c->soak_at_ms = c->now_ms + SP_SOAK_MS;
+        c->response_deadline_ms = c->now_ms + SP_SOIL_RESPONSE_MS;
+        c->response_since_ms = 0;
+        c->response_samples = 0;
+        c->response_sample_ms = c->soil.sampled_ms;
+        /* A reboot must not erase an outstanding response check. */
+        c->saved.response_fault = true;
     }
     (void)persist(c);
 }
@@ -303,6 +324,7 @@ void sp_core_tick(sp_core_t *c, uint64_t now) {
     if (c->soil.quality == SP_Q_OK && now - c->soil.sampled_ms > (uint64_t)c->saved.config.max_age_s * 1000) {
         c->soil.quality = SP_Q_STALE;
         c->soil.stable_samples = c->soil.dry_samples = 0;
+        c->soil.dry_since_ms = 0;
     }
     if (c->active_slot >= 0) {
         if (!c->storage_ok)
@@ -317,12 +339,32 @@ void sp_core_tick(sp_core_t *c, uint64_t now) {
             finish(c, SP_COMPLETED, SP_OK);
     }
     if (c->soak_pending && now >= c->soak_at_ms) {
-        c->soak_pending = false;
-        if (c->soil.quality != SP_Q_OK || c->soil.index_pct < c->pre_water_index + 3) {
-            c->saved.response_fault = true;
+        bool fresh = c->soil.quality == SP_Q_OK && now >= c->soil.sampled_ms &&
+                     now - c->soil.sampled_ms <= (uint64_t)c->saved.config.max_age_s * 1000;
+        if (now >= c->response_deadline_ms) {
+            c->soak_pending = false;
             c->last_reason = SP_NO_RESPONSE;
             event(c, 4, SP_FAILED, SP_NO_RESPONSE, NULL);
             (void)persist(c);
+        } else if (c->soil.sampled_ms != c->response_sample_ms) {
+            c->response_sample_ms = c->soil.sampled_ms;
+            if (fresh && c->soil.index_pct >= c->pre_water_index + SP_SOIL_RESPONSE_RISE) {
+                if (!c->response_samples)
+                    c->response_since_ms = now;
+                if (c->response_samples < 3)
+                    c->response_samples++;
+                if (c->response_samples >= 3 && now - c->response_since_ms >= SP_SOIL_RESPONSE_HOLD_MS) {
+                    c->soak_pending = false;
+                    c->saved.response_fault = false;
+                    (void)persist(c);
+                }
+            } else {
+                c->response_samples = 0;
+                c->response_since_ms = 0;
+            }
+        } else if (!fresh) {
+            c->response_samples = 0;
+            c->response_since_ms = 0;
         }
     }
     if (c->active_slot < 0)
@@ -398,6 +440,8 @@ sp_reason_t sp_core_command(sp_core_t *c, const sp_request_t *req, bool automati
         c->run_deadline_ms = c->now_ms + duration;
         c->dry_armed = false;
         c->pre_water_index = c->soil.index_pct;
+        c->pre_water_valid = c->soil.quality == SP_Q_OK && c->now_ms >= c->soil.sampled_ms &&
+                             c->now_ms - c->soil.sampled_ms <= (uint64_t)c->saved.config.max_age_s * 1000;
         if (c->pump)
             c->pump(c->io, true, duration);
     } else {

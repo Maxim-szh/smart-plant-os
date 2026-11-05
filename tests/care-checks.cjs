@@ -21,3 +21,13 @@ assert(care.packageReview(null,bin,hub,'spo-123','0.3.0'));
 for(const change of [{profile:'n8r2'},{data_abi:2},{version:'0.3.0-abi1'},{version:'0.4.01-abi1'},{version:'0.999.0-abi1'},{version:4}])assert(care.packageReview({...manifest,...change},bin,hub,'spo-123','0.3.0'));
 assert(care.packageReview(manifest,bin,hub,'spo-123','0.5.0'));assert(care.packageReview(manifest,bin,hub,'spo-123','unknown'));
 console.log('PASS: care ranges/cross-field validation, runtime estimate, readiness unknown/stale/fault states and capability/package compatibility');
+const points=Array.from({length:13},(_,i)=>({at:i*5000,raw:2350+(i%3)-1}));
+assert.equal(care.calibrationPoint(points).raw,2350);
+assert(care.calibrationPoint(points.slice(0,3)).error);
+assert(care.calibrationPoint(points.map((p,i)=>({...p,raw:2000+i*20}))).error);
+assert(care.calibrationPoint(points.map((p,i)=>({...p,at:i?0:p.at}))).error);
+assert(care.calibrationPoint(points.map((p,i)=>({...p,raw:i===10?0:p.raw}))).error);
+assert(care.calibrationPoint(points.map((p,i)=>({...p,at:p.at+(i>=5?15000:0)}))).error);
+console.log('PASS: calibration stable window, drift, incomplete/duplicate/gapped samples and ADC rails');
+
+assert(care.calibrationPoint(points.map((p,i)=>({...p,raw:i===3?500:p.raw}))).error);

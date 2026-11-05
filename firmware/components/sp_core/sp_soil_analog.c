@@ -1,4 +1,5 @@
 #include "sp_core.h"
+#include "sp_soil_policy.h"
 #include <string.h>
 
 /* Analog adapter only. Digital/normalized drivers call sp_core_observe_soil directly. */
@@ -29,6 +30,39 @@ void sp_core_sample(sp_core_t *c, const uint16_t samples[SP_SAMPLE_COUNT], bool 
         sp_core_observe_soil(c, SP_Q_FAULT, 0, raw, spread, now);
         return;
     }
+    int span = (int)c->saved.config.dry_raw - c->saved.config.wet_raw;
+    if (span < 0)
+        span = -span;
+    int jump_limit = span >= 200 ? span * 15 / 100 : 300;
+    if (jump_limit < 100)
+        jump_limit = 100;
+    int distance = (int)raw - s->analog_reference;
+    if (distance < 0)
+        distance = -distance;
+    if (s->analog_seen && distance > jump_limit) {
+        int candidate_distance = (int)raw - s->candidate_raw;
+        if (candidate_distance < 0)
+            candidate_distance = -candidate_distance;
+        int tolerance = span / 30;
+        if (tolerance < 30)
+            tolerance = 30;
+        if (!s->candidate_samples || candidate_distance > tolerance) {
+            s->candidate_raw = raw;
+            s->candidate_samples = 1;
+        } else if (s->candidate_samples < 3)
+            s->candidate_samples++;
+        s->watch_until_ms = now + SP_SOIL_ANOMALY_HOLD_MS;
+        if (s->candidate_samples < 3) {
+            sp_core_observe_soil(c, SP_Q_STALE, 0, raw, spread, now);
+            return;
+        }
+        /* Confirmed new electrical state, not proof of correct soil contact. */
+        s->stable_samples = 0;
+    }
+    s->candidate_samples = 0;
+    s->analog_reference = raw;
+    s->analog_seen = true;
+    s->analog_at_ms = now;
     if (!s->stable_samples)
         s->filtered_q8 = (int32_t)raw * 256;
     else

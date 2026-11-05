@@ -50,7 +50,19 @@
   if(v<hub||(current!==null&&v<current))return 'Этот пакет старее установленной прошивки. Обычное OTA не выполняет понижение версии; восстановление после неудачного запуска — отдельный механизм.';
   return null;
  }
- const checks={fields,review,readiness,version,compatibility,packageReview};
+ function calibrationPoint(points){
+  if(!Array.isArray(points)||points.length<10)return {error:'Недостаточно отдельных измерений. Оставьте страницу открытой и повторите запись.'};
+  if(points.some((p,i)=>!Number.isFinite(p.at)||!Number.isInteger(p.raw)||p.raw<=15||p.raw>=4080||(i&&(p.at<=points[i-1].at||p.at-points[i-1].at>12000))))return {error:'Были ошибки или пропуски измерений. Проверьте контакт датчика и повторите.'};
+  if(points.some((p,i)=>i&&Math.abs(p.raw-points[i-1].raw)>200))return {error:'Во время записи резко изменился сигнал. Проверьте контакт и положение датчика, затем повторите запись.'};
+  if(points.at(-1).at-points[0].at<45000)return {error:'Недостаточно времени наблюдения. Повторите запись.'};
+  const tail=points.filter(p=>p.at>=points.at(-1).at-30000),sorted=tail.map(p=>p.raw).sort((a,b)=>a-b);
+  const median=a=>{const b=[...a].sort((a,b)=>a-b),n=b.length;return n%2?b[n>>1]:(b[n/2-1]+b[n/2])/2;};
+  const spread=sorted[Math.floor((sorted.length-1)*.9)]-sorted[Math.floor((sorted.length-1)*.1)],n=Math.max(2,Math.floor(tail.length/3));
+  const drift=Math.abs(median(tail.slice(0,n).map(p=>p.raw))-median(tail.slice(-n).map(p=>p.raw)));
+  if(spread>40||drift>20)return {error:'Показания ещё меняются. Дайте влаге распределиться, проверьте установку и повторите запись.'};
+  return {raw:Math.round(median(sorted)),spread,drift,count:points.length};
+ }
+ const checks={fields,review,readiness,version,compatibility,packageReview,calibrationPoint};
  if(typeof module!=='undefined'&&module.exports)module.exports=checks;
  if(typeof window==='undefined')return;
  window.SPCare=checks;

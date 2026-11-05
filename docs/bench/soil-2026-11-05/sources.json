@@ -1,0 +1,93 @@
+{
+  "date": "2026-11-05",
+  "initial_soil_g": 60,
+  "tare_g": 2,
+  "added_water_g": [
+    0,
+    23,
+    50
+  ],
+  "mass_source": "experimenter_statement",
+  "files": [
+    {
+      "name": "soil-2026-11-05T17-13-36-691Z.csv",
+      "sha256": "edfdc841d323af8d539a870da0813037d45f15f62b1d34434585e217ed0f0a34"
+    },
+    {
+      "name": "soil-2026-11-05T17-15-40-971Z.csv",
+      "sha256": "7f74a61be1c3a0d3f9e68db932f3023a449f2927825a061750500daeb0497045"
+    },
+    {
+      "name": "soil-2026-11-05T17-20-01-091Z.csv",
+      "sha256": "4439ef537d026039a5800f14214065cb526d30998f6425101cbffc8e66922217"
+    },
+    {
+      "name": "soil-2026-11-05T17-23-17-087Z.csv",
+      "sha256": "be3ed764dd59caecaeb409ebbfc8022abb12ece87f0995f2e17e34a9ca545704"
+    },
+    {
+      "name": "soil-2026-11-05T17-25-14-969Z.csv",
+      "sha256": "b47371d21f0db503eba494b2be28ae3282dc0da340983f9679530f1de0362754"
+    },
+    {
+      "name": "soil-2026-11-05T17-26-48-585Z.csv",
+      "sha256": "c21b8acbf9ebd71f7126daf5575d03b05160c573909a82a18a62c8529149c3f3"
+    },
+    {
+      "name": "soil-2026-11-05T17-29-06-652Z.csv",
+      "sha256": "a803e01ba039572281757da1a8c142603cb020546260977afe487ec568d783cd"
+    },
+    {
+      "name": "soil-2026-11-05T17-30-58-601Z.csv",
+      "sha256": "ecda9bacc7e9e9850a9f5943b6205a2b1b0c1b873e9febf893bd8b7ba2ffa0ad"
+    },
+    {
+      "name": "soil-2026-11-05T17-33-25-717Z.csv",
+      "sha256": "3f8f6965dc4cf78526fe47b4586b5f11d58baded0eac1386a922d028600dce7c"
+    },
+    {
+      "name": "soil-2026-11-05T17-35-57-740Z.csv",
+      "sha256": "2daa102f78665ae939f83be609c1e7b5c562b4a6c730e0e5585c1de793d81f31"
+    },
+    {
+      "name": "soil-2026-11-05T17-37-43-240Z.csv",
+      "sha256": "95811ad707122e9a10b1a0e3575fc03197e29ee1368c272c4ef002e140481b29"
+    },
+    {
+      "name": "soil-2026-11-05T17-39-33-440Z.csv",
+      "sha256": "19dd4510e79040aa854562c9d065eddce5358483a9fd6184b9b20a6bf51fa235"
+    },
+    {
+      "name": "soil-2026-11-05T17-41-13-157Z.csv",
+      "sha256": "1b6345f088b6578eafa96f56b176eabe8afe09fa46e5fa9d356c2d71c6458074"
+    },
+    {
+      "name": "soil-2026-11-05T17-42-18-242Z.csv",
+      "sha256": "993b5eebf98c16a93e8215ccd49479ea13d6e1f0cb0ae14fad8a3c9f0c3cd774"
+    },
+    {
+      "name": "soil-2026-11-05T17-44-20-342Z.csv",
+      "sha256": "b72533bef5878fb6065ec25c22519a5bd00d653d5fb4a5ae5671ba3615a7b877"
+    },
+    {
+      "name": "soil-2026-11-05T17-46-49-910Z.csv",
+      "sha256": "a64d421317a43868787f1bf5042f8854ad0e82dea7faa702c03f6e6ea4a82891"
+    },
+    {
+      "name": "soil-2026-11-05T17-48-51-926Z.csv",
+      "sha256": "a2d1621e6e0bb9a8badaf990e1436d4ad8d7eea262f9a8133137c7e630cc46df"
+    },
+    {
+      "name": "soil-2026-11-05T17-50-44-694Z.csv",
+      "sha256": "27dcedc1e82816067ceaaee0aa505288db2e41863c34b453c62a0edc343298bb"
+    },
+    {
+      "name": "soil-2026-11-05T17-52-33-428Z.csv",
+      "sha256": "6a43bbb4fce9511a2ddc11d77c0ad181c3e52caa454d7f6201c44be5a8d7dd2c"
+    }
+  ],
+  "annotations": {
+    "soil-2026-11-05T17-41-13-157Z.csv": "loose_contact_confirmed; exclude entire run from calibration",
+    "soil-2026-11-05T17-37-43-240Z.csv": "immersion after start confirmed; first 3 seconds excluded from summary"
+  }
+}

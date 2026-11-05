@@ -70,7 +70,7 @@ static void test_sensor(void) {
     fixture_t f;
     setup(&c, &f);
     uint64_t t = 0;
-    sample(&c, 2900, 11, &t);
+    sample(&c, 2900, 80, &t);
     assert(c.soil.quality == SP_Q_OK && c.soil.index_pct == 5);
     assert(sp_core_can_water(&c, 30, true) == SP_OK);
     uint16_t spikes[] = {0, 2900, 2900, 2900, 2900, 2900, 2900, 2900, 4095};
@@ -80,7 +80,7 @@ static void test_sensor(void) {
     sp_core_sample(&c, noise, true, t);
     assert(c.soil.quality == SP_Q_FAULT);
     assert(sp_core_can_water(&c, 30, true) == SP_SENSOR_FAULT);
-    sample(&c, 2900, 11, &t);
+    sample(&c, 2900, 80, &t);
     tank(&c, t + 31000);
     sp_core_tick(&c, t + 31000);
     assert(sp_core_can_water(&c, 30, true) == SP_SENSOR_STALE);
@@ -93,7 +93,7 @@ static void test_sensor(void) {
     sample(&c, 1100, 20, &t);
     assert(c.soil.index_pct < 10);
     c.saved.config.dry_raw = c.saved.config.wet_raw = 0;
-    sample(&c, 2000, 1, &t);
+    sample(&c, 2000, 3, &t);
     assert(c.soil.quality == SP_Q_UNCALIBRATED);
 }
 static void test_commands(void) {
@@ -203,13 +203,13 @@ static void test_soak_and_config(void) {
     fixture_t f;
     setup(&c, &f);
     uint64_t t = 0;
-    sample(&c, 2900, 11, &t);
+    sample(&c, 2900, 80, &t);
     sp_result_t out;
     sp_request_t r = request(1, &c);
     assert(sp_core_command(&c, &r, true, &out) == SP_OK);
     sp_config_t cfg = c.saved.config;
     assert(!sp_core_configure(&c, &cfg, cfg.revision));
-    sample(&c, 2900, 261, &t);
+    sample(&c, 2900, 1221, &t);
     assert(c.saved.response_fault && !f.on);
     assert(sp_core_can_water(&c, 30, false) == SP_NO_RESPONSE);
     assert(sp_core_acknowledge_fault(&c));

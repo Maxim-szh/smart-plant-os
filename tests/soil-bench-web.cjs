@@ -1,0 +1,7 @@
+const {chromium}=require(process.cwd()+'/node_modules/playwright');
+(async()=>{const b=await chromium.launch({headless:true,...(process.env.BENCH_BROWSER ? {executablePath:process.env.BENCH_BROWSER} : {})});const p=await b.newPage({acceptDownloads:true});await p.goto('file://'+process.cwd()+'/tools/soil-bench-web/index.html');
+await p.evaluate(()=>{window.testDownloads=[];HTMLAnchorElement.prototype.click=function(){testDownloads.push(this.download)};accept({kind:'soil_bench',v:1,firmware:'bench-1',gpio:3,seq:1,device_ms:500,raw:[1,2,3,4,5,6,7,8,4095]});});
+await p.waitForTimeout(250);await p.click('#start');await p.evaluate(()=>{accept({kind:'soil_bench',v:1,firmware:'bench-1',gpio:3,seq:2,device_ms:1000,raw:[null,2,3,4,5,6,7,8,9]});finish('complete');});
+const r=await p.evaluate(()=>({count:runs.length,frames:runs[0].frames.length,raw:runs[0].frames[0].raw[0],download:testDownloads[0],outcome:runs[0].outcome}));if(r.count!==1||r.frames!==1||r.raw!==null||!r.download.endsWith('.csv'))throw Error(JSON.stringify(r));
+await p.evaluate(()=>{accept({kind:'soil_bench',v:1,firmware:'bench-1',gpio:3,seq:3,device_ms:1500,raw:Array(9).fill(400)});});await p.waitForTimeout(250);await p.click('#start');await p.evaluate(()=>accept({kind:'soil_bench',v:1,firmware:'bench-1',gpio:3,seq:0,device_ms:0,raw:Array(9).fill(400)}));
+const restart=await p.evaluate(()=>runs[1].outcome);if(restart!=='перезапуск платы')throw Error(restart);console.log('PASS: capture, null preservation, CSV download, restart abort');await b.close();})();
