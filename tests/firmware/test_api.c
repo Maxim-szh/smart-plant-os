@@ -10,6 +10,22 @@ static cJSON *response;
 static unsigned calls, radio_sends;
 static int status;
 static bool metadata_writable = true;
+static bool pause_requested, pause_writable = true, pause_readable = true;
+static int load_pause(void *ctx, const uint8_t device[6], const uint8_t plant[16]) {
+    (void)ctx;
+    (void)device;
+    (void)plant;
+    return pause_readable ? pause_requested : -1;
+}
+static bool save_pause(void *ctx, const uint8_t device[6], const uint8_t plant[16], bool requested) {
+    (void)ctx;
+    (void)device;
+    (void)plant;
+    if (!pause_writable)
+        return false;
+    pause_requested = requested;
+    return true;
+}
 static const uint8_t command[16] = {1, 2, 3, 4, 5, 6, 0x40, 8, 0x80, 10, 11, 12, 13, 14, 15, 16};
 static bool send_message(void *ctx, unsigned peer, const sp_message_t *m) {
     (void)ctx;
@@ -88,8 +104,12 @@ int main(void) {
     assert(sp_core_init(&core, NULL, save, NULL, NULL, 0));
     api.count = 1;
     api.nodes[0].device[5] = 1;
-    api.io = (sp_api_io_t){
-        .send = send_message, .reply = reply_message, .save_plant = save_plant, .set_time = time_set};
+    api.io = (sp_api_io_t){.send = send_message,
+                           .reply = reply_message,
+                           .save_plant = save_plant,
+                           .set_time = time_set,
+                           .load_care_pause = load_pause,
+                           .save_care_pause = save_pause};
     sp_api_tick(&api, 5000, SP_MIN_EPOCH_MS + 5000);
     request("GET", "state", NULL);
     assert(status == 503);
@@ -183,6 +203,77 @@ int main(void) {
     request("PUT", "plant", profile_body);
     assert(status == 200 && !api.nodes[0].plant.growth_stage[0]);
     assert(radio_sends == radio_calls && !memcmp(&core.saved, &safety_before, sizeof(safety_before)));
+    /* Care service is a persistent intent plus an acknowledged manual CONFIG, never a water command. */
+    assert(sp_core_init(&core, NULL, save, NULL, NULL, 30000));
+    sp_config_t cfg = core.saved.config;
+    cfg.dry_raw = 2900;
+    cfg.wet_raw = 1300;
+    cfg.flow_ul_s = 8000;
+    cfg.automatic = true;
+    assert(sp_core_configure(&core, &cfg, core.saved.config.revision));
+    sp_api_tick(&api, 30000, SP_MIN_EPOCH_MS + 30000);
+    sp_node_state(&core, &m);
+    sp_api_receive(&api, 0, 2, &m);
+    request("GET", "config", NULL);
+    assert(sp_node_dispatch(&core, &sent, &m));
+    sp_api_receive(&api, 0, 2, &m);
+    assert(status == 200);
+    const unsigned sends_before_pause = radio_sends;
+    request("GET", "care-service", NULL);
+    assert(status == 200 &&
+           !strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(response, "phase")), "inactive"));
+    request("POST", "care-service", "{\"schema_version\":1,\"action\":\"start\",\"revision\":4294967295}");
+    assert(status == 409 && radio_sends == sends_before_pause);
+    char pause_body[160];
+    snprintf(pause_body, sizeof(pause_body), "{\"schema_version\":1,\"action\":\"start\",\"revision\":%u}",
+             api.nodes[0].config.revision);
+    pause_writable = false;
+    request("POST", "care-service", pause_body);
+    assert(status == 503 && !pause_requested && radio_sends == sends_before_pause);
+    pause_writable = true;
+    request("POST", "care-service", pause_body);
+    assert(!status && pause_requested && sent.value[0] == SP_CONFIG && !sent.value[3]);
+    assert(api.nodes[0].proposed.dry_raw == cfg.dry_raw && api.nodes[0].proposed.flow_ul_s == cfg.flow_ul_s);
+    assert(sp_node_dispatch(&core, &sent, &m));
+    sp_api_receive(&api, 0, 2, &m);
+    assert(status == 200 && !core.saved.config.automatic);
+    assert(!strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(response, "phase")), "active"));
+    request("GET", "care-service", NULL);
+    assert(status == 200 &&
+           !strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(response, "phase")), "unverified"));
+    sp_node_state(&core, &m);
+    sp_api_receive(&api, 0, 2, &m);
+    request("GET", "config", NULL);
+    assert(sp_node_dispatch(&core, &sent, &m));
+    sp_api_receive(&api, 0, 2, &m);
+    cJSON *automatic_again = cJSON_Duplicate(response, true);
+    cJSON_ReplaceItemInObject(automatic_again, "mode", cJSON_CreateString("automatic_threshold"));
+    char *automatic_body = cJSON_PrintUnformatted(automatic_again);
+    sp_api_request_t blocked_config = {
+        .id = ++calls, .method = "PUT", .path = "/api/v1/nodes/spo-000000000001/config"};
+    snprintf(blocked_config.body, sizeof(blocked_config.body), "%s", automatic_body);
+    snprintf(blocked_config.if_match, sizeof(blocked_config.if_match), "%u", api.nodes[0].config.revision);
+    unsigned sends_before_block = radio_sends;
+    sp_api_handle(&api, &blocked_config);
+    assert(status == 409 && radio_sends == sends_before_block && !core.saved.config.automatic);
+    free(automatic_body);
+    cJSON_Delete(automatic_again);
+    const unsigned paused_sends = radio_sends;
+    snprintf(pause_body, sizeof(pause_body), "{\"schema_version\":1,\"action\":\"finish\",\"revision\":%u}",
+             api.nodes[0].config.revision);
+    request("POST", "care-service", pause_body);
+    assert(status == 200 && !pause_requested && !core.saved.config.automatic && radio_sends == paused_sends);
+    pause_requested = true;
+    pause_readable = false;
+    request("GET", "care-service", NULL);
+    assert(status == 503);
+    pause_readable = true;
+    sp_api_tick(&api, 60000, SP_MIN_EPOCH_MS + 60000);
+    request("GET", "care-service", NULL);
+    assert(status == 200 &&
+           !strcmp(cJSON_GetStringValue(cJSON_GetObjectItem(response, "phase")), "unverified"));
+    request("POST", "care-service", pause_body);
+    assert(status == 503 && pause_requested && !core.saved.config.automatic);
     cJSON_Delete(response);
     return 0;
 }

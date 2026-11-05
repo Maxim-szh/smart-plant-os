@@ -13,7 +13,7 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
   const req=route.request(),path=new URL(req.url()).pathname;
   const csp=path==='/demo.html'?"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'none'; form-action 'none'":"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; form-action 'self'";
   if(path==='/'||path==='/demo.html')return route.fulfill({contentType:'text/html',headers:{'Content-Security-Policy':csp},body:fs.readFileSync(path==='/'?'web/index.html':'web/demo.html','utf8')});
-  if(['/network.js','/plant-data.js','/garden.js','/care.js','/plants.js','/views.js','/system.js','/updates.js','/api.js','/app.js','/pairing.js','/demo.js','/style.css'].includes(path))return route.fulfill({contentType:path.endsWith('.css')?'text/css':'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
+  if(['/network.js','/plant-data.js','/garden.js','/care.js','/home.js','/plants.js','/views.js','/system.js','/updates.js','/api.js','/app.js','/pairing.js','/demo.js','/style.css'].includes(path))return route.fulfill({contentType:path.endsWith('.css')?'text/css':'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
   if(!path.startsWith('/api/v1/'))return route.fulfill({status:404,body:''});
   if(demo)apiInDemo++;
   if(path==='/api/v1/session'&&req.method()==='POST'){
@@ -39,12 +39,12 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
  await page.goto('https://smartplant.test/');await page.locator('#owner-login').waitFor();
  assert.equal(await page.locator('.pcard').count(),0);assert(!(await page.locator('#view').textContent()).includes('Черри'));
  await page.locator('#owner-key').fill('a'.repeat(64));await page.locator('#owner-login button').click();
- await page.locator('.addcard').waitFor();assert.equal(await page.locator('.pcard').count(),0);
+ await page.locator('.home-heading [data-action=add]').waitFor();assert.equal(await page.locator('.pcard').count(),0);
  await page.locator('[data-action=add]').first().click();await page.locator('#connect-search').waitFor();assert(await page.locator('#connect-login').isHidden());
  await page.locator('#connect-search').click();await page.locator('#connect-candidates button').click();assert.equal(searches,1);
  await page.waitForFunction(()=>document.querySelector('#connect-message').textContent.includes('Согласуем'));assert.equal(connects,1);
  state={...state,phase:'paired',pending:false};online=true;
- await page.waitForFunction(()=>document.querySelector('#connect-message').textContent.includes('Защищённая связь подтверждена'));
+ await page.locator('#brief-profile').waitFor();
  await page.locator('#connect-close').click();await page.locator('.pcard').click();await page.locator('[data-action=wizard]').click();await page.locator('#plant-name').fill('Монстера');await page.locator('#plant-room').fill('Гостиная');await page.locator('[data-profile-group=fruit]').click();await page.locator('[data-species=tomato-cherry]').click();await page.locator('[data-growth-stage=flower]').click();assert((await page.locator('#profile-preview').textContent()).includes('Цветение'));await page.locator('[data-profile-group=leaf]').click();await page.locator('[data-species=monstera]').click();assert.equal(await page.locator('[data-growth-stage=fruit]').count(),0);await page.locator('[data-growth-stage=adult]').click();assert.equal(await page.locator('#plant-name').inputValue(),'Монстера');await page.locator('#profile-save').click();
  await page.locator('[data-action=calibrate]').waitFor();assert.equal(metaWrites,1);assert.equal(metadata.species_id,'monstera');assert.equal(metadata.growth_stage,'adult');
  await page.locator('[data-action=calibrate]').click();await page.waitForFunction(()=>document.querySelector('#calibration-raw')?.textContent==='3000');

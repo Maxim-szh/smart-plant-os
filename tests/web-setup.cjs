@@ -10,7 +10,7 @@ const fs=require('node:fs');const assert=require('node:assert/strict');
   await page.route('**/*',async route=>{
    const request=route.request(),path=new URL(request.url()).pathname;
    if(path==='/')return route.fulfill({contentType:'text/html',body:fs.readFileSync('web/index.html','utf8')});
-   if(['/network.js','/plant-data.js','/garden.js','/plants.js','/views.js','/system.js','/care.js','/updates.js','/api.js'].includes(path))return route.fulfill({contentType:'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
+   if(['/network.js','/plant-data.js','/garden.js','/plants.js','/views.js','/system.js','/care.js','/home.js','/updates.js','/api.js'].includes(path))return route.fulfill({contentType:'application/javascript',body:fs.readFileSync('web'+path,'utf8')});
    if(path==='/style.css')return route.fulfill({contentType:'text/css',body:fs.readFileSync('web/style.css','utf8')});
    if(path==='/pairing.js')return route.fulfill({contentType:'application/javascript',body:fs.readFileSync('web/pairing.js','utf8')});
    if(path==='/app.js')return route.fulfill({contentType:'application/javascript',body:fs.readFileSync('web/app.js','utf8')});

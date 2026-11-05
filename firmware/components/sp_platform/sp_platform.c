@@ -187,6 +187,44 @@ static bool api_save_plant(void *ctx, const uint8_t device[6], const sp_plant_me
     (void)ctx;
     return sp_catalog_save(device, meta);
 }
+static void pause_key(const uint8_t device[6], char key[13]) {
+    snprintf(key, 13, "%02x%02x%02x%02x%02x%02x", device[0], device[1], device[2], device[3], device[4],
+             device[5]);
+}
+static int api_load_care_pause(void *ctx, const uint8_t device[6], const uint8_t plant[16]) {
+    (void)ctx;
+    nvs_handle_t handle;
+    esp_err_t err = nvs_open("care_pause", NVS_READONLY, &handle);
+    if (err == ESP_ERR_NVS_NOT_FOUND)
+        return 0;
+    if (err != ESP_OK)
+        return -1;
+    char key[13];
+    pause_key(device, key);
+    uint8_t blob[18];
+    size_t size = sizeof(blob);
+    err = nvs_get_blob(handle, key, blob, &size);
+    nvs_close(handle);
+    if (err == ESP_ERR_NVS_NOT_FOUND)
+        return 0;
+    if (err != ESP_OK || size != sizeof(blob) || blob[0] != 1 || blob[17] > 1)
+        return -1;
+    return memcmp(blob + 1, plant, 16) ? 0 : blob[17];
+}
+static bool api_save_care_pause(void *ctx, const uint8_t device[6], const uint8_t plant[16], bool requested) {
+    (void)ctx;
+    nvs_handle_t handle;
+    if (nvs_open("care_pause", NVS_READWRITE, &handle) != ESP_OK)
+        return false;
+    uint8_t blob[18] = {1};
+    memcpy(blob + 1, plant, 16);
+    blob[17] = requested;
+    char key[13];
+    pause_key(device, key);
+    bool ok = nvs_set_blob(handle, key, blob, sizeof(blob)) == ESP_OK && nvs_commit(handle) == ESP_OK;
+    nvs_close(handle);
+    return ok;
+}
 static bool save_core(void *ctx, const sp_persist_t *p) {
     (void)ctx;
     return nvs_set_blob(journal, "state_v1", p, sizeof(*p)) == ESP_OK && nvs_commit(journal) == ESP_OK;
@@ -529,8 +567,12 @@ void sp_platform_run(bool hub) {
         if (api) {
             api->count = identity.count;
             api->history = history_store;
-            api->io = (sp_api_io_t){
-                .send = api_send, .reply = sp_web_reply, .save_plant = api_save_plant, .set_time = api_time};
+            api->io = (sp_api_io_t){.send = api_send,
+                                    .reply = sp_web_reply,
+                                    .save_plant = api_save_plant,
+                                    .set_time = api_time,
+                                    .load_care_pause = api_load_care_pause,
+                                    .save_care_pause = api_save_care_pause};
             for (unsigned i = 0; i < identity.count; i++) {
                 memcpy(api->nodes[i].device, identity.peers[i].device, 6);
             }

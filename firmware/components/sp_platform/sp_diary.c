@@ -152,7 +152,10 @@ bool sp_diary_handle(const sp_api_request_t *q) {
     const char *tail = NULL;
     uint8_t plant[16] = {0};
     bool reminders = !strncmp(q->path, "/api/v1/reminders", 17) && (q->path[17] == 0 || q->path[17] == '?');
-    if (reminders)
+    bool all = !strncmp(q->path, "/api/v1/diary", 13) && (q->path[13] == 0 || q->path[13] == '?');
+    if (all)
+        tail = q->path + 13;
+    else if (reminders)
         tail = q->path + 17;
     else if (!strncmp(q->path, prefix, strlen(prefix)) && strlen(q->path) >= strlen(prefix) + 42) {
         char id[37];
@@ -170,7 +173,7 @@ bool sp_diary_handle(const sp_api_request_t *q) {
         error(q, 503, "care_unavailable");
         return true;
     }
-    if (!reminders && (!io.plant_exists || !io.plant_exists(io.ctx, plant))) {
+    if (!reminders && !all && (!io.plant_exists || !io.plant_exists(io.ctx, plant))) {
         error(q, 404, "plant_not_found");
         return true;
     }
@@ -208,7 +211,8 @@ bool sp_diary_handle(const sp_api_request_t *q) {
         bool more = false;
         for (unsigned i = 0; i < store->count; i++) {
             entry_t *e = &store->rows[i];
-            if (e->seq <= after || (reminders ? (e->kind != 6 || e->done) : memcmp(e->plant, plant, 16) != 0))
+            if (e->seq <= after ||
+                (reminders ? (e->kind != 6 || e->done) : !all && memcmp(e->plant, plant, 16) != 0))
                 continue;
             if (count == limit) {
                 more = true;
@@ -223,7 +227,7 @@ bool sp_diary_handle(const sp_api_request_t *q) {
         sp_web_reply(NULL, q->id, 200, out);
         return true;
     }
-    if (reminders) {
+    if (reminders || all) {
         error(q, 405, "method_not_allowed");
         return true;
     }

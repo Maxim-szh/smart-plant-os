@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://smartplantos.local/spec/experience/v1/schema.json",
+  "$defs": {
+    "CareServiceRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "action",
+        "revision"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "action": {
+          "enum": [
+            "start",
+            "finish"
+          ]
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      }
+    },
+    "CareService": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "device_id",
+        "plant_id",
+        "requested",
+        "phase",
+        "config_revision",
+        "mode"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": 1
+        },
+        "device_id": {
+          "type": "string",
+          "pattern": "^spo-[a-f0-9]{12}$"
+        },
+        "plant_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requested": {
+          "type": "boolean"
+        },
+        "phase": {
+          "enum": [
+            "inactive",
+            "active",
+            "pending",
+            "unverified"
+          ]
+        },
+        "config_revision": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "mode": {
+          "enum": [
+            "manual",
+            "automatic_threshold",
+            null
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "requested": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "phase": {
+                "const": "inactive"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "const": "active"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "requested": {
+                "const": true
+              },
+              "mode": {
+                "const": "manual"
+              },
+              "config_revision": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "const": "unverified"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "requested": {
+                "const": true
+              },
+              "mode": {
+                "type": "null"
+              },
+              "config_revision": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "phase": {
+                "const": "inactive"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "requested": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
