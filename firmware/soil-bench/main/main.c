@@ -20,12 +20,16 @@ void app_main(void) {
             raw[i] = adc_oneshot_read(adc, ADC_CHANNEL_3, &value) == ESP_OK ? value : -1;
         }
         char line[320];
-        int n = snprintf(line, sizeof line,
-            "{\"kind\":\"soil_bench\",\"v\":1,\"firmware\":\"bench-1\",\"gpio\":3,\"seq\":%" PRIu32 ",\"device_ms\":%" PRId64 ",\"raw\":[",
-            seq++, esp_timer_get_time() / 1000);
+        int n =
+            snprintf(line, sizeof line,
+                     "{\"kind\":\"soil_bench\",\"v\":1,\"firmware\":\"bench-1\",\"gpio\":3,\"seq\":%" PRIu32
+                     ",\"device_ms\":%" PRId64 ",\"raw\":[",
+                     seq++, esp_timer_get_time() / 1000);
         for (unsigned i = 0; i < 9; i++) {
-            if (raw[i] < 0) n += snprintf(line + n, sizeof line - n, "%snull", i ? "," : "");
-            else n += snprintf(line + n, sizeof line - n, "%s%d", i ? "," : "", raw[i]);
+            if (raw[i] < 0)
+                n += snprintf(line + n, sizeof line - n, "%snull", i ? "," : "");
+            else
+                n += snprintf(line + n, sizeof line - n, "%s%d", i ? "," : "", raw[i]);
         }
         snprintf(line + n, sizeof line - n, "]}");
         puts(line);
