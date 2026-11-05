@@ -6,7 +6,21 @@
  const stages=id=>data.stages[get(id)?.group]||[['seed','Росток'],['grow','Рост'],['adult','Взрослое'],['flower','Цветение'],['fruit','Плодоношение'],['rest','Покой']];
  const stageLabel=(id,stage)=>stages(id).find(s=>s[0]===stage)?.[1]||'Стадия не указана';
  const name=id=>get(id)?.name||(id?'Другой вид':'Вид не выбран');
+
+ function mountBrief(o){
+  const host=o.host,esc=o.escape,meta=o.meta;let busy=false,blocked=false;
+  host.innerHTML=`<form id="brief-profile"><h3 class="disp">Карточка растения</h3><div class="fld"><label for="brief-name">Имя растения</label><input class="inp" id="brief-name" value="${esc(meta.name)}" maxlength="80" required></div><div class="fld"><label for="brief-room">Комната</label><input class="inp" id="brief-room" value="${esc(meta.room||'')}" maxlength="80" list="brief-rooms"><datalist id="brief-rooms">${o.rooms.map(r=>`<option value="${esc(r)}"></option>`).join('')}</datalist></div><div class="fld"><label for="brief-species">Вид растения</label><select class="inp" id="brief-species"><option value="">Укажу позже</option>${data.plants.map(p=>`<option value="${p.id}" ${get(meta.species_id)?.id===p.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div><div id="brief-preview" class="brief-preview"></div><p class="note">Стадию роста, датчики и полив можно настроить позже в карточке растения.</p><button class="btn pri big" id="brief-save">Сохранить растение</button><p id="brief-message" class="note" role="status"></p></form>`;
+  const $=s=>host.querySelector(s),f=$('#brief-profile'),paint=()=>{$('#brief-preview').innerHTML=o.art($('#brief-species').value,null);};paint();window.SPDrafts.watch(f);
+  $('#brief-species').onchange=()=>{if($('#brief-name').value===meta.name&&!meta.species_id)$('#brief-name').value=get($('#brief-species').value)?.name||meta.name;paint();};
+  f.onsubmit=async e=>{e.preventDefault();if(busy||blocked)return;const name=$('#brief-name').value.trim(),room=$('#brief-room').value.trim(),species_id=$('#brief-species').value||null;if(!name||new TextEncoder().encode(name).length>80||new TextEncoder().encode(room).length>80){$('#brief-message').textContent='Имя и комната должны занимать не больше 80 байт.';return;}busy=true;window.SPDrafts.pending(f,true);f.querySelectorAll('button,input,select').forEach(x=>x.disabled=true);
+   try{await o.api.request(`/nodes/${o.device}/plant`,'PUT',{schema_version:1,revision:meta.revision,name,room,species_id,growth_stage:species_id===meta.species_id?meta.growth_stage||null:null,setup_stage:meta.setup_stage});await o.onSaved();}
+   catch(e){blocked=e.status===409||e.uncertain;if($('#brief-message'))$('#brief-message').textContent=e.status===409?'Карточка уже изменена. Откройте её заново перед сохранением.':o.api.message(e);}
+   finally{busy=false;window.SPDrafts.pending(f,false);f.querySelectorAll('button,input,select').forEach(x=>x.disabled=false);if($('#brief-save'))$('#brief-save').disabled=blocked;}
+  };
+ }
+
  function mount(o){
+  if(o.compact)return mountBrief(o);
   const esc=o.escape,host=o.host,meta=o.meta,draft={name:meta.name,room:meta.room||'',species_id:meta.species_id,growth_stage:o.initialStage&&stages(meta.species_id).some(s=>s[0]===o.initialStage)?o.initialStage:meta.growth_stage||null};let group=get(meta.species_id)?.group||'all',saving=false,blocked=false;
   host.innerHTML=`<form id="profile-form"><div class="fld"><label for="plant-name">Имя растения</label><input class="inp" id="plant-name" value="${esc(draft.name)}" maxlength="80" required autocomplete="off"></div><div class="fld"><label for="plant-room">Комната</label><input class="inp" id="plant-room" value="${esc(draft.room)}" maxlength="80" list="profile-rooms"><datalist id="profile-rooms">${o.rooms.map(r=>`<option value="${esc(r)}"></option>`).join('')}</datalist></div><section class="grp"><h2>Выберите растение</h2><div class="chips" id="profile-groups" role="group" aria-label="Группа растений"></div><div id="profile-picker" class="profile-picker"></div><button type="button" class="chip" data-species="" id="profile-other">Другое растение</button></section><section class="grp"><h2>Стадия роста</h2><div class="chips" id="profile-stages" role="group" aria-label="Стадия роста"></div><p class="note">Выберите стадию по внешнему виду растения. Датчики её не определяют.</p></section><section class="grp"><h2>Так будет выглядеть карточка</h2><div id="profile-preview" aria-live="polite"></div></section><p class="note">Вид и стадия не меняют настройки полива.</p><button class="btn pri big" id="profile-save">${o.continueSetup?'Сохранить и перейти к датчикам':'Сохранить растение'}</button><p class="note" id="profile-message" role="status"></p></form>`;
   const $=s=>host.querySelector(s);
@@ -28,7 +42,7 @@
    saving=true;window.SPDrafts?.pending($('#profile-form'),true);host.querySelectorAll('button,input').forEach(x=>x.disabled=true);$('#profile-message').textContent='Сохраняем на Hub…';
    try{await o.api.request(`/nodes/${o.device}/plant`,'PUT',{schema_version:1,revision:meta.revision,name,room,species_id:draft.species_id,growth_stage:draft.growth_stage,setup_stage:o.continueSetup?2:meta.setup_stage||0});await o.onSaved();}
    catch(err){blocked=err.status===409||err.uncertain;$('#profile-message').textContent=err.code==='revision_conflict'?'Растение уже изменено в другом окне. Закройте редактор и откройте его снова.':o.api.message(err);}
-   finally{saving=false;window.SPDrafts?.pending($('#profile-form'),false);host.querySelectorAll('button,input').forEach(x=>x.disabled=false);$('#profile-save').disabled=blocked;}
+   finally{saving=false;window.SPDrafts?.pending($('#profile-form'),false);host.querySelectorAll('button,input').forEach(x=>x.disabled=false);const saveButton=$('#profile-save');if(saveButton)saveButton.disabled=blocked;}
   };paint();window.SPDrafts?.watch($('#profile-form'),()=>{read();return JSON.stringify(draft);},JSON.stringify({name:meta.name,room:meta.room||'',species_id:meta.species_id,growth_stage:meta.growth_stage||null}));
  }
  window.SPPlants={get,stages,stageLabel,name,mount};

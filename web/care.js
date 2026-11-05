@@ -72,5 +72,5 @@
  new MutationObserver(observe).observe(document.body,{childList:true,subtree:true});
  window.addEventListener('beforeunload',e=>{if([...drafts.keys()].some(dirty)){e.preventDefault();e.returnValue='';}});
  document.addEventListener('click',e=>{const a=e.target.closest('a[href]');if(!a)return;const d=[...drafts.keys()].find(dirty);if(d){e.preventDefault();e.stopImmediatePropagation();confirmLeave(()=>{window.location.href=a.href;},d);}},true);
- window.SPDrafts={watch,clean,dirty,attempt(d,action){confirmLeave(action,d);},pending(root,value){const d=root.closest('dialog');for(const x of drafts.get(d)||[])if(x.root===root)x.pending=value;if(prompt?.open){prompt.querySelector('#unsaved-discard').disabled=!!value;}},forget(root){const d=root.closest('dialog');drafts.set(d,(drafts.get(d)||[]).filter(x=>x.root!==root));}};
+ window.SPDrafts={watch,clean,dirty,attempt(d,action){confirmLeave(action,d);},pending(root,value){if(!root)return;const d=root.closest('dialog');for(const x of drafts.get(d)||[])if(x.root===root)x.pending=value;if(prompt?.open){prompt.querySelector('#unsaved-discard').disabled=!!value;}},forget(root){const d=root.closest('dialog');drafts.set(d,(drafts.get(d)||[]).filter(x=>x.root!==root));}};
 })();

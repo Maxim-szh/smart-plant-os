@@ -1,0 +1,35 @@
+'use strict';
+/* Isolated test data. Never embedded in firmware or included by the real web app. */
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
+function createPreview(){
+ const state={plants:[],entries:[],service:new Map(),writes:[],online:true,pairing:{phase:'idle',selected_device_id:null,candidates:[],pending:false,remaining_seconds:30},next:4,serviceUnknown:false};
+ const make=(i,name,room,species)=>({schema_version:1,device_id:'spo-'+i.toString(16).padStart(12,'0'),plant_id:`01020304-0506-4008-800a-${i.toString(16).padStart(12,'0')}`,name,room,species_id:species,growth_stage:'adult',setup_stage:3,revision:0,config:{...JSON.parse(fs.readFileSync('spec/v1/examples/config.json')),mode:i===1?'automatic_threshold':'manual',revision:0}});
+ state.plants=[make(1,'Монстера','Гостиная','monstera'),make(2,'Фикус','Гостиная','ficus-elastica'),make(3,'Лимон «Павловский»','Кухня','lemon')];
+ const json=(res,data,status=200)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
+ const fail=(res,code,status=409)=>json(res,{error:{code,message:code}},status);
+ const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost'),p=url.pathname;let text='';for await(const chunk of req){text+=chunk;if(text.length>20000)return fail(res,'body_too_large',413);}const body=text?JSON.parse(text):{};
+  if(!p.startsWith('/api/v1/')){const rel=p==='/'?'index.html':p.slice(1),file=path.resolve('web',rel);if(!file.startsWith(path.resolve('web')+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}const ext=path.extname(file),types={'.js':'application/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2','.html':'text/html','.webmanifest':'application/manifest+json'};res.writeHead(200,{'Content-Type':types[ext]||'application/octet-stream','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; img-src 'self' data:; form-action 'self'"});fs.createReadStream(file).pipe(res);return;}
+  if(req.method!=='GET')state.writes.push({path:p,body});
+  if(p==='/api/v1/nodes')return json(res,{schema_version:1,nodes:state.plants.map(x=>({device_id:x.device_id,plant_id:x.plant_id,display_name:x.name,room:x.room,setup_stage:x.setup_stage,online:state.online,last_seen_at:new Date().toISOString()}))});
+  if(p==='/api/v1/plants')return json(res,{schema_version:1,plants:state.plants.map(({config,...x})=>({...x,controller_history:[]}))});
+  if(p==='/api/v1/time')return json(res,{schema_version:1,clock_state:'synced',utc_ms:Date.now()});
+  if(p==='/api/v1/updates')return json(res,{schema_version:1,firmware_version:'0.5.0-abi1',profile:'n8r2',data_abi:1,layout:'ota-v1',phase:'idle',active:false,verifying:false,validated:true});
+  if(p==='/api/v1/setup/pairing/search'){state.pairing.phase='searching';state.pairing.candidates=[{device_id:'spo-'+state.next.toString(16).padStart(12,'0'),model:'ESP32-C3'}];return json(res,{schema_version:1});}
+  if(p==='/api/v1/setup/pairing/connect'){const x=make(state.next++,'Новое растение','','');x.device_id=body.device_id;x.setup_stage=0;state.plants.push(x);state.pairing={...state.pairing,phase:'paired',selected_device_id:x.device_id,candidates:[]};return json(res,{schema_version:1},202);}
+  if(p==='/api/v1/setup/pairing')return json(res,{schema_version:1,...state.pairing});
+  const match=p.match(/^\/api\/v1\/nodes\/(spo-[a-f0-9]{12})\/(.+)$/);
+  if(match){const x=state.plants.find(n=>n.device_id===match[1]);if(!x)return fail(res,'not_found',404);const suffix=match[2];
+   if(suffix==='device')return json(res,{schema_version:1,device_id:x.device_id,api_version:'1.0',firmware_version:'0.4.0',capabilities:{hardware_known:true,soil_configured:false,tank_sensor:false,pump:false,ota:true,sensors:[]}});
+   if(suffix==='state')return json(res,{...JSON.parse(fs.readFileSync('spec/v1/examples/state-clock-unset.json')),device_id:x.device_id,revision:x.config.revision,clock_state:'synced',soil:{quality:'missing',raw_adc:null,soil_index_pct:null,sample_age_ms:null},watering:{mode:x.config.mode,active_command_id:null,daily_estimated_ml:0},availability:{online:state.online,last_seen_age_ms:0},last_decision:{reason_code:'hardware_fault'}});
+   if(suffix==='plant'){if(req.method==='PUT'){if(body.revision!==x.revision)return fail(res,'revision_conflict');Object.assign(x,body,{revision:x.revision+1});}const {config,device_id,plant_id,...meta}=x;return json(res,meta);}
+   if(suffix==='config'){if(req.method==='PUT'){if(body.revision!==x.config.revision)return fail(res,'config_rejected');x.config={...body,revision:x.config.revision+1};}return json(res,{...x.config,schema_version:1,device_id:x.device_id,plant_id:x.plant_id,plant_name:x.name,species_id:x.species_id||null});}
+   if(suffix==='care-service'){if(req.method==='POST'){if(!state.online)return fail(res,'node_offline',503);if(body.revision!==x.config.revision)return fail(res,'revision_conflict');if(body.action==='start'){state.service.set(x.device_id,true);if(x.config.mode!=='manual')x.config={...x.config,mode:'manual',revision:x.config.revision+1};}else state.service.set(x.device_id,false);if(state.serviceUnknown){state.serviceUnknown=false;return fail(res,'request_outcome_unknown',503);}}const requested=!!state.service.get(x.device_id);return json(res,{schema_version:1,device_id:x.device_id,plant_id:x.plant_id,requested,phase:!requested?'inactive':!state.online?'unverified':x.config.mode==='manual'?'active':'pending',mode:state.online?x.config.mode:null,config_revision:state.online?x.config.revision:null});}
+   if(suffix.startsWith('events'))return json(res,{schema_version:1,events:[],next_cursor:0});
+  }
+  const diary=p.match(/^\/api\/v1\/plants\/([^/]+)\/diary(?:\/([^/]+))?$/);
+  if(p==='/api/v1/diary'||p==='/api/v1/reminders'||diary){if(req.method==='POST'&&diary){const exists=state.entries.find(e=>e.entry_id===body.entry_id);if(exists)return json(res,exists);const e={...body,plant_id:diary[1],seq:state.entries.length+1,revision:0,done:false};state.entries.push(e);return json(res,e);}if(req.method==='PUT'&&diary){const e=state.entries.find(e=>e.entry_id===diary[2]);if(!e||e.revision!==body.revision)return fail(res,'revision_conflict');Object.assign(e,{done:body.done,revision:e.revision+1});return json(res,e);}const entries=state.entries.filter(e=>(!diary||e.plant_id===diary[1])&&(p!=='/api/v1/reminders'||e.kind==='reminder'&&!e.done));return json(res,{schema_version:1,entries,next_cursor:entries.at(-1)?.seq||0,has_more:false});}
+  return fail(res,'not_found',404);
+ }catch(e){return fail(res,'mock_error',500);}});
+ return {server,state,listen:port=>new Promise(resolve=>server.listen(port||0,'127.0.0.1',()=>resolve('http://127.0.0.1:'+server.address().port))),close:()=>new Promise(resolve=>server.close(resolve))};
+}
+module.exports={createPreview};if(require.main===module){const p=createPreview();p.listen(4075).then(url=>console.log('Isolated UI preview: '+url));}

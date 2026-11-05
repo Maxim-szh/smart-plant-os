@@ -1,0 +1,11 @@
+import Ajv from 'ajv/dist/2020.js';
+import addFormats from 'ajv-formats';
+import {readFileSync,readdirSync} from 'node:fs';
+import assert from 'node:assert/strict';
+const ajv=new Ajv({strict:true});addFormats(ajv);const schema=JSON.parse(readFileSync('spec/experience/v1/schema.json'));ajv.addSchema(schema);
+const status=ajv.compile({$ref:schema.$id+'#/$defs/CareService'}),request=ajv.compile({$ref:schema.$id+'#/$defs/CareServiceRequest'});
+const sample={schema_version:1,device_id:'spo-010203040506',plant_id:'01020304-0506-4008-800a-0b0c0d0e0f10',requested:true,phase:'active',config_revision:3,mode:'manual'};
+assert(status(sample));assert(!status({...sample,mode:'automatic_threshold'}));assert(!status({...sample,requested:false}));assert(!status({...sample,extra:true}));assert(status({...sample,phase:'unverified',config_revision:null,mode:null}));
+assert(request({schema_version:1,action:'start',revision:0}));assert(!request({schema_version:1,action:'resume',revision:0}));assert(!request({schema_version:1,action:'finish',revision:0,automatic:true}));
+assert.equal(readdirSync('web/fonts').filter(x=>x.endsWith('.woff2')).length,4);const css=readFileSync('web/fonts/faces.css','utf8');assert(!css.includes('https://'));assert(!readFileSync('web/index.html','utf8').includes('fonts.googleapis.com'));
+console.log('PASS: care-service contracts, contradictory states rejected and four offline font assets');

@@ -178,6 +178,34 @@ static cJSON *sensor_array(const sp_api_t *a, const sp_api_node_t *n, bool sampl
         }
     return arr;
 }
+static cJSON *care_service_json(const sp_api_t *a, const sp_api_node_t *n, bool confirmed) {
+    int requested = a->io.load_care_pause ? a->io.load_care_pause(a->io.ctx, n->device, n->plant.plant) : -1;
+    if (requested < 0)
+        return NULL;
+    bool current =
+        sp_registry_online(&n->registry, a->now) && n->have_config &&
+        (confirmed || (n->registry.have_state && n->registry.state.value[13] == n->config.revision &&
+                       !!n->registry.state.value[20] == n->config.automatic));
+    const char *phase = !requested                                           ? "inactive"
+                        : !current                                           ? "unverified"
+                        : n->config.automatic || n->registry.state.value[12] ? "pending"
+                                                                             : "active";
+    cJSON *o = obj();
+    identity(o, n);
+    char id[37];
+    sp_api_uuid(n->plant.plant, id);
+    str(o, "plant_id", id);
+    cJSON_AddBoolToObject(o, "requested", requested != 0);
+    str(o, "phase", phase);
+    if (current) {
+        num(o, "config_revision", n->config.revision);
+        str(o, "mode", n->config.automatic ? "automatic_threshold" : "manual");
+    } else {
+        cJSON_AddNullToObject(o, "config_revision");
+        cJSON_AddNullToObject(o, "mode");
+    }
+    return o;
+}
 static cJSON *device_json(const sp_api_t *a, const sp_api_node_t *n) {
     cJSON *o = obj();
     identity(o, n);
@@ -321,6 +349,7 @@ void sp_api_timeout(sp_api_t *a, unsigned peer) {
     if (peer < a->count && a->nodes[peer].request_id) {
         error(a, a->nodes[peer].request_id, 503, "request_outcome_unknown");
         a->nodes[peer].request_id = 0;
+        a->nodes[peer].care_service_reply = false;
     }
 }
 void sp_api_receive(sp_api_t *a, unsigned peer, uint32_t boot, const sp_message_t *m) {
@@ -415,21 +444,28 @@ void sp_api_receive(sp_api_t *a, unsigned peer, uint32_t boot, const sp_message_
         } else
             error(a, n->request_id, 503, "invalid_node_response");
         n->request_id = 0;
+        n->care_service_reply = false;
     } else if (kind == SP_CONFIG_RESULT && n->request_kind == SP_CONFIG) {
         if (m->present != ((1u << 0) | (1u << 13) | (1u << 23) | (1u << 24)) || m->value[13] > UINT32_MAX ||
             m->value[23] > 1) {
             error(a, n->request_id, 503, "invalid_node_response");
             n->request_id = 0;
+            n->care_service_reply = false;
             return;
         }
         if (!m->value[23]) {
             n->config = n->proposed;
             n->config.revision = m->value[13];
             n->have_config = true;
-            reply(a, n->request_id, 200, config_json(n));
+            cJSON *out = n->care_service_reply ? care_service_json(a, n, true) : config_json(n);
+            if (out)
+                reply(a, n->request_id, 200, out);
+            else
+                error(a, n->request_id, 503, "care_service_unavailable");
         } else
             error(a, n->request_id, m->value[13] != n->proposed.revision ? 409 : 422, "config_rejected");
         n->request_id = 0;
+        n->care_service_reply = false;
     }
 }
 static bool submit(sp_api_t *a, unsigned peer, const sp_api_request_t *r, const sp_message_t *m) {
@@ -681,6 +717,18 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         goto done;
     }
     sp_api_node_t *n = &a->nodes[peer];
+    if (get && !strcmp(route, "care-service")) {
+        if (!n->have_plant) {
+            error(a, r->id, 503, "identity_pending");
+            goto done;
+        }
+        cJSON *out = care_service_json(a, n, false);
+        if (out)
+            reply(a, r->id, 200, out);
+        else
+            error(a, r->id, 503, "care_service_unavailable");
+        goto done;
+    }
     if (get && !strcmp(route, "device")) {
         reply(a, r->id, 200, device_json(a, n));
         goto done;
@@ -778,6 +826,60 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         goto done;
     }
     sp_message_t m;
+    if (post && !strcmp(route, "care-service")) {
+        const char *const allowed[] = {"schema_version", "action", "revision"};
+        uint64_t v, revision;
+        const char *action = text(body, "action");
+        if (!keys(body, allowed, 3) || !integer(body, "schema_version", 1, 1, &v) ||
+            !integer(body, "revision", 0, UINT32_MAX, &revision) || !action ||
+            (strcmp(action, "start") && strcmp(action, "finish"))) {
+            error(a, r->id, 422, "care_service_invalid");
+            goto done;
+        }
+        if (!n->have_config || n->config.revision != revision) {
+            error(a, r->id, 409, "revision_conflict");
+            goto done;
+        }
+        if (n->request_id || !n->registry.have_state || n->registry.state.value[12]) {
+            error(a, r->id, 409, "care_service_busy");
+            goto done;
+        }
+        bool start = !strcmp(action, "start");
+        bool current = n->registry.state.value[13] == n->config.revision &&
+                       !!n->registry.state.value[20] == n->config.automatic;
+        if ((!start || !n->config.automatic) && (!current || n->config.automatic)) {
+            error(a, r->id, 409, "care_service_unverified");
+            goto done;
+        }
+        if (!a->io.load_care_pause || a->io.load_care_pause(a->io.ctx, n->device, n->plant.plant) < 0 ||
+            !a->io.save_care_pause || !a->io.save_care_pause(a->io.ctx, n->device, n->plant.plant, start)) {
+            error(a, r->id, 503, "care_service_unavailable");
+            goto done;
+        }
+        if (!start || !n->config.automatic) {
+            cJSON *out = care_service_json(a, n, true);
+            if (out)
+                reply(a, r->id, 200, out);
+            else
+                error(a, r->id, 503, "care_service_unavailable");
+            goto done;
+        }
+        sp_config_t proposed = n->config;
+        proposed.automatic = false;
+        sp_config_message(&proposed, &m);
+        uint8_t id[16] = {0};
+        memcpy(id, n->device, 6);
+        id[6] = 0x40;
+        id[8] = 0x80;
+        for (unsigned i = 0; i < 4; i++)
+            id[12 + i] = (uint8_t)(r->id >> (24 - 8 * i));
+        sp_message_bytes(&m, 24, id);
+        if (submit(a, peer, r, &m)) {
+            n->proposed = proposed;
+            n->care_service_reply = true;
+        }
+        goto done;
+    }
     if (get && !strcmp(route, "config")) {
         sp_message_init(&m, SP_CONFIG_GET);
         submit(a, peer, r, &m);
@@ -788,6 +890,14 @@ void sp_api_handle(sp_api_t *a, const sp_api_request_t *r) {
         if (!parse_config(n, body, r->if_match, &proposed)) {
             error(a, r->id, 422, "config_invalid");
             goto done;
+        }
+        if (proposed.automatic && a->io.load_care_pause) {
+            int paused = a->io.load_care_pause(a->io.ctx, n->device, n->plant.plant);
+            if (paused != 0) {
+                error(a, r->id, paused < 0 ? 503 : 409,
+                      paused < 0 ? "care_service_unavailable" : "care_service_active");
+                goto done;
+            }
         }
         sp_config_message(&proposed, &m);
         uint8_t id[16] = {0};

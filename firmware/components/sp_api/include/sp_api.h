@@ -50,6 +50,7 @@ typedef struct {
     unsigned request_kind;
     sp_message_t request;
     sp_config_t proposed;
+    bool care_service_reply;
 } sp_api_node_t;
 typedef struct {
     void *ctx;
@@ -57,6 +58,8 @@ typedef struct {
     void (*reply)(void *, uint32_t request, int status, cJSON *owned_json);
     bool (*save_plant)(void *, const uint8_t device[6], const sp_plant_meta_t *);
     bool (*set_time)(void *, uint64_t utc_ms);
+    int (*load_care_pause)(void *, const uint8_t device[6], const uint8_t plant[16]);
+    bool (*save_care_pause)(void *, const uint8_t device[6], const uint8_t plant[16], bool requested);
 } sp_api_io_t;
 typedef struct {
     unsigned count;

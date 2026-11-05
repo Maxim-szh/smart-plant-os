@@ -105,6 +105,13 @@ int main(void) {
     assert(sp_diary_start(dio));
     diary_request("GET", "?after=0&limit=32", NULL);
     assert(status == 200 && cJSON_GetArraySize(cJSON_GetObjectItem(reply, "entries")) == 1);
+    sp_api_request_t all_diary = {.method = "GET", .path = "/api/v1/diary?after=0&limit=32"};
+    unsigned reads_before = writes;
+    assert(sp_diary_handle(&all_diary));
+    assert(status == 200 && cJSON_GetArraySize(cJSON_GetObjectItem(reply, "entries")) == 1 &&
+           writes == reads_before);
+    snprintf(all_diary.method, sizeof(all_diary.method), "POST");
+    assert(sp_diary_handle(&all_diary) && status == 405 && writes == reads_before);
     fail = true;
     diary_request("PUT", "/11020304-0506-4008-800a-0b0c0d0e0f10", "{\"revision\":0,\"done\":true}");
     assert(status == 503);

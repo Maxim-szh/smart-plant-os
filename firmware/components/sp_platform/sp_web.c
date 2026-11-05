@@ -54,6 +54,18 @@ extern const uint8_t garden_js_start[] asm("_binary_garden_js_start");
 extern const uint8_t garden_js_end[] asm("_binary_garden_js_end");
 extern const uint8_t care_js_start[] asm("_binary_care_js_start");
 extern const uint8_t care_js_end[] asm("_binary_care_js_end");
+extern const uint8_t home_js_start[] asm("_binary_home_js_start");
+extern const uint8_t home_js_end[] asm("_binary_home_js_end");
+extern const uint8_t faces_css_start[] asm("_binary_faces_css_start");
+extern const uint8_t faces_css_end[] asm("_binary_faces_css_end");
+extern const uint8_t onest_latin_woff2_start[] asm("_binary_onest_latin_woff2_start");
+extern const uint8_t onest_latin_woff2_end[] asm("_binary_onest_latin_woff2_end");
+extern const uint8_t onest_cyrillic_woff2_start[] asm("_binary_onest_cyrillic_woff2_start");
+extern const uint8_t onest_cyrillic_woff2_end[] asm("_binary_onest_cyrillic_woff2_end");
+extern const uint8_t literata_latin_woff2_start[] asm("_binary_literata_latin_woff2_start");
+extern const uint8_t literata_latin_woff2_end[] asm("_binary_literata_latin_woff2_end");
+extern const uint8_t literata_cyrillic_woff2_start[] asm("_binary_literata_cyrillic_woff2_start");
+extern const uint8_t literata_cyrillic_woff2_end[] asm("_binary_literata_cyrillic_woff2_end");
 extern const uint8_t plants_js_start[] asm("_binary_plants_js_start");
 extern const uint8_t plants_js_end[] asm("_binary_plants_js_end");
 extern const uint8_t views_js_start[] asm("_binary_views_js_start");
@@ -412,6 +424,24 @@ static esp_err_t handle(httpd_req_t *r) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
         return httpd_resp_send(r, (const char *)care_js_start, care_js_end - care_js_start);
     }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/home.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return httpd_resp_send(r, (const char *)home_js_start, home_js_end - home_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/fonts/faces.css")) {
+        httpd_resp_set_type(r, "text/css; charset=utf-8");
+        return httpd_resp_send(r, (const char *)faces_css_start, faces_css_end - faces_css_start);
+    }
+#define FONT_ROUTE(name, path)                                                                               \
+    if (r->method == HTTP_GET && !strcmp(r->uri, path)) {                                                    \
+        httpd_resp_set_type(r, "font/woff2");                                                                \
+        return httpd_resp_send(r, (const char *)name##_start, name##_end - name##_start);                    \
+    }
+    FONT_ROUTE(onest_latin_woff2, "/fonts/onest-latin.woff2")
+    FONT_ROUTE(onest_cyrillic_woff2, "/fonts/onest-cyrillic.woff2")
+    FONT_ROUTE(literata_latin_woff2, "/fonts/literata-latin.woff2")
+    FONT_ROUTE(literata_cyrillic_woff2, "/fonts/literata-cyrillic.woff2")
+#undef FONT_ROUTE
     if (r->method == HTTP_GET && !strcmp(r->uri, "/plants.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
         return httpd_resp_send(r, (const char *)plants_js_start, plants_js_end - plants_js_start);
