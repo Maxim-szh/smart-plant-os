@@ -63,6 +63,12 @@ typedef struct {
     uint8_t index_pct, stable_samples, dry_samples;
     int32_t filtered_q8;
     uint64_t sampled_ms;
+    /* Volatile diagnostics: never added to safety/state_v1. */
+    uint64_t dry_since_ms, watch_until_ms;
+    uint16_t candidate_raw, analog_reference;
+    uint8_t candidate_samples;
+    bool analog_seen;
+    uint64_t analog_at_ms;
 } sp_soil_t;
 typedef struct {
     uint8_t id[16], target[16];
@@ -103,6 +109,9 @@ typedef struct {
     int active_slot;
     uint64_t boot_ms, now_ms, utc_anchor, mono_anchor, tank_sampled_ms;
     uint64_t run_started_ms, run_deadline_ms, cooldown_until_ms, soak_at_ms;
+    uint64_t response_deadline_ms, response_since_ms, response_sample_ms;
+    uint8_t response_samples;
+    bool pre_water_valid;
     sp_reason_t last_reason;
 } sp_core_t;
 
@@ -114,7 +123,8 @@ bool sp_core_set_time(sp_core_t *, uint64_t utc_ms, uint64_t mono_ms);
 uint64_t sp_core_utc(const sp_core_t *, uint64_t mono_ms);
 void sp_core_sample(sp_core_t *, const uint16_t samples[SP_SAMPLE_COUNT], bool valid, uint64_t mono_ms);
 /* Normalized primary soil binding. Drivers cannot bypass freshness, confirmation or hysteresis. */
-void sp_core_observe_soil(sp_core_t *,sp_quality_t,int index_pct,uint16_t raw,uint16_t spread,uint64_t mono_ms);
+void sp_core_observe_soil(sp_core_t *, sp_quality_t, int index_pct, uint16_t raw, uint16_t spread,
+                          uint64_t mono_ms);
 void sp_core_tank(sp_core_t *, int value, uint64_t mono_ms);
 void sp_core_tick(sp_core_t *, uint64_t mono_ms);
 sp_reason_t sp_core_can_water(const sp_core_t *, uint16_t ml, bool automatic);

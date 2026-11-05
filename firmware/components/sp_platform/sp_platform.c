@@ -5,12 +5,17 @@
 #include "sp_setup.h"
 #include "sp_pairing.h"
 #include "sp_release.h"
+#include "sp_soil_policy.h"
 #include "sp_catalog.h"
 #include "sp_maintenance.h"
 #include "sp_update.h"
 #include "sp_system.h"
 #include "sp_diary.h"
 #include "sp_measurements.h"
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+#include "driver/usb_serial_jtag.h"
+#include "driver/usb_serial_jtag_vfs.h"
+#endif
 #include "esp_system.h"
 #include <fcntl.h>
 #include <inttypes.h>
@@ -310,6 +315,44 @@ static void command(char *line) {
     }
     if (!argc)
         return;
+    if (argc == 2 && !strcmp(args[0], "soil-input")) {
+        /* Physical USB opt-in for the verified C3 input. No actuator pins inferred. */
+        if (identity.hub || strcmp(args[1], "3") || core.saved.config.automatic || core.active_slot >= 0 ||
+            core.soak_pending || (sp_board_capabilities() & 6u)) {
+            puts("ERR soil_input_requires_manual_sensor_only_C3_gpio3");
+            return;
+        }
+        nvs_handle_t h;
+        if (nvs_open("provision", NVS_READWRITE, &h) != ESP_OK) {
+            puts("ERR soil_input_storage");
+            return;
+        }
+        esp_err_t e = nvs_set_i32(h, "soil_pin", 3);
+        if (e == ESP_OK)
+            e = nvs_commit(h);
+        nvs_close(h);
+        puts(e == ESP_OK ? "OK soil_input_saved_gpio3; restarting" : "ERR soil_input_storage");
+        if (e == ESP_OK) {
+            fflush(stdout);
+            vTaskDelay(pdMS_TO_TICKS(200));
+            esp_restart();
+        }
+        return;
+    }
+    if (argc == 1 && !strcmp(args[0], "soil-status")) {
+        if (identity.hub) {
+            puts("ERR node_only");
+            return;
+        }
+        printf("{\"kind\":\"soil_status\",\"firmware\":\"%s\",\"raw\":%u,"
+               "\"quality\":\"%s\",\"index\":%u,\"interval_ms\":%" PRIu32 ","
+               "\"response_pending\":%s,\"paired\":%s,\"hardware_flags\":%" PRIu32 "}\n",
+               SP_FIRMWARE_VERSION, core.soil.raw_adc, sp_quality_name(core.soil.quality),
+               core.soil.index_pct, sp_soil_poll_interval(&core, now_ms()),
+               core.soak_pending ? "true" : "false", identity.count ? "true" : "false",
+               sp_board_capabilities());
+        return;
+    }
     if (argc == 1 && !strcmp(args[0], "status")) {
         if (identity.hub)
             for (unsigned i = 0; i < identity.count; i++) {
@@ -413,13 +456,21 @@ usage:
          "<daily-ml> <maxrun-s> <interval-min> <maxage-s>");
     puts("Node USB only: ack-fault (after physical inspection; never resets water budget)");
 }
+static bool console_byte(char *ch) {
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    /* Explicit zero timeout: console input must never stop sensors, radio or cutoff checks. */
+    return usb_serial_jtag_read_bytes(ch, 1, 0) == 1;
+#else
+    return read(STDIN_FILENO, ch, 1) == 1;
+#endif
+}
 static void poll_console(void) {
     static char line[320];
     static size_t len;
     static bool overflow;
     static uint64_t allowed_at;
     char ch;
-    for (unsigned i = 0; i < 64 && read(STDIN_FILENO, &ch, 1) == 1; i++) {
+    for (unsigned i = 0; i < 64 && console_byte(&ch); i++) {
         if (ch == '\n' || ch == '\r') {
             if (len || overflow) {
                 line[len] = 0;
@@ -502,11 +553,23 @@ static void hub_receive(const sp_received_t *r, uint64_t now) {
     }
 }
 void sp_platform_run(bool hub) {
+#if CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG
+    /* F_SETFL(O_NONBLOCK) requires the interrupt-backed RX queue in IDF 5.3.
+       The basic VFS path otherwise reports zero available bytes forever. */
+    if (!usb_serial_jtag_is_driver_installed()) {
+        usb_serial_jtag_driver_config_t usb = {.tx_buffer_size = 512, .rx_buffer_size = 512};
+        ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
+    }
+    /* Keep bounded basic TX: a full driver TX queue without a USB reader must
+       not stall radio/ADC. RX is read directly from the driver with timeout 0. */
+    usb_serial_jtag_vfs_use_nonblocking();
+#endif
+    setvbuf(stdout, NULL, _IOLBF, 0);
     sp_update_boot_guard();
     bool boot_healthy = true;
     uint8_t mac[6];
     ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_WIFI_STA));
-    printf("Smart Plant %s 0.3.0-abi1 engineering; STA MAC %02x:%02x:%02x:%02x:%02x:%02x\n",
+    printf("Smart Plant %s " SP_FIRMWARE_VERSION " engineering; STA MAC %02x:%02x:%02x:%02x:%02x:%02x\n",
            hub ? "Hub" : "Node", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     /* Never erase NVS automatically: doing so would reset dedupe, limits and AEAD epochs. */
     esp_err_t err = nvs_flash_init();
@@ -629,6 +692,7 @@ void sp_platform_run(bool hub) {
                 sp_api_handle(api, web_request);
         }
         if (!hub) {
+            sp_board_schedule_soil(&sensors, &core, now);
             sp_sensors_poll(&sensors, now);
             core.hardware_ready = sp_board_healthy() && !sp_maintenance_busy() && !sp_update_busy();
             sp_core_tick(&core, now);

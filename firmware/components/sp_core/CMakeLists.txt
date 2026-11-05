@@ -1,1 +1,1 @@
-idf_component_register(SRCS "sp_core.c" "sp_wire.c" "sp_service.c" "sp_sensors.c" "sp_soil_analog.c" "sp_text.c" "sp_profile.c" INCLUDE_DIRS "include")
+idf_component_register(SRCS "sp_core.c" "sp_wire.c" "sp_service.c" "sp_sensors.c" "sp_soil_analog.c" "sp_soil_policy.c" "sp_text.c" "sp_profile.c" INCLUDE_DIRS "include")
