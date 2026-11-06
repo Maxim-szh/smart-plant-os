@@ -43,6 +43,19 @@ function nodeLink(n){const rec=nodeRecord(n.device_id);if(!R.authorized||R.error
 function soilReading(n){const s=nodeRecord(n.device_id).state?.soil;if(!s)return {value:'—',label:n.online?'Ожидаем измерение':'Нет связи',stale:true};const v=s.soil_index_pct??s.last_index_pct,confirmed=n.online&&!R.error&&!nodeRecord(n.device_id).error;return {value:v===null||v===undefined?'—':`${Math.round(v)}%`,label:(!confirmed?'Последнее измерение · ':'')+(quality[s.quality]||s.quality),stale:!confirmed||s.quality!=='ok'};}
 let lastNav='';
 function nav(){const items=[['garden','leaf','Растения'],['diary','book','Дневник'],['care','care','Уход'],['events','list','События'],['settings','gear','Настройки']];const current=R.view==='detail'?'garden':R.view;const html=items.map(([key,i,label])=>`<button data-action="nav" data-view="${key}" ${current===key?'aria-current="page"':''}>${ic(i,24)}<span>${label}</span></button>`).join('');if(lastNav===html)return;lastNav=html;$('#tabbar').innerHTML=html;$('#rail').innerHTML=`<div class="logo brand"><i></i></div>`+html;}
+const viewPositions=new Map();
+function viewKey(){return R.view==='detail'?'detail:'+R.selected:R.view;}
+function navigate(view,id){
+ viewPositions.set(viewKey(),window.scrollY);R.view=view;if(id)R.selected=id;
+ if(view==='care'&&!R.selected)R.selected=R.nodes[0]?.device_id;
+ render();$('#view').focus({preventScroll:true});window.scrollTo({top:viewPositions.get(viewKey())||0,behavior:'instant'});
+}
+document.addEventListener('keydown',e=>{
+ const tab=e.target.closest('[role="tab"]');if(!tab||!tab.closest('#view'))return;
+ const tabs=[...tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')],index=tabs.indexOf(tab);
+ const next={ArrowRight:(index+1)%tabs.length,ArrowLeft:(index+tabs.length-1)%tabs.length,Home:0,End:tabs.length-1}[e.key];
+ if(next===undefined)return;e.preventDefault();const key=tabs[next].dataset.tab;tabs[next].click();$(`[role="tab"][data-tab="${key}"]`)?.focus({preventScroll:true});
+});
 function sessionView(){return `<section class="live-session"><h1 class="disp">Ваш сад дома</h1><p class="lead" style="margin:16px 0">Войдите с ключом владельца, чтобы увидеть свои растения и подключить контроллеры.</p><form id="owner-login"><div class="fld"><label for="owner-key">Ключ администратора</label><input class="inp" id="owner-key" type="password" autocomplete="current-password" required maxlength="64"></div><details><summary>Загрузить access.json</summary><input id="owner-file" type="file" accept=".json,application/json"></details><label class="service-check"><input type="checkbox" id="remember-browser" checked><span>Запомнить этот браузер</span></label><button class="btn pri big" type="submit">Открыть мой сад</button></form><p class="live-help">Ключ создан программой установки. Он не сохраняется в хранилище браузера. Можно посмотреть отдельный пример без подключения к плате.</p></section>`;}
 window.SPHome.configure({state:R,record:nodeRecord,ic,refresh,render,notify});
 const V=window.SPViews.create({state:R,record:nodeRecord,escape:esc,ic,soil:soilReading,link:nodeLink,quality});
@@ -50,9 +63,13 @@ function gardenView(){return V.garden();}
 function detailView(){return V.detail();}
 function settingsView(){return V.settings();}
 let lastMarkup=null,lastCatalogMarkup='';
-function render(passive=false,force=false){if(passive&&document.activeElement?.closest('#view,#rail,#tabbar')&&document.activeElement.matches('input,textarea,select,#rail button,#tabbar button'))return;nav();$('#app-notice').textContent=R.error;if(R.loading){$('#view').innerHTML='<section class="live-empty"><h1 class="disp">Открываем ваш сад…</h1></section>';return;}const markup=!R.authorized?sessionView():R.view==='settings'?settingsView():R.view==='detail'?detailView():R.view==='diary'?V.journal():R.view==='care'?V.care():R.view==='events'?V.events():gardenView();if(passive&&!force&&lastMarkup===markup){updateCalibration();return;}lastMarkup=markup;const catalogMarkup=JSON.stringify(R.catalog),retained=[];
+function render(passive=false,force=false){if(passive&&document.activeElement?.closest('#view,#rail,#tabbar')&&document.activeElement.matches('input,textarea,select,#rail button,#tabbar button'))return;nav();$('#app-notice').textContent=R.error;if(R.loading){$('#view').innerHTML='<section class="app-loading" role="status" aria-live="polite" aria-busy="true"><span class="loading-indicator" aria-hidden="true"></span><h1 class="disp">Открываем ваш сад</h1><p class="note">Получаем данные от главного контроллера.</p></section>';return;}const markup=!R.authorized?sessionView():R.view==='settings'?settingsView():R.view==='detail'?detailView():R.view==='diary'?V.journal():R.view==='care'?V.care():R.view==='events'?V.events():gardenView();if(passive&&!force&&lastMarkup===markup){updateCalibration();return;}lastMarkup=markup;const catalogMarkup=JSON.stringify(R.catalog),retained=[];
  if(passive&&!force&&lastCatalogMarkup===catalogMarkup)for(const id of ['measurements','home-diary-preview','garden-diary']){const el=document.getElementById(id);if(el)retained.push(el);}
+ const focusTab=document.activeElement?.matches('#view [role="tab"]')?document.activeElement.id:null;
+ const utilities=[...$('#view').querySelectorAll('.plant-utilities[open]')].map(x=>x.dataset.plant);
  lastCatalogMarkup=catalogMarkup;$('#view').innerHTML=markup;
+ for(const el of $('#view').querySelectorAll('.plant-utilities'))if(utilities.includes(el.dataset.plant))el.open=true;
+ if(focusTab)document.getElementById(focusTab)?.focus({preventScroll:true});
  for(const el of retained){const target=document.getElementById(el.id);if(target&&target.dataset.plant===el.dataset.plant)target.replaceWith(el);}
  bindLogin();updateCalibration();const journal=$('#garden-diary'),recent=$('#home-diary-preview');if(journal&&R.authorized&&!retained.includes(journal))window.SPGarden?.mountDiary(journal,R.catalog);if(recent&&R.authorized&&!retained.includes(recent))window.SPGarden?.latest(recent,R.catalog);const h=$('#measurements');if(h&&R.authorized&&!retained.includes(h))window.SPGarden?.mountHistory(h,h.dataset.plant,R.ui);}
 let catalogAt=0,refreshTask=null,queuedRefresh=null;
@@ -61,20 +78,32 @@ function refresh(background=false){
  if(refreshTask){if(background)return refreshTask;if(!queuedRefresh)queuedRefresh=refreshTask.then(()=>{queuedRefresh=null;return refresh(false);});return queuedRefresh;}
  clearTimeout(R.timer);refreshTask=refreshCycle(background).finally(()=>{refreshTask=null;});return refreshTask;
 }
+async function refreshEvents(n,rec,epoch){
+ if(Date.now()-(rec.eventsAt||0)<=5000)return;
+ rec.eventsLoading=true;R.records.set(n.device_id,rec);render(true);
+ try{
+  const page=await API.request(`/nodes/${n.device_id}/events?after=${rec.eventsCursor||0}&limit=100`);
+  if(epoch!==authEpoch)return;
+  const map=new Map((rec.events||[]).map(e=>[e.event_id,e]));for(const e of page.events)map.set(e.event_id,e);
+  rec.events=[...map.values()].sort((a,b)=>a.seq-b.seq).slice(-100);rec.eventsCursor=page.next_cursor;rec.eventsError='';
+ }catch(e){
+  if(epoch!==authEpoch)return;if(e.status===401)throw e;
+  if(e.code==='cursor_expired'){rec.eventsCursor=0;rec.eventsGap=true;rec.eventsError='История обновилась. Загрузите доступные события заново.';}
+  else rec.eventsError=API.message(e);
+ }finally{if(epoch===authEpoch){rec.eventsLoaded=true;rec.eventsLoading=false;rec.eventsAt=Date.now();R.records.set(n.device_id,rec);render(true);}}
+}
 async function refreshCycle(background){R.refreshing=true;const epoch=authEpoch;
  try{const registry=await API.request('/nodes');if(epoch!==authEpoch)return;R.authorized=true;R.error='';const old=R.nodes;R.nodes=registry.nodes;if(!R.nodes.some(n=>n.device_id===R.selected))R.selected=R.nodes[0]?.device_id||null;
   if(!background||!catalogAt||Date.now()-catalogAt>=30000){const catalog=await API.request('/plants');if(epoch!==authEpoch)return;R.catalog=catalog.plants;catalogAt=Date.now();}
   R.loading=false;render(true);
   const priority=[...R.nodes].sort((a,b)=>Number(b.device_id===R.selected)-Number(a.device_id===R.selected));
-  for(const n of priority){if(epoch!==authEpoch)return;const rec=nodeRecord(n.device_id);try{
+  for(const n of priority){if(epoch!==authEpoch)return;const rec=nodeRecord(n.device_id);
+   // History belongs to Hub and must remain readable when live C3 telemetry is unavailable.
+   if(R.view==='events'||R.view==='detail'&&R.detailTab==='hist')await refreshEvents(n,rec,epoch);
+   if(epoch!==authEpoch)return;try{
    const state=await API.request(`/nodes/${n.device_id}/state`);if(epoch!==authEpoch)return;rec.state=state;rec.stateAt=Date.now();rec.error='';R.records.set(n.device_id,rec);render(true);
    if(!rec.device||(!old.find(p=>p.device_id===n.device_id)?.online&&n.online)||Date.now()-(rec.deviceAt||0)>30000){rec.device=await API.request(`/nodes/${n.device_id}/device`);rec.deviceAt=Date.now();}
    if(n.online&&Date.now()-(rec.serviceAt||0)>10000){try{rec.careService=await API.request(`/nodes/${n.device_id}/care-service`);rec.serviceAt=Date.now();}catch{rec.careService=null;rec.serviceAt=Date.now();}}
-   if((R.view==='events'||R.view==='detail'&&R.detailTab==='hist')&&Date.now()-(rec.eventsAt||0)>5000){
-    try{const page=await API.request(`/nodes/${n.device_id}/events?after=${rec.eventsCursor||0}&limit=100`);const map=new Map((rec.events||[]).map(e=>[e.event_id,e]));for(const e of page.events)map.set(e.event_id,e);rec.events=[...map.values()].sort((a,b)=>a.seq-b.seq).slice(-100);rec.eventsCursor=page.next_cursor;rec.eventsError='';}
-    catch(e){if(e.code==='cursor_expired'){rec.eventsCursor=0;rec.eventsGap=true;}else rec.eventsError=API.message(e);}
-    rec.eventsLoaded=true;rec.eventsAt=Date.now();
-   }
    if(R.view==='care'&&n.device_id===R.selected&&n.online&&Date.now()-(rec.configAt||0)>15000){try{rec.config=await API.request(`/nodes/${n.device_id}/config`);rec.configAt=Date.now();rec.configError='';}catch(e){rec.configError=API.message(e);}}
 
   }catch(e){if(e.status===0||e.status===401)throw e;rec.error=API.message(e);}R.records.set(n.device_id,rec);}
@@ -124,12 +153,13 @@ async function detach(){const n=R.nodes.find(n=>n.device_id===R.selected);if(!n)
 async function confirmDetach(){if(!$('#detach-ack')?.checked){sheetMessage('Подтвердите действие');return;}const n=R.nodes.find(n=>n.device_id===R.selected);await mutate(async()=>{await API.request(`/nodes/${n.device_id}/${n.online?'detach':'forget'}`,'POST',{schema_version:1,operation_id:API.uuid(),acknowledge_autonomy:true});sheetMessage('Выполняем отвязку…');await pollMaintenance();});}
 async function pollMaintenance(){const d=await API.request('/maintenance');if(d.phase==='completed'){$('#sheet').close();R.view='garden';await refresh();return;}if(['failed','unknown','storage_error'].includes(d.phase)){sheetMessage(d.message||'Действие не подтверждено. Проверьте состояние перед повтором.');if(!$('#maintenance-retry')){const b=document.createElement('button');b.id='maintenance-retry';b.className='btn';b.textContent='Продолжить отвязку';b.onclick=()=>mutate(async()=>{await API.request('/maintenance/retry','POST',{});b.remove();await pollMaintenance();});$('#sheet .sheet').append(b);}return;}setTimeout(()=>pollMaintenance().catch(sheetMessage),1500);}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;const a=b.dataset.action;
- if(a==='nav'){R.view=b.dataset.view;if(R.view==='care'&&!R.selected)R.selected=R.nodes[0]?.device_id;render();if(R.view==='care'||R.view==='events')refresh();}
- if(a==='open'){R.selected=b.dataset.id;R.view='detail';R.detailTab='now';R.calibration=null;render();}
+ if(a==='nav'){navigate(b.dataset.view);if(R.view==='care'||R.view==='events')refresh();}
+ if(a==='open'){R.detailTab='now';R.calibration=null;navigate('detail',b.dataset.id);}
  if(a==='close')$('#sheet').close();
  if(a==='refresh')refresh();
+ if(a==='refresh-events'){for(const rec of R.records.values())rec.eventsAt=0;refresh();}
  if(a==='add')window.SmartPlantConnect?.open();
- if(a==='detail-tab'){R.detailTab=b.dataset.tab;render();if(R.detailTab==='hist')refresh();}
+ if(a==='detail-tab'){R.detailTab=b.dataset.tab;render();$(`[role="tab"][data-tab="${R.detailTab}"]`)?.focus({preventScroll:true});if(R.detailTab==='hist')refresh();}
  if(a==='settings-tab'){R.settingsTab=b.dataset.tab;render();}
  if(a==='event-filter'){R.eventFilter=b.dataset.filter;render();}
  if(a==='event-device'){R.eventDevice=b.dataset.device;render();}

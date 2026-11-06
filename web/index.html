@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body data-mode="live">
+<a class="skip-link" href="#view">К содержимому</a>
 
 <div class="app" id="app">
   <aside class="rail" id="rail" aria-label="Разделы"></aside>
@@ -16,7 +17,7 @@
       <div class="brand"><i></i>Smart Plant</div>
     </div>
 
-    <main id="view" tabindex="-1"><section class="live-empty"><h1 class="disp">Открываем ваш сад…</h1></section></main>
+    <main id="view" tabindex="-1"><section class="app-loading" role="status" aria-live="polite" aria-busy="true"><span class="loading-indicator" aria-hidden="true"></span><h1 class="disp">Открываем ваш сад</h1><p class="note">Получаем данные от главного контроллера.</p></section></main>
   </div>
 </div>
 <nav class="tabbar" id="tabbar" aria-label="Разделы"></nav>

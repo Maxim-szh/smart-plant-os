@@ -7,7 +7,7 @@
   "scripts": {
     "check": "node scripts/check.mjs && node scripts/check-contract.mjs && node scripts/check-api-output.mjs && node --check web/live.js && node scripts/check-docs.mjs && node --check web/app.js && node --check web/api.js && node --check web/demo.js && node --check web/setup.js && node --check web/pairing.js && node scripts/check-setup.mjs && node --check web/updates.js && node scripts/check-maintenance.mjs && node --check web/system.js && node --check web/views.js && node scripts/check-system.mjs && node --check web/network.js && node --check web/plants.js && node --check web/plant-data.js && python3 tools/generate_plant_profiles.py --check && node --check web/garden.js && node scripts/check-garden.mjs && node --check web/care.js && node tests/care-checks.cjs && node --check web/home.js && node scripts/check-experience.mjs",
     "serve": "python3 -m http.server 8080 --directory web",
-    "test:setup": "node tests/web-setup.cjs && node tests/web-pairing.cjs && node tests/web-updates.cjs && node tests/web-system.cjs && node tests/web-garden.cjs && node tests/web-care.cjs && node tests/web-home.cjs && node tests/web-performance.cjs"
+    "test:setup": "node tests/web-setup.cjs && node tests/web-pairing.cjs && node tests/web-updates.cjs && node tests/web-system.cjs && node tests/web-garden.cjs && node tests/web-care.cjs && node tests/web-home.cjs && node tests/web-performance.cjs && node tests/web-responsive.cjs && node tests/web-details.cjs && node tests/web-events.cjs"
   },
   "devDependencies": {
     "ajv": "^8.20.0",
