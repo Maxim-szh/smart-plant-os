@@ -2,7 +2,7 @@
 /* Isolated test data. Never embedded in firmware or included by the real web app. */
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
 function createPreview(){
- const state={plants:[],entries:[],service:new Map(),writes:[],online:true,pairing:{phase:'idle',selected_device_id:null,candidates:[],pending:false,remaining_seconds:30},next:4,serviceUnknown:false};
+ const state={browsers:[{id:"0000000000000001",name:"Телефон",current:true,trusted:true,expires_in:null}],plants:[],entries:[],service:new Map(),writes:[],online:true,pairing:{phase:'idle',selected_device_id:null,candidates:[],pending:false,remaining_seconds:30},next:4,serviceUnknown:false};
  const make=(i,name,room,species)=>({schema_version:1,device_id:'spo-'+i.toString(16).padStart(12,'0'),plant_id:`01020304-0506-4008-800a-${i.toString(16).padStart(12,'0')}`,name,room,species_id:species,growth_stage:'adult',setup_stage:3,revision:0,config:{...JSON.parse(fs.readFileSync('spec/v1/examples/config.json')),mode:i===1?'automatic_threshold':'manual',revision:0}});
  state.plants=[make(1,'Монстера','Гостиная','monstera'),make(2,'Фикус','Гостиная','ficus-elastica'),make(3,'Лимон «Павловский»','Кухня','lemon')];
  const json=(res,data,status=200)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
@@ -10,6 +10,8 @@ function createPreview(){
  const server=http.createServer(async(req,res)=>{try{const url=new URL(req.url,'http://localhost'),p=url.pathname;let text='';for await(const chunk of req){text+=chunk;if(text.length>20000)return fail(res,'body_too_large',413);}const body=text?JSON.parse(text):{};
   if(!p.startsWith('/api/v1/')){const rel=p==='/'?'index.html':p.slice(1),file=path.resolve('web',rel);if(!file.startsWith(path.resolve('web')+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}const ext=path.extname(file),types={'.js':'application/javascript','.css':'text/css','.png':'image/png','.woff2':'font/woff2','.html':'text/html','.webmanifest':'application/manifest+json'};res.writeHead(200,{'Content-Type':types[ext]||'application/octet-stream','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; img-src 'self' data:; form-action 'self'"});fs.createReadStream(file).pipe(res);return;}
   if(req.method!=='GET')state.writes.push({path:p,body});
+  if(p==='/api/v1/sessions')return json(res,{schema_version:1,persistent_available:true,devices:state.browsers});
+  if(p.startsWith('/api/v1/sessions/')){const id=p.split('/').at(-1),device=state.browsers.find(x=>x.id===id);if(!device)return fail(res,'not_found',404);if(req.method==='PUT'){device.name=body.name;return json(res,{schema_version:1});}if(req.method==='DELETE'){state.browsers=state.browsers.filter(x=>x!==device);return json(res,{schema_version:1,current_revoked:device.current});}}
   if(p==='/api/v1/nodes')return json(res,{schema_version:1,nodes:state.plants.map(x=>({device_id:x.device_id,plant_id:x.plant_id,display_name:x.name,room:x.room,setup_stage:x.setup_stage,online:state.online,last_seen_at:new Date().toISOString()}))});
   if(p==='/api/v1/plants')return json(res,{schema_version:1,plants:state.plants.map(({config,...x})=>({...x,controller_history:[]}))});
   if(p==='/api/v1/time')return json(res,{schema_version:1,clock_state:'synced',utc_ms:Date.now()});
@@ -19,7 +21,8 @@ function createPreview(){
   if(p==='/api/v1/setup/pairing')return json(res,{schema_version:1,...state.pairing});
   const match=p.match(/^\/api\/v1\/nodes\/(spo-[a-f0-9]{12})\/(.+)$/);
   if(match){const x=state.plants.find(n=>n.device_id===match[1]);if(!x)return fail(res,'not_found',404);const suffix=match[2];
-   if(suffix==='device')return json(res,{schema_version:1,device_id:x.device_id,api_version:'1.0',firmware_version:'0.4.0',capabilities:{hardware_known:true,soil_configured:false,tank_sensor:false,pump:false,ota:true,sensors:[]}});
+   if(suffix==='device')return json(res,{schema_version:1,device_id:x.device_id,api_version:'1.0',firmware_version:state.deviceVersion||'0.4.0',capabilities:{hardware_known:true,soil_configured:false,tank_sensor:false,pump:false,ota:true,sensors:[]}});
+   if(suffix==='state'&&state.stateUnavailable)return fail(res,'node_offline',503);
    if(suffix==='state')return json(res,{...JSON.parse(fs.readFileSync('spec/v1/examples/state-clock-unset.json')),device_id:x.device_id,revision:x.config.revision,clock_state:'synced',soil:{quality:'missing',raw_adc:null,soil_index_pct:null,sample_age_ms:null},watering:{mode:x.config.mode,active_command_id:null,daily_estimated_ml:0},availability:{online:state.online,last_seen_age_ms:0},last_decision:{reason_code:'hardware_fault'}});
    if(suffix==='plant'){if(req.method==='PUT'){if(body.revision!==x.revision)return fail(res,'revision_conflict');Object.assign(x,body,{revision:x.revision+1});}const {config,device_id,plant_id,...meta}=x;return json(res,meta);}
    if(suffix==='config'){if(req.method==='PUT'){if(body.revision!==x.config.revision)return fail(res,'config_rejected');x.config={...body,revision:x.config.revision+1};}return json(res,{...x.config,schema_version:1,device_id:x.device_id,plant_id:x.plant_id,plant_name:x.name,species_id:x.species_id||null});}
