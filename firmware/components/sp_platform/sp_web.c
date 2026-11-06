@@ -72,6 +72,57 @@ extern const uint8_t views_js_start[] asm("_binary_views_js_start");
 extern const uint8_t views_js_end[] asm("_binary_views_js_end");
 extern const uint8_t network_js_start[] asm("_binary_network_js_start");
 extern const uint8_t network_js_end[] asm("_binary_network_js_end");
+#include "sp_http_assets.h"
+#include "sp_web_assets.h"
+static const char *asset_csp(bool demo) {
+    return demo ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
+                  "'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+                : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
+                  "'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+}
+static esp_err_t send_asset(httpd_req_t *r, const uint8_t *data, size_t size) {
+    const sp_web_asset_t *asset = NULL;
+    for (unsigned i = 0; i < sizeof(sp_web_assets) / sizeof(sp_web_assets[0]); i++)
+        if (sp_web_assets[i].raw == data) {
+            asset = &sp_web_assets[i];
+            break;
+        }
+    if (!asset)
+        return httpd_resp_send(r, (const char *)data, size);
+    char accept[160], condition[256];
+    bool gzip = asset->gzip &&
+                httpd_req_get_hdr_value_str(r, "Accept-Encoding", accept, sizeof(accept)) == ESP_OK &&
+                sp_http_accepts_gzip(accept);
+    const char *tag = gzip ? asset->gzip_tag : asset->raw_tag;
+    httpd_resp_set_hdr(r, "Cache-Control", "public, no-cache");
+    httpd_resp_set_hdr(r, "ETag", tag);
+    httpd_resp_set_hdr(r, "Vary", "Accept-Encoding");
+    if (httpd_req_get_hdr_value_str(r, "If-None-Match", condition, sizeof(condition)) == ESP_OK &&
+        sp_http_etag_matches(condition, tag)) {
+        /* IDF 5.3 resp_send always emits Content-Length: 0, invalid for a
+           non-empty cached representation. Send a body-free 304 without CL. */
+        char header[512];
+        int n = snprintf(
+            header, sizeof(header),
+            "HTTP/1.1 304 Not Modified\r\nCache-Control: public, no-cache\r\nETag: %s\r\nVary: "
+            "Accept-Encoding\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: %s\r\n\r\n",
+            tag, asset_csp(data == demo_start));
+        if (n < 0 || (size_t)n >= sizeof(header))
+            return ESP_FAIL;
+        for (size_t sent = 0; sent < (size_t)n;) {
+            int count = httpd_send(r, header + sent, n - sent);
+            if (count <= 0)
+                return ESP_FAIL;
+            sent += (size_t)count;
+        }
+        return ESP_OK;
+    }
+    if (gzip) {
+        httpd_resp_set_hdr(r, "Content-Encoding", "gzip");
+        return httpd_resp_send(r, (const char *)asset->gzip, asset->gzip_size);
+    }
+    return httpd_resp_send(r, (const char *)data, size);
+}
 static QueueHandle_t incoming, outgoing;
 static char password[65];
 static sp_sessions_t sessions;
@@ -333,109 +384,105 @@ static esp_err_t browser_manage(httpd_req_t *r, const char *body, int current, u
 }
 static esp_err_t handle(httpd_req_t *r) {
     char cookie_header[180];
-    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
     httpd_resp_set_hdr(r, "X-Content-Type-Options", "nosniff");
-    httpd_resp_set_hdr(r, "Content-Security-Policy",
-                       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
-                       "'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    bool demo_request = r->method == HTTP_GET && (!strcmp(r->uri, "/demo") || !strcmp(r->uri, "/demo.html"));
+    httpd_resp_set_hdr(r, "Content-Security-Policy", asset_csp(demo_request));
     if (r->method == HTTP_GET && (!strcmp(r->uri, "/demo") || !strcmp(r->uri, "/demo.html"))) {
-        httpd_resp_set_hdr(r, "Content-Security-Policy",
-                           "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
-                           "connect-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
         httpd_resp_set_type(r, "text/html; charset=utf-8");
-        return httpd_resp_send(r, (const char *)demo_start, demo_end - demo_start);
+        return send_asset(r, demo_start, demo_end - demo_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/demo.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)demo_js_start, demo_js_end - demo_js_start);
+        return send_asset(r, demo_js_start, demo_js_end - demo_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/api.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)api_js_start, api_js_end - api_js_start);
+        return send_asset(r, api_js_start, api_js_end - api_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/style.css")) {
         httpd_resp_set_type(r, "text/css; charset=utf-8");
-        return httpd_resp_send(r, (const char *)style_start, style_end - style_start);
+        return send_asset(r, style_start, style_end - style_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/setup")) {
         httpd_resp_set_type(r, "text/html; charset=utf-8");
-        return httpd_resp_send(r, (const char *)setup_start, setup_end - setup_start);
+        return send_asset(r, setup_start, setup_end - setup_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/setup.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)setup_js_start, setup_js_end - setup_js_start);
+        return send_asset(r, setup_js_start, setup_js_end - setup_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/")) {
         if (!home_interface(r)) {
+            httpd_resp_set_hdr(r, "Cache-Control", "no-store");
             httpd_resp_set_status(r, "303 See Other");
             httpd_resp_set_hdr(r, "Location", "/setup");
             return httpd_resp_sendstr(r, "");
         }
         httpd_resp_set_type(r, "text/html; charset=utf-8");
-        return httpd_resp_send(r, (const char *)page_start, page_end - page_start);
+        return send_asset(r, page_start, page_end - page_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/live.js")) {
         httpd_resp_set_type(r, "application/javascript");
-        return httpd_resp_send(r, (const char *)script_start, script_end - script_start);
+        return send_asset(r, script_start, script_end - script_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/pairing.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)pairing_js_start, pairing_js_end - pairing_js_start);
+        return send_asset(r, pairing_js_start, pairing_js_end - pairing_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/app.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)app_start, app_end - app_start);
+        return send_asset(r, app_start, app_end - app_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/updates.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)updates_start, updates_end - updates_start);
+        return send_asset(r, updates_start, updates_end - updates_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/system.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)system_js_start, system_js_end - system_js_start);
+        return send_asset(r, system_js_start, system_js_end - system_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/manifest.webmanifest")) {
         httpd_resp_set_type(r, "application/manifest+json; charset=utf-8");
-        return httpd_resp_send(r, (const char *)manifest_webmanifest_start,
-                               manifest_webmanifest_end - manifest_webmanifest_start);
+        return send_asset(r, manifest_webmanifest_start,
+                          manifest_webmanifest_end - manifest_webmanifest_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/icon-192.png")) {
         httpd_resp_set_type(r, "image/png");
-        return httpd_resp_send(r, (const char *)icon_192_png_start, icon_192_png_end - icon_192_png_start);
+        return send_asset(r, icon_192_png_start, icon_192_png_end - icon_192_png_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/icon-512.png")) {
         httpd_resp_set_type(r, "image/png");
-        return httpd_resp_send(r, (const char *)icon_512_png_start, icon_512_png_end - icon_512_png_start);
+        return send_asset(r, icon_512_png_start, icon_512_png_end - icon_512_png_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/apple-touch-icon.png")) {
         httpd_resp_set_type(r, "image/png");
-        return httpd_resp_send(r, (const char *)apple_touch_icon_png_start,
-                               apple_touch_icon_png_end - apple_touch_icon_png_start);
+        return send_asset(r, apple_touch_icon_png_start,
+                          apple_touch_icon_png_end - apple_touch_icon_png_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/plant-data.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)plant_data_js_start, plant_data_js_end - plant_data_js_start);
+        return send_asset(r, plant_data_js_start, plant_data_js_end - plant_data_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/garden.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)garden_js_start, garden_js_end - garden_js_start);
+        return send_asset(r, garden_js_start, garden_js_end - garden_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/care.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)care_js_start, care_js_end - care_js_start);
+        return send_asset(r, care_js_start, care_js_end - care_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/home.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)home_js_start, home_js_end - home_js_start);
+        return send_asset(r, home_js_start, home_js_end - home_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/fonts/faces.css")) {
         httpd_resp_set_type(r, "text/css; charset=utf-8");
-        return httpd_resp_send(r, (const char *)faces_css_start, faces_css_end - faces_css_start);
+        return send_asset(r, faces_css_start, faces_css_end - faces_css_start);
     }
 #define FONT_ROUTE(name, path)                                                                               \
     if (r->method == HTTP_GET && !strcmp(r->uri, path)) {                                                    \
         httpd_resp_set_type(r, "font/woff2");                                                                \
-        return httpd_resp_send(r, (const char *)name##_start, name##_end - name##_start);                    \
+        return send_asset(r, name##_start, name##_end - name##_start);                                       \
     }
     FONT_ROUTE(onest_latin_woff2, "/fonts/onest-latin.woff2")
     FONT_ROUTE(onest_cyrillic_woff2, "/fonts/onest-cyrillic.woff2")
@@ -444,16 +491,17 @@ static esp_err_t handle(httpd_req_t *r) {
 #undef FONT_ROUTE
     if (r->method == HTTP_GET && !strcmp(r->uri, "/plants.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)plants_js_start, plants_js_end - plants_js_start);
+        return send_asset(r, plants_js_start, plants_js_end - plants_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/views.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)views_js_start, views_js_end - views_js_start);
+        return send_asset(r, views_js_start, views_js_end - views_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/network.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
-        return httpd_resp_send(r, (const char *)network_js_start, network_js_end - network_js_start);
+        return send_asset(r, network_js_start, network_js_end - network_js_start);
     }
+    httpd_resp_set_hdr(r, "Cache-Control", "no-store");
     if (!origin_allowed(r))
         return fail(r, 403, "origin_rejected");
     if (r->method != HTTP_GET && r->method != HTTP_DELETE) {

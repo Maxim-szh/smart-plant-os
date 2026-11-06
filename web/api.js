@@ -1,20 +1,29 @@
 'use strict';
 (() => {
- let token='';
+ let token='',generation=0;const reads=new Map();
  class ApiError extends Error {constructor(message,status=0,uncertain=false,code=""){super(message);this.status=status;this.uncertain=uncertain;this.code=code;}}
- async function request(path,method='GET',body,revision){
-  const headers={};if(token)headers.Authorization=`Bearer ${token}`;
+ async function execute(path,method='GET',body,revision){
+  const epoch=generation;const headers={};if(token)headers.Authorization=`Bearer ${token}`;
   if(body!==undefined)headers['Content-Type']='application/json';
   if(revision!==undefined)headers['If-Match']=String(revision);
   const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
   try{
    const r=await fetch('/api/v1'+path,{method,headers,credentials:'same-origin',cache:'no-store',signal:controller.signal,body:body===undefined?undefined:JSON.stringify(body)});
    const json=await r.json();
-   if(r.status===401){token='';window.dispatchEvent(new Event('smartplant:unauthorized'));}
+   if(r.status===401&&epoch===generation){token='';window.dispatchEvent(new Event('smartplant:unauthorized'));}
    if(!r.ok)throw new ApiError(json.error?.message||`HTTP ${r.status}`,r.status,method!=='GET'&&['request_outcome_unknown','invalid_node_response'].includes(json.error?.code),json.error?.code);
    return json;
   }catch(e){if(e instanceof ApiError)throw e;throw new ApiError('Нет ответа от устройства',0,method!=='GET');}
   finally{clearTimeout(timeout);}
+ }
+ function request(path,method='GET',body,revision){
+  if(method!=='GET'){generation++;reads.clear();return execute(path,method,body,revision);}
+  const key=generation+':'+path;
+  let pending=reads.get(key);
+  if(!pending){pending=execute(path,method,body,revision);reads.set(key,pending);
+   const clear=()=>{if(reads.get(key)===pending)reads.delete(key);};pending.then(clear,clear);}
+  /* Share transport only; editors must never share mutable response objects. */
+  return pending.then(value=>typeof structuredClone==='function'?structuredClone(value):JSON.parse(JSON.stringify(value)));
  }
  async function login(password,remember=true){const device_name=/iPhone|iPad|Android/i.test(navigator.userAgent)?'Мой телефон':'Мой компьютер';const r=await request('/session','POST',{password,remember,device_name});token=r.token||'';window.dispatchEvent(new Event('smartplant:authorized'));}
  async function logout(){await request('/session','DELETE');token='';window.dispatchEvent(new Event('smartplant:unauthorized'));}

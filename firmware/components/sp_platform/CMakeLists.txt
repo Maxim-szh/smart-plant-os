@@ -32,3 +32,19 @@ if(IDF_TARGET STREQUAL "esp32s3")
   target_add_binary_data(${COMPONENT_LIB} "../../../web/demo.html" BINARY)
   target_add_binary_data(${COMPONENT_LIB} "../../../web/demo.js" BINARY)
 endif()
+
+if(IDF_TARGET STREQUAL "esp32s3")
+  set(SP_ASSET_HEADER "${CMAKE_CURRENT_BINARY_DIR}/web_assets/sp_web_assets.h")
+  file(GLOB_RECURSE SP_WEB_INPUTS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../../../web/*")
+  add_custom_command(OUTPUT "${SP_ASSET_HEADER}"
+    COMMAND "${PYTHON}" "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/build_web_assets.py"
+      --web "${CMAKE_CURRENT_SOURCE_DIR}/../../../web"
+      --cmake "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt"
+      --source "${CMAKE_CURRENT_SOURCE_DIR}/sp_web.c" --output "${SP_ASSET_HEADER}"
+    DEPENDS ${SP_WEB_INPUTS} "${CMAKE_CURRENT_SOURCE_DIR}/../../../tools/build_web_assets.py"
+      "${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt" "${CMAKE_CURRENT_SOURCE_DIR}/sp_web.c"
+    VERBATIM)
+  add_custom_target(sp_web_assets DEPENDS "${SP_ASSET_HEADER}")
+  add_dependencies(${COMPONENT_LIB} sp_web_assets)
+  target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/web_assets")
+endif()

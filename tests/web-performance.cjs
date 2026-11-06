@@ -1,0 +1,31 @@
+'use strict';
+const {chromium}=require('playwright'),assert=require('node:assert/strict'),{createPreview}=require('./helpers/home-server.cjs');
+(async()=>{const preview=createPreview(),url=await preview.listen();let browser;
+try{
+ browser=await chromium.launch({headless:true,...(process.env.BENCH_BROWSER?{executablePath:process.env.BENCH_BROWSER}:{})});
+ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ let unblock;const gate=new Promise(r=>unblock=r);let held=0,holdRegistry=false,registryHeld=false,releaseRegistry;const registryGate=new Promise(r=>releaseRegistry=r);const calls=[];
+ await page.route('**/api/v1/**',async route=>{const path=new URL(route.request().url()).pathname;calls.push(path);if(path==='/api/v1/session'&&route.request().method()==='DELETE')return route.fulfill({contentType:'application/json',body:'{"schema_version":1}'});if(path==='/api/v1/nodes'&&holdRegistry){registryHeld=true;await registryGate;}if(path.endsWith('/device')){held++;await gate;}await route.continue();});
+ const start=Date.now();await page.goto(url,{waitUntil:'domcontentloaded'});await page.locator('.home-plant').first().waitFor();
+ await page.waitForFunction(()=>document.querySelectorAll('.home-plant').length===3);
+ await page.waitForTimeout(30);assert(held>0,'Device metadata should still be blocked');
+ console.log('Cards visible before descriptor completion:',Date.now()-start,'ms');
+ await page.locator('#rail [data-view=settings]').click();await page.waitForFunction(()=>document.querySelector('#rail [data-view=settings]').getAttribute('aria-current')==='page');
+ unblock();await page.evaluate(()=>SmartPlantApp.refresh(true));
+ await page.evaluate(()=>{window.savedNav=document.querySelector('#tabbar button');window.savedView=document.querySelector('#view').firstElementChild;});
+ const plantsBefore=calls.filter(x=>x==='/api/v1/plants').length;
+ await page.evaluate(()=>SmartPlantApp.refresh(true));
+ assert.equal(calls.filter(x=>x==='/api/v1/plants').length,plantsBefore,'No repeated catalogue fetch during background poll');
+ assert(await page.evaluate(()=>savedNav===document.querySelector('#tabbar button')),'Navigation must retain DOM identity');
+ assert(await page.evaluate(()=>savedView===document.querySelector('#view').firstElementChild),'Unchanged settings must retain DOM identity');
+ // Same pending read uses one HTTP request, with separate response objects per consumer.
+ const count=calls.filter(x=>x==='/api/v1/plants').length;
+ const isolated=await page.evaluate(async()=>{const [a,b]=await Promise.all([SPApi.request('/plants'),SPApi.request('/plants')]);a.plants[0].name='changed locally';return b.plants[0].name!=='changed locally';});
+ assert(isolated);assert.equal(calls.filter(x=>x==='/api/v1/plants').length-count,1);
+ holdRegistry=true;await page.evaluate(()=>{window.oldPoll=SmartPlantApp.refresh(true);});
+ while(!registryHeld)await new Promise(r=>setTimeout(r,10));
+ await page.evaluate(async()=>{await SPApi.logout();SmartPlantApp.render();});releaseRegistry();await page.evaluate(()=>oldPoll);
+ assert.equal(await page.locator('#owner-login').count(),1,'Late poll must not restore a logged-out garden');assert.equal(await page.locator('.home-plant').count(),0);
+ assert.deepEqual(errors,[]);assert(!preview.state.writes.some(x=>x.path.includes('/commands')));
+ console.log('PASS: progressive first paint, navigation during slow metadata, background catalogue reuse, stable DOM and isolated GET deduplication');
+}finally{await browser?.close();await preview.close();}})().catch(e=>{console.error(e);process.exitCode=1;});
