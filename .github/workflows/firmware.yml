@@ -22,6 +22,7 @@ jobs:
           python tests/firmware/test_provision.py
           python tests/firmware/test_flash.py
           python tests/firmware/test_ota_layout.py
+          python tests/firmware/test_web_assets.py
           python tools/spp_inspect.py --check-vectors spec/spp/v1/vectors.json
       - uses: actions/setup-node@v4
         with:

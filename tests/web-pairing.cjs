@@ -2,8 +2,9 @@ const {chromium}=require('playwright');const fs=require('node:fs');const assert=
 const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'));
 (async()=>{const browser=await chromium.launch({headless:true});try{
  const page=await browser.newPage({viewport:{width:390,height:844},reducedMotion:'reduce'}),errors=[];
+ await page.clock.install();
  page.on('pageerror',e=>errors.push(e.message));
- let searches=0,connects=0,metaWrites=0,calibrations=0,online=false,demo=false,apiInDemo=0,raw=3000;
+ let searches=0,connects=0,metaWrites=0,calibrations=0,online=false,demo=false,apiInDemo=0,raw=3000,sampleUptime=0;
  const id='spo-010203040506',plant='01020304-0506-4008-800a-0b0c0d0e0f10',token='b'.repeat(64);
  let metadata={schema_version:1,revision:0,name:'Plant 0506',species_id:null,room:'',setup_stage:0};
  let state={schema_version:1,phase:'idle',remaining_seconds:0,selected_device_id:'',pending:false,security_mode:'first_use_unverified',candidates:[]};
@@ -30,7 +31,8 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
    connects++;assert.equal(req.postDataJSON().device_id,id);state={...state,phase:'connecting',pending:true,selected_device_id:id,candidates:[]};return route.abort('connectionreset');
   }else if(path===`/api/v1/nodes/${id}/device`){data={...fixture('device'),device_id:id,firmware_version:'0.2.0',capabilities:{soil_sensor:'analog',tank_sensor:false,pump:false,water_volume:'estimated',event_history:'local_bounded',hardware_known:true,soil_configured:true,identify:false,detach:true,ota:false,sensors:[{sensor_id:'sensor-0',kind:'soil_index',unit:'percent',max_age_ms:30000,calibration:'soil_two_point'}]}};}
   else if(path===`/api/v1/nodes/${id}/state`){
-   data={...fixture('state-clock-unset'),device_id:id,plant:{plant_id:plant,name:metadata.name,species_id:null,room:metadata.room},availability:{online,last_seen_age_ms:online?0:45000},soil:{quality:online?'uncalibrated':'stale',raw_adc:raw,soil_index_pct:null,last_index_pct:online?null:42,sampled_at:null,sample_age_ms:online?0:45000},sensors:[{sensor_id:'sensor-0',kind:'soil_index',unit:'percent',max_age_ms:30000,calibration:'soil_two_point',quality:online?'uncalibrated':'stale',value:null,last_value:online?null:42,sample_age_ms:online?0:45000}]};
+   data={...fixture('state-clock-unset'),device_id:id,uptime_ms:(sampleUptime+=3000),plant:{plant_id:plant,name:metadata.name,species_id:null,room:metadata.room},availability:{online,last_seen_age_ms:online?0:45000},soil:{quality:online?'uncalibrated':'stale',raw_adc:raw,soil_index_pct:null,last_index_pct:online?null:42,sampled_at:null,sample_age_ms:online?0:45000},sensors:[{sensor_id:'sensor-0',kind:'soil_index',unit:'percent',max_age_ms:30000,calibration:'soil_two_point',quality:online?'uncalibrated':'stale',value:null,last_value:online?null:42,sample_age_ms:online?0:45000}]};
+  }else if(path===`/api/v1/nodes/${id}/care-service`){data={schema_version:1,phase:'active',requested:true,mode:'manual'};
   }else if(path===`/api/v1/nodes/${id}/plant`){if(req.method()==='PUT'){const next=req.postDataJSON();assert.equal(next.revision,metadata.revision);metadata={...next,revision:metadata.revision+1};metaWrites++;}data=metadata;}
   else if(path===`/api/v1/nodes/${id}/config`){if(req.method()==='PUT'){const next=req.postDataJSON();assert.equal(req.headers()['if-match'],String(config.revision));assert.deepEqual(next.soil_calibration,{dry_raw:3000,wet_raw:1000});config={...next,revision:config.revision+1};calibrations++;}data={...config,plant_name:metadata.name};}
   else return route.fulfill({status:404,contentType:'application/json',body:'{"error":{"message":"not_found"}}'});
@@ -48,8 +50,8 @@ const fixture=n=>JSON.parse(fs.readFileSync('spec/v1/examples/'+n+'.json','utf8'
  await page.locator('#connect-close').click();await page.locator('.pcard').click();await page.locator('[data-action=wizard]').click();await page.locator('#plant-name').fill('Монстера');await page.locator('#plant-room').fill('Гостиная');await page.locator('[data-profile-group=fruit]').click();await page.locator('[data-species=tomato-cherry]').click();await page.locator('[data-growth-stage=flower]').click();assert((await page.locator('#profile-preview').textContent()).includes('Цветение'));await page.locator('[data-profile-group=leaf]').click();await page.locator('[data-species=monstera]').click();assert.equal(await page.locator('[data-growth-stage=fruit]').count(),0);await page.locator('[data-growth-stage=adult]').click();assert.equal(await page.locator('#plant-name').inputValue(),'Монстера');await page.locator('#profile-save').click();
  await page.locator('[data-action=calibrate]').waitFor();assert.equal(metaWrites,1);assert.equal(metadata.species_id,'monstera');assert.equal(metadata.growth_stage,'adult');
  await page.locator('[data-action=calibrate]').click();await page.waitForFunction(()=>document.querySelector('#calibration-raw')?.textContent==='3000');
- await page.locator('[data-action=capture-dry]').click();raw=1000;
- await page.waitForFunction(()=>document.querySelector('#calibration-raw')?.textContent==='1000');await page.locator('[data-action=capture-wet]').click();await page.locator('[data-action=save-calibration]').click();
+ async function capture(kind){await page.locator(`[data-action=capture-${kind}]`).click();for(let i=0;i<15;i++){await page.clock.runFor(5000);await page.evaluate(()=>SmartPlantApp.refresh());await new Promise(r=>setTimeout(r,80));}const msg=await page.locator('#calibration-progress').textContent();assert(msg.includes('Точка записана'),msg);}
+ await capture('dry');raw=1000;await page.evaluate(()=>SmartPlantApp.refresh());await page.waitForFunction(()=>document.querySelector('#calibration-raw')?.textContent==='1000');await capture('wet');await page.locator('[data-action=save-calibration]').click();
  await page.waitForFunction(()=>document.querySelector('#sheet-message').textContent.includes('Калибровка сохранена'));assert.equal(calibrations,1);
  await page.locator('#sheet [data-action=close]').click();online=false;
  await page.waitForFunction(()=>document.querySelector('#view').textContent.includes('Данные сейчас не обновляются'));
