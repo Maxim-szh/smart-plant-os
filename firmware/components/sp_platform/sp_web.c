@@ -52,6 +52,8 @@ extern const uint8_t plant_data_js_start[] asm("_binary_plant_data_js_start");
 extern const uint8_t plant_data_js_end[] asm("_binary_plant_data_js_end");
 extern const uint8_t garden_js_start[] asm("_binary_garden_js_start");
 extern const uint8_t garden_js_end[] asm("_binary_garden_js_end");
+extern const uint8_t boot_js_start[] asm("_binary_boot_js_start");
+extern const uint8_t boot_js_end[] asm("_binary_boot_js_end");
 extern const uint8_t care_js_start[] asm("_binary_care_js_start");
 extern const uint8_t care_js_end[] asm("_binary_care_js_end");
 extern const uint8_t home_js_start[] asm("_binary_home_js_start");
@@ -78,7 +80,7 @@ static const char *asset_csp(bool demo) {
     return demo ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
                   "'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
                 : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src "
-                  "'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
+                  "'self' https://api.github.com; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 }
 static esp_err_t send_asset(httpd_req_t *r, const uint8_t *data, size_t size) {
     const sp_web_asset_t *asset = NULL;
@@ -466,6 +468,10 @@ static esp_err_t handle(httpd_req_t *r) {
     if (r->method == HTTP_GET && !strcmp(r->uri, "/garden.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");
         return send_asset(r, garden_js_start, garden_js_end - garden_js_start);
+    }
+    if (r->method == HTTP_GET && !strcmp(r->uri, "/boot.js")) {
+        httpd_resp_set_type(r, "application/javascript; charset=utf-8");
+        return send_asset(r, boot_js_start, boot_js_end - boot_js_start);
     }
     if (r->method == HTTP_GET && !strcmp(r->uri, "/care.js")) {
         httpd_resp_set_type(r, "application/javascript; charset=utf-8");

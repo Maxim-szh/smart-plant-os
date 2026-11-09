@@ -38,7 +38,6 @@
  document.addEventListener('click',e=>{const b=e.target.closest('[data-home]');if(!b||b.disabled||!env)return;const a=b.dataset.home,id=b.dataset.plant;
   if(a==='quick')quick(id);if(a==='move')move(id).catch(report);if(a==='service')service(id).catch(report);if(a==='entry')chooseEntry();if(a==='add'){dialog?.close();window.SmartPlantConnect.open();}
   if(a==='toggle-room'){const room=b.dataset.room;const found=prefs.collapsed.indexOf(room);if(found>=0)prefs.collapsed.splice(found,1);else prefs.collapsed.push(room);prefs.collapsed=prefs.collapsed.slice(-20);save();env.render();}
-  if(a==='order-room'){const names=rooms(env.state.catalog),room=b.dataset.room,i=names.indexOf(room),to=i+Number(b.dataset.direction);if(i>=0&&to>=0&&to<names.length){[names[i],names[to]]=[names[to],names[i]];prefs.order=names.slice(0,20);save();env.render();}}
  });
  window.SPHome={configure(value){env=value;},rooms,groups,selector,service,quick};
 })();
