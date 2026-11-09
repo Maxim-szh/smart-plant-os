@@ -10,7 +10,7 @@ button,.primary{text-align:center;line-height:1.4}section{scroll-margin-top:20px
 @media(max-width:720px){main{padding:18px max(18px,env(safe-area-inset-right,0px)) max(32px,env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px))}.layout{grid-template-columns:minmax(0,1fr)}section{padding:20px}}
 @media(max-width:380px){header{gap:8px}.private{max-width:none;text-align:left;width:100%}h1{font-size:30px}}
 @media(display-mode:standalone){main{padding-top:max(24px,env(safe-area-inset-top,0px))}}
-</style><script src="/api.js" defer></script><script src="/care.js" defer></script><script src="/updates.js" defer></script><script src="/network.js" defer></script><script src="/setup.js" defer></script></head><body><main>
+</style><script src="/boot.js" data-app="setup" defer></script></head><body><main>
 <header><b class="brand"><i aria-hidden="true"></i>Smart Plant OS</b><span class="private">Локально. В вашем доме.</span></header>
 <div class="layout"><aside class="intro"><h1>Всё начинается с подключения</h1><p class="muted">Несколько шагов — и ваш сад появится в домашней сети. Все настройки сохранятся на устройстве.</p><ol class="steps" aria-label="Этапы настройки"><li id="step-login" aria-current="step">Ваше устройство</li><li id="step-wifi">Домашний Wi-Fi</li><li id="step-ready">Готово</li></ol><div class="sprout" aria-hidden="true"></div><p class="muted support"><small>Точка SmartPlantOS · пароль smartplantos<br>Ключ администратора индивидуален для вашего устройства.</small></p></aside>
 <div><p id="message" role="status" aria-live="polite">Введите ключ администратора или выберите файл доступа, сохранённый при установке.</p>

@@ -73,7 +73,7 @@ $('#access-file').onchange = async () => {
 };
 $('#login-form').onsubmit = e => {e.preventDefault();action($('#login-button'), async () => {
   const password = $('#admin').value; $('#admin').value = '';
-  token = (await request('/session','POST',{password,remember:$('#remember-browser').checked,device_name:/iPhone|iPad|Android/i.test(navigator.userAgent)?'Мой телефон':'Мой компьютер'})).token||'cookie'; session();message('Устройство подтверждено. Проверяем настройки сети…');await refresh();
+  token = (await request('/session','POST',{password,remember:$('#remember-browser').checked,device_name:window.SPApi.browserName()})).token||'cookie'; session();message('Устройство подтверждено. Проверяем настройки сети…');await refresh();
 });};
 $('#wifi-form').onsubmit = e => {e.preventDefault();action($('#wifi-button'), async () => {
   const ssid = $('#ssid').value, password = $('#wifi-password').value;

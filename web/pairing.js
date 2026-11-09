@@ -3,7 +3,7 @@
   let token = '', timer = null, busy = false, authenticated = false, selectedNew=null, editorDevice=null, configured=[];
   const dialog = document.createElement('dialog');
   dialog.id = 'connect-sheet'; dialog.setAttribute('aria-labelledby','connect-title');
-  dialog.innerHTML = `<div class="sheet"><div class="row"><h2 id="connect-title" class="disp">Добавить растение</h2><button class="btn quiet" id="connect-close" aria-label="Закрыть">Закрыть</button></div>
+  dialog.innerHTML = `<div class="sheet"><div class="service-header"><h2 id="connect-title" class="disp">Добавить растение</h2><button class="btn quiet" id="connect-close" aria-label="Закрыть">Закрыть</button></div>
     <p class="t2">Включите новый ESP32-C3 рядом с Hub. Подключать C3 к домашнему Wi-Fi не нужно.</p>
     <p id="connect-message" class="banner" role="status" aria-live="polite">Подтвердите вход владельца для добавления устройств.</p>
     <form id="connect-login"><div class="fld"><label for="connect-key">Ключ администратора Hub</label><input class="inp" id="connect-key" type="password" autocomplete="current-password" maxlength="64" required></div><button class="btn pri big">Продолжить</button></form>
