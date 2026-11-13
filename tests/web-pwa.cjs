@@ -38,6 +38,20 @@ const {createPreview}=require('./helpers/home-server.cjs');
   assert(await page.locator('#view [data-home=move]').isVisible());assert(await page.locator('#view [data-home=service]').isVisible());
   await page.locator('.plant-title').click();await page.locator('#plant-name').waitFor();
   assert.equal(await page.locator('#plant-name').evaluate(e=>getComputedStyle(e).userSelect),'text');await page.locator('#sheet [data-action=close]').click();
+  await page.locator('#view [data-action=controller]').click();await page.locator('#sheet [data-action=readiness]').click();
+  await page.getByRole('heading',{name:'Готовность растения',exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'shT','The dialog must focus its title, not the Close button');
+  assert.equal(await page.locator('#sheet .lead').evaluate(e=>getComputedStyle(e).userSelect),'none','Dialog text must not start accidental drag selection');
+  const closeBox=await page.locator('#sheet [data-action=close]').boundingBox(),textBox=await page.locator('#sheet .lead').boundingBox();
+  await page.mouse.move(closeBox.x+closeBox.width/2,closeBox.y+closeBox.height/2);await page.mouse.down();
+  await page.mouse.move(textBox.x+20,textBox.y+textBox.height/2,{steps:12});await page.mouse.up();
+  assert.equal(await page.evaluate(()=>getSelection().toString()),'','Dragging from Close across the dialog must not select the page');
+  await page.locator('#shT').focus();
+  await page.locator('#shT').press('Tab');
+  assert(await page.locator('#sheet [data-action=close]').evaluate(e=>e===document.activeElement&&e.matches(':focus-visible')),'Keyboard users must retain a visible focus on Close');
+  await page.locator('#sheet [data-action=readiness]').click();
+  await page.waitForFunction(()=>document.activeElement.id==='shT');
+  await page.locator('#sheet [data-action=close]').click();
   const manifest=JSON.parse(fs.readFileSync('web/manifest.webmanifest'));
   assert.deepEqual([manifest.id,manifest.start_url,manifest.scope,manifest.display],['/','/','/','standalone']);
   for(const [name,size]of [['apple-touch-icon.png',180],['icon-192.png',192],['icon-512.png',512]]){
@@ -50,6 +64,6 @@ const {createPreview}=require('./helpers/home-server.cjs');
   await page.waitForFunction(()=>document.querySelector('meta[name="theme-color"]').content===getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
   assert.equal(await page.locator('meta[name=theme-color]').getAttribute('content'),await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()));
   assert.deepEqual(errors,[]);assert.equal(preview.state.writes.length,0);
-  console.log('PASS: PWA icons, mobile scrolling/selection, editable inputs, human device names with expandable IDs, diary navigation, detail actions and responsive two-plus-one summary; no mutations');
+  console.log('PASS: PWA icons, readiness title focus/recheck, drag-selection prevention with visible keyboard focus, mobile scrolling/selection, editable inputs, human device names with expandable IDs, diary navigation, detail actions and responsive two-plus-one summary; no mutations');
  }finally{await browser?.close();await preview.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

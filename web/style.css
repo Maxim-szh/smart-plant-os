@@ -572,6 +572,8 @@ body[data-mode=live] .diary-kind-picker .chip[aria-pressed=true]{background:var(
 .update-releases a.btn{max-width:100%;overflow-wrap:anywhere;padding:10px 16px}
 
 /* Phone/PWA chrome: preserve native scrolling, form editing and keyboard focus. */
+html[data-app] :is(body,dialog){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+#shT:focus{outline:none}
 .brand .app-mark{display:block;flex:none;border-radius:7px}
 html[data-app] :is(button,summary,a.btn,[role=tab],.brand,.pill,.tag){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
 html[data-app] :is(button,a.btn,summary){touch-action:manipulation}
