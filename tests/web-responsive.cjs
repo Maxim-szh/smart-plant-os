@@ -39,16 +39,11 @@ const {createPreview}=require('./helpers/home-server.cjs');
    }
    await nav('garden');
    const card=page.locator('.home-plant').first();
-   if(await card.locator('.plant-utilities').getAttribute('open')!==null)await card.locator('.plant-utilities summary').click();
-   assert.equal(await card.locator('[data-home=move]').isVisible(),false);
-   await card.locator('.plant-utilities summary').click();
-   assert(await card.locator('[data-home=move]').isVisible());
-   if(width===390){preview.state.online=false;await page.evaluate(()=>SmartPlantApp.refresh());assert(await card.locator('[data-home=move]').isVisible(),'Data refresh retains expanded actions');preview.state.online=true;await page.evaluate(()=>SmartPlantApp.refresh());}
-   await layout(width+' card actions');
-   await card.locator('[data-home=move]').click();
-   await page.locator('#home-dialog').waitFor({state:'visible'});await layout(width+' move dialog');
-   await page.locator('#home-close').click();
+   assert.equal(await card.locator('.plant-utilities,[data-action=diary],[data-home=move]').count(),0);
    await card.locator('.plant-open').click();await layout(width+' plant detail');
+   assert.equal(await page.locator('#view [data-action=diary]').count(),0);
+   if(width===390){preview.state.online=false;await page.evaluate(()=>SmartPlantApp.refresh());assert(await page.locator('#view [data-home=move]').isVisible());preview.state.online=true;await page.evaluate(()=>SmartPlantApp.refresh());}
+   await page.locator('#view [data-home=move]').click();await page.locator('#home-dialog').waitFor({state:'visible'});await layout(width+' move dialog');await page.locator('#home-close').click();
    assert.equal(await page.locator('#view .cta').count(),0,'No fixed disabled action covers readings');
    if(width===390){
     assert(await page.locator('#plant-tab-now').isVisible());

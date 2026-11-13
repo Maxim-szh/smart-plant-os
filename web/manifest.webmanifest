@@ -7,7 +7,7 @@
   "scope": "/",
   "display": "standalone",
   "background_color": "#F0F2EC",
-  "theme_color": "#2C6A4F",
+  "theme_color": "#F0F2EC",
   "description": "Ваши растения и устройства в домашней сети",
   "icons": [
     {

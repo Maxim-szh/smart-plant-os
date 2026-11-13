@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+ <title>Smart Plant OS</title>
+ <path fill="#2C6A4F" d="M0 0h512v512H0z"/>
+ <path d="M256 326V187" fill="none" stroke="#F0F2EC" stroke-width="18" stroke-linecap="round"/>
+ <path fill="#BDD6B8" d="M249 226c-28-58-98-60-111-13-8 32 61 63 111 13Z"/>
+ <path fill="#F0F2EC" d="M261 193c-11-61 58-99 88-57 24 34-22 82-88 57Z"/>
+ <path fill="#F0F2EC" d="M178 316h156l-20 78H199Z"/>
+ <rect x="170" y="305" width="172" height="23" rx="11.5" fill="#F0F2EC"/>
+</svg>
