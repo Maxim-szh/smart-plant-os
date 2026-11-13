@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru">
+<html lang="ru" data-app="live">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2C6A4F"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Smart Plant"><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><title>Smart Plant OS</title>
+<meta name="theme-color" content="#F0F2EC"><meta name="apple-mobile-web-app-status-bar-style" content="default"><link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Smart Plant"><link rel="manifest" href="/manifest.webmanifest"><link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"><title>Smart Plant OS</title>
 <link rel="stylesheet" href="/fonts/faces.css">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -14,7 +14,15 @@
   <aside class="rail" id="rail" aria-label="Разделы"></aside>
   <div class="main">
     <div class="top">
-      <div class="brand"><i></i>Smart Plant</div>
+      <div class="brand"><svg class="app-mark" width="28" height="28" viewBox="0 0 512 512" aria-hidden="true" focusable="false">
+
+ <path fill="#2C6A4F" d="M0 0h512v512H0z"/>
+ <path d="M256 326V187" fill="none" stroke="#F0F2EC" stroke-width="18" stroke-linecap="round"/>
+ <path fill="#BDD6B8" d="M249 226c-28-58-98-60-111-13-8 32 61 63 111 13Z"/>
+ <path fill="#F0F2EC" d="M261 193c-11-61 58-99 88-57 24 34-22 82-88 57Z"/>
+ <path fill="#F0F2EC" d="M178 316h156l-20 78H199Z"/>
+ <rect x="170" y="305" width="172" height="23" rx="11.5" fill="#F0F2EC"/>
+</svg>Smart Plant</div>
     </div>
 
     <main id="view" tabindex="-1"><section class="app-loading" role="status" aria-live="polite" aria-busy="true"><span class="loading-indicator" aria-hidden="true"></span><h1 class="disp">Открываем ваш сад</h1><p class="note">Получаем данные от главного контроллера.</p></section></main>

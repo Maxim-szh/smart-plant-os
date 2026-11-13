@@ -4,7 +4,7 @@
   const dialog = document.createElement('dialog');
   dialog.id = 'connect-sheet'; dialog.setAttribute('aria-labelledby','connect-title');
   dialog.innerHTML = `<div class="sheet"><div class="service-header"><h2 id="connect-title" class="disp">Добавить растение</h2><button class="btn quiet" id="connect-close" aria-label="Закрыть">Закрыть</button></div>
-    <p class="t2">Включите новый ESP32-C3 рядом с Hub. Подключать C3 к домашнему Wi-Fi не нужно.</p>
+    <p class="t2">Включите новый контроллер растения рядом с главным контроллером. Отдельно подключать его к домашнему Wi-Fi не нужно.</p>
     <p id="connect-message" class="banner" role="status" aria-live="polite">Подтвердите вход владельца для добавления устройств.</p>
     <form id="connect-login"><div class="fld"><label for="connect-key">Ключ администратора Hub</label><input class="inp" id="connect-key" type="password" autocomplete="current-password" maxlength="64" required></div><button class="btn pri big">Продолжить</button></form>
     <div id="connect-controls" hidden><button id="connect-search" class="btn pri big">Найти рядом</button><div id="connect-candidates"></div><div id="connect-profile" hidden></div><div id="connect-complete" hidden></div><button id="connect-retry" class="btn" hidden>Продолжить подключение</button><h3 class="sgh">Ваши контроллеры</h3><ul id="connect-nodes"></ul><p class="note">Новые C3 доступны для поиска 2 минуты после включения. Если плата не нашлась, выключите и включите её. Уже привязанные устройства в поиске не появляются.</p><details><summary>Как защищена связь</summary><p class="note">Ключи согласуются автоматически и сохраняются на платах. В этой версии первое подключение не проверяет подлинность устройства по коду. Выполняйте его в доверенном окружении.</p></details></div></div>`;
@@ -38,15 +38,15 @@
       $('connect-search').disabled=busy||state.pending||state.phase==='searching'||state.phase==='unavailable';
       $('connect-retry').hidden=!['waiting_device','storage_error'].includes(state.phase);
       const candidates=$('connect-candidates');candidates.replaceChildren();
-      for(const c of state.candidates){
+      for(const [index,c] of state.candidates.entries()){
         const row=document.createElement('div');row.className='row';
-        const label=document.createElement('span');label.textContent=`${c.model} · ${c.device_id.slice(-4)}`;
+        const label=document.createElement('span');label.textContent=`Новое растение ${index+1}`;const details=document.createElement('details');details.className='adv technical-details';const summary=document.createElement('summary');summary.textContent='Технические сведения';const info=document.createElement('p');info.textContent=`${c.model} · ${c.device_id}`;details.append(summary,info);
         const button=document.createElement('button');button.className='btn';button.textContent='Подключить';button.disabled=busy;
         button.onclick=()=>{selectedNew=c.device_id;action(()=>request('/setup/pairing/connect','POST',{device_id:c.device_id}));};
-        row.append(label,button);candidates.append(row);
+        row.append(label,button);candidates.append(row,details);
       }
-      $('connect-nodes').replaceChildren(...registry.nodes.map(n=>{
-        const li=document.createElement('li');li.textContent=`${n.display_name || n.device_id} — ${n.online?'на связи':'ожидаем связь'}`;return li;
+      $('connect-nodes').replaceChildren(...registry.nodes.map((n,index)=>{
+        const li=document.createElement('li');li.textContent=`${window.SPApi.deviceName(n,index)} — ${n.online?'на связи':'ожидаем связь'}`;return li;
       }));
       if(target?.online&&state.phase==='paired'&&selectedNew===target.device_id&&editorDevice!==target.device_id)await describe(target);
       if(!registry.nodes.length){const li=document.createElement('li');li.textContent='Пока нет подключённых растений';$('connect-nodes').append(li);}
