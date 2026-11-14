@@ -59,6 +59,17 @@ const {createPreview}=require('./helpers/home-server.cjs');
   }
   assert.equal(await page.locator('link[rel=apple-touch-icon]').getAttribute('sizes'),'180x180');
   assert(await page.locator('.brand svg.app-mark').isVisible());
+  // iOS Home Screen exposes navigator.standalone, including on local HTTP.
+  const installed=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+  await installed.addInitScript(()=>Object.defineProperty(navigator,'standalone',{value:true}));
+  await installed.goto(url);await installed.locator('.home-plant').first().waitFor();
+  assert(await installed.locator('.top').isHidden(),'Installed app must not repeat the brand header');
+  assert(await installed.locator('#tabbar').isVisible());
+  await installed.waitForFunction(()=>{
+   const title=document.querySelector('.home-plant h3');
+   return title&&getComputedStyle(title).userSelect==='none';
+  });
+  await installed.close();
   assert(!(await page.locator('meta[name=viewport]').getAttribute('content')).includes('user-scalable=no'));
   await page.emulateMedia({colorScheme:'dark'});
   await page.waitForFunction(()=>document.querySelector('meta[name="theme-color"]').content===getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());

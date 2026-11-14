@@ -141,7 +141,7 @@ def fresh_hub(port,profile,bundle):
     files=load_bundle(bundle,profile)
     if input(f'Первичная установка нового Hub {mac}. Введите INSTALL: ').strip()!='INSTALL': print('Отменено. Плата не изменена.');return
     tool('--chip',chip,'--port',port,'write_flash','0x0',files['bootloader'],'0x8000',files['partition_table'],*initial_ota_args(files),'0x30000',files['app'],'0x9000',output/'hub.nvs.bin')
-    print(f'Готово. Подключитесь к SmartPlantOS и откройте https://192.168.4.1/setup\nПароль точки и ключ администратора: {output/"access.json"}')
+    print(f'Готово. Подключитесь к SmartPlantOS и откройте http://192.168.4.1/setup\nПароль точки и ключ администратора: {output/"access.json"}')
 
 def update(port,profile,bundle):
     chip=PROFILES[profile][0];detect(port,profile,keep_rom=True);files=load_bundle(bundle,profile)

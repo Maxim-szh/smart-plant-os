@@ -74,7 +74,18 @@
    const m=JSON.parse(await mf.text()),s=await api.request('/updates'),profile=target==='hub'?s.profile:'c3';
    if(s.active||s.verifying)throw Error('Дождитесь завершения текущего обновления');
    const checks=await api.care(),issue=checks.packageReview(m,bin,s,target,currentVersion);if(issue)throw Error(issue);
-   message('Проверяем целостность файла…');const bytes=new Uint8Array(await bin.arrayBuffer()),hash=hex(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));if(hash!==m.app.sha256)throw Error('SHA-256 не совпадает. Скачайте пакет заново');
+   message('Проверяем пакет обновления…');
+   const bytes = new Uint8Array(await bin.arrayBuffer());
+   const hash = m.app.sha256;
+   if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash)) {
+    throw Error('Некорректный SHA-256 в manifest.json');
+   }
+   // Hub verifies the complete uploaded image before switching the boot slot.
+   // Secure browser contexts additionally reject corrupt files before upload.
+   if (crypto.subtle) {
+    const actualHash = hex(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)));
+    if (actualHash !== hash) throw Error('SHA-256 не совпадает. Скачайте пакет заново');
+   }
    context={bytes,hash,session:api.uuid(),version:m.version,target};
    el('version').textContent=`Установлена: ${currentVersion||s.firmware_version}. Выбрана: ${m.version}.`;
    /* Keep the context even if BEGIN response is lost; resume requires matching server status. */
