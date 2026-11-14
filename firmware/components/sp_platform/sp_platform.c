@@ -649,7 +649,11 @@ void sp_platform_run(bool hub) {
                 puts("Maintenance unavailable: journal invalid");
             bool web_ready = sp_web_start();
             boot_healthy = boot_healthy && web_ready;
+#ifdef CONFIG_SP_WEB_LOCAL_HTTP
+            puts(web_ready ? "Web: http://192.168.4.1 (physical credentials required)"
+#else
             puts(web_ready ? "Web: https://192.168.4.1 (physical credentials required)"
+#endif
                            : "Web unavailable: provision web credentials/certificate first");
         }
     }

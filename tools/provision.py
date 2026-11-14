@@ -78,7 +78,7 @@ def generate(args):
                    "cert": cert.read_text(encoding="utf-8"), "key": key.read_text(encoding="utf-8")}
             fingerprint = "SHA256 Fingerprint=" + ":".join(f"{b:02X}" for b in certificate.fingerprint(hashes.SHA256()))
             with (args.output / "access.json").open("x", encoding="utf-8") as access:
-                json.dump({"setup_wifi": "SmartPlantOS", "url": "https://192.168.4.1/setup",
+                json.dump({"setup_wifi": "SmartPlantOS", "url": "http://192.168.4.1/setup",
                            "setup_wifi_password": web["ap_pass"], "admin_password": web["admin"],
                            "home_wifi_ssid": wifi_ssid or None, "certificate_sha256": fingerprint}, access, indent=2)
         pmk = secrets.token_bytes(16)

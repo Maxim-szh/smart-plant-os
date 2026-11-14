@@ -136,7 +136,7 @@ def main():
         run([sys.executable, "-m", "esptool", "--chip", "esp32c3", "--port", port,
              "write_flash", "0x9000", output / f"node-{i}.nvs.bin"])
     print(f"\nУстановка готова: один Hub и {len(node_macs)} Node.")
-    print(f"Первый вход: Wi-Fi SmartPlantOS → https://192.168.4.1/setup; пароль и ключ входа: {output / 'access.json'}")
+    print(f"Первый вход: Wi-Fi SmartPlantOS → http://192.168.4.1/setup; пароль и ключ входа: {output / 'access.json'}")
     if wifi_ssid:
         print(f"Hub также подключается к домашней сети {wifi_ssid!r}; IP-адрес появится в serial monitor/списке клиентов роутера.")
         print("Канал домашнего Wi-Fi определяется автоматически; --channel задаёт резерв для автономного режима.")
