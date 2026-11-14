@@ -132,6 +132,18 @@ static int64_t attempt_window;
 static unsigned attempts;
 static uint32_t serial;
 
+#ifdef CONFIG_SP_WEB_LOCAL_HTTP
+#define SP_WEB_SCHEME "http"
+#define SP_WEB_DEFAULT_PORT ":80"
+#define SP_WEB_COOKIE "sp_http_session"
+#define SP_WEB_COOKIE_SECURITY ""
+#else
+#define SP_WEB_SCHEME "https"
+#define SP_WEB_DEFAULT_PORT ":443"
+#define SP_WEB_COOKIE "sp_session"
+#define SP_WEB_COOKIE_SECURITY "; Secure"
+#endif
+
 static bool origin_allowed(httpd_req_t *r) {
     size_t origin_len = httpd_req_get_hdr_value_len(r, "Origin");
     if (!origin_len)
@@ -142,9 +154,10 @@ static bool origin_allowed(httpd_req_t *r) {
         httpd_req_get_hdr_value_str(r, "Host", host, sizeof(host)) != ESP_OK)
         return false;
     size_t host_len = strlen(host);
-    if (host_len > 4 && !strcmp(host + host_len - 4, ":443"))
-        host[host_len - 4] = 0;
-    if (snprintf(expected, sizeof(expected), "https://%s", host) >= (int)sizeof(expected))
+    size_t port_len = strlen(SP_WEB_DEFAULT_PORT);
+    if (host_len > port_len && !strcmp(host + host_len - port_len, SP_WEB_DEFAULT_PORT))
+        host[host_len - port_len] = 0;
+    if (snprintf(expected, sizeof(expected), SP_WEB_SCHEME "://%s", host) >= (int)sizeof(expected))
         return false;
     return !strcmp(origin, expected);
 }
@@ -290,8 +303,8 @@ static int browser_auth(httpd_req_t *r, uint64_t now) {
         char *end = strchr(p, ';');
         if (end)
             *end = 0;
-        if (!strncmp(p, "sp_session=", 11))
-            slot = sp_sessions_check(&sessions, p + 11, now);
+        if (!strncmp(p, SP_WEB_COOKIE "=", sizeof(SP_WEB_COOKIE)))
+            slot = sp_sessions_check(&sessions, p + sizeof(SP_WEB_COOKIE), now);
         if (slot >= 0 || !end)
             break;
         p = end + 1;
@@ -300,7 +313,7 @@ static int browser_auth(httpd_req_t *r, uint64_t now) {
 }
 /* ESP-IDF retains header pointers until send; the caller owns this request-scope buffer. */
 static void browser_cookie(httpd_req_t *r, const char *secret, unsigned age, char cookie[180]) {
-    snprintf(cookie, 180, "sp_session=%s; Path=/; Max-Age=%u; HttpOnly; Secure; SameSite=Strict", secret,
+    snprintf(cookie, 180, SP_WEB_COOKIE "=%s; Path=/; Max-Age=%u; HttpOnly" SP_WEB_COOKIE_SECURITY "; SameSite=Strict", secret,
              age);
     httpd_resp_set_hdr(r, "Set-Cookie", cookie);
 }
@@ -645,6 +658,10 @@ bool sp_web_start(void) {
         return false;
     }
     httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
+#ifdef CONFIG_SP_WEB_LOCAL_HTTP
+    config.transport_mode = HTTPD_SSL_TRANSPORT_INSECURE;
+    config.port_insecure = 80;
+#endif
     config.servercert = (const unsigned char *)cert;
     config.servercert_len = strlen(cert) + 1;
     config.prvtkey_pem = (const unsigned char *)key;

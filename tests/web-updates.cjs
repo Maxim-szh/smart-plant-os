@@ -22,5 +22,17 @@ const {chromium}=require('playwright');const fs=require('node:fs');const assert=
  await setManifest(manifest);await page.locator('#update-submit').click();await page.waitForFunction(()=>document.querySelector('#update-message').textContent.includes('Запуск новой прошивки подтверждён'));assert.equal(begins,1);assert.equal(chunks,3);assert.equal(finishes,1);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);if(!process.env.SP_NO_SCREENSHOTS)await page.screenshot({path:'/tmp/smartplant-update-mobile.png',fullPage:true});
  await page.locator('#update-close').click();status={...status,active:false,phase:'idle'};offset=0;failChunk=true;await page.evaluate(()=>SmartPlantUpdates.open('hub'));await page.locator('#update-submit').click();await page.waitForFunction(()=>document.querySelector('#update-message').textContent.includes('автоматически не выполняется'));const count=chunks;await page.waitForTimeout(1400);assert.equal(chunks,count);assert.equal(finishes,1);status.image_sha256='0'.repeat(64);await page.locator('#update-check').click();assert(await page.locator('#update-resume').isHidden());status.image_sha256=hash;await page.locator('#update-close').click();await page.evaluate(()=>SmartPlantUpdates.open('hub'));await page.locator('#update-resume').waitFor();await page.locator('#update-resume').click();await page.waitForFunction(()=>document.querySelector('#update-message').textContent.includes('Запуск новой прошивки подтверждён'));assert.equal(begins,2);assert.equal(finishes,2);assert.equal(chunks,6);assert.deepEqual(errors,[]);
- console.log('PASS: OTA profile/hash rejection, bounded upload, confirmed reboot, mobile dialog and no automatic mutation retry');
+ // A LAN HTTP origin has no SubtleCrypto. The Hub still receives the manifest digest.
+ status={...status,active:false,phase:'idle'};offset=0;
+ await page.goto('http://smartplant.test/');await page.waitForFunction(()=>!!window.SmartPlantUpdates);
+ assert.equal(await page.evaluate(()=>!!crypto.subtle),false);
+ await page.evaluate(()=>SmartPlantUpdates.open('hub'));
+ await page.locator('#update-image').setInputFiles({name:'hub.bin',mimeType:'application/octet-stream',buffer:bytes});
+ const previousBegins=begins;
+ await setManifest({...manifest,app:{...manifest.app,sha256:'invalid'}});
+ await page.locator('#update-submit').click();await page.waitForFunction(()=>document.querySelector('#update-message').textContent.includes('SHA-256'));assert.equal(begins,previousBegins);
+ await setManifest(manifest);await page.locator('#update-submit').click();
+ await page.waitForFunction(()=>document.querySelector('#update-message').textContent.includes('Запуск новой прошивки подтверждён'));
+ assert.equal(begins,previousBegins+1);assert.equal(finishes,3);assert.deepEqual(errors,[]);
+ console.log('PASS: HTTPS/HTTP OTA, invalid digest rejection, bounded upload, confirmed reboot and no automatic mutation retry');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

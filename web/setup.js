@@ -39,7 +39,7 @@ async function refresh() {
     $('#management').hidden = !ready || viaSetupAP || changingWifi;
     setStep(ready && !changingWifi ? 'ready' : 'wifi');
     const open = $('#open-plants'); open.hidden = !ready;
-    if (ready) {open.href = `https://${data.ip}/`; $('#home-address').textContent = `https://${data.ip}/`;}
+    if (ready) {open.href = `${location.protocol}//${data.ip}/`; $('#home-address').textContent = `${location.protocol}//${data.ip}/`;}
     else {open.removeAttribute('href'); $('#home-address').textContent = '';}
     $('#network-status').textContent = phase[data.wifi_phase] || data.wifi_phase;
     if (pendingSsid !== null) {
@@ -51,7 +51,7 @@ async function refresh() {
     $('#ap-value').textContent = data.setup_ap_enabled === undefined ? '—' : data.setup_ap_enabled ? 'Включена' : 'Выключена';
     const ip = $('#ip-value'); ip.replaceChildren();
     if (data.wifi_connected && /^\d{1,3}(\.\d{1,3}){3}$/.test(data.ip)) {
-      const a = document.createElement('a'); a.href = `https://${data.ip}/`; a.textContent = data.ip; ip.append(a);
+      const a = document.createElement('a'); a.href = `${location.protocol}//${data.ip}/`; a.textContent = data.ip; ip.append(a);
     } else ip.textContent = '—';
     $('#wifi-button').disabled = busy || data.wifi_phase === 'connecting';$('#wifi-scan').disabled=busy||data.wifi_phase==='connecting';
     $('#nodes').replaceChildren(...data.nodes.map(node => {const li = document.createElement('li');li.textContent = node.device_id;return li;}));

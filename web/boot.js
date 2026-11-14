@@ -1,6 +1,9 @@
 'use strict';
 /* Serial script loading fits the Hub's TLS connection budget. Retry only failed GETs. */
 (()=>{
+ const standalone=matchMedia('(display-mode: standalone)');
+ const syncDisplayMode=()=>document.documentElement.classList.toggle('pwa-standalone',standalone.matches||navigator.standalone===true);
+ syncDisplayMode();standalone.addEventListener('change',syncDisplayMode);
  const setup=document.currentScript?.dataset.app==='setup';
  const modules=setup?[['api.js','SPApi'],['care.js','SPDrafts'],['updates.js','SmartPlantUpdates'],['network.js','SPWifi'],['setup.js',null]]:[
   ['api.js','SPApi'],['care.js','SPDrafts'],['plant-data.js','SPPlantData'],['plants.js','SPPlants'],['views.js','SPViews'],['network.js','SPWifi'],['system.js','SmartPlantSystem'],['updates.js','SmartPlantUpdates'],['garden.js','SPGarden'],['home.js','SPHome'],['pairing.js','SmartPlantConnect'],['app.js','SmartPlantApp']

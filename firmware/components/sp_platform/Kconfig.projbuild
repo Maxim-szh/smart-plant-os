@@ -1,0 +1,12 @@
+menu "Smart Plant web transport"
+
+config SP_WEB_LOCAL_HTTP
+    bool "Use HTTP for the local Hub interface"
+    depends on IDF_TARGET_ESP32S3
+    default n
+    help
+        Serve the Hub interface on port 80 without TLS. Credentials and
+        sessions travel without transport encryption. Enable only for
+        an intentionally trusted local network. HTTPS remains the default.
+
+endmenu
