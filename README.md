@@ -11,7 +11,7 @@
 ```sh
 python -m pip install -r tools/requirements-flash.txt
 python tools/flash.py
-```
+``` 
        
 На macOS/Linux используйте `python3`; на Windows — `python` или `py -3`. Есть запускатели `flash.cmd` и `./flash.sh`. Мастер предлагает первую установку, обновление с сохранением настроек и подготовку нового C3. Для готового USB-пакета нужен только Python; для сборки из исходников — ESP-IDF 5.3.4.
  
